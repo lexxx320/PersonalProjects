@@ -51,14 +51,14 @@ void producerWriteText(char * filePath, pid_t childPID){
     int i;
     
     printf("waiting on signal SIGUSR2\n");
-    sigpause(SIGUSR2);
     
     for(i = 0; i < charsRead; i++){
       sharedMem.data[i] = currentBlock[i];
     }
+    *(sharedMem.numChars) = charsRead;
     printf("sending signal SIGUSR1\n");
     kill(childPID, SIGUSR1);
-    
+    sigpause(SIGUSR2);
     
     charsRead = fread(currentBlock, 1, 1024, inputFile); 
    
@@ -69,10 +69,12 @@ void producerWriteText(char * filePath, pid_t childPID){
 
 void consumerReadText(){
 
-  printf("waiting of signal SIGUSR1\n");
+  printf("waiting on signal SIGUSR1\n");
   sigpause(SIGUSR1);
   printf("sending signal SIGUSR2\n");
-
+  kill(getppid(), SIGUSR2);
+  printf("exiting...\n");
+  exit(0);
   
 }
 
@@ -89,7 +91,6 @@ int main(int argc, char ** argv){
   pid_t childPid = fork();  //fork a child process
   
   if(childPid == 0){  //child process goes to read function
-    kill(childPid, SIGUSR2);
     consumerReadText();
   }
   else if(childPid > 0){ //parent process
