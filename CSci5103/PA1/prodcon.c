@@ -91,7 +91,7 @@ void consumerReadText(){
     pause();
     
     printf("consumer recieved = \"%s\"\n", sharedMem.data);
-    printf("consumer recieved numChars = %d\"\n", *sharedMem.numChars);
+    printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
     
     printf("sending signal SIGUSR2\n");
     sleep(1);
