@@ -46,8 +46,9 @@ void producerWriteText(char * filePath, pid_t childPID){
     }
     *(sharedMem.numChars) = (int)charsRead;
     printf("sending signal SIGUSR1\n");
+    
     //sleep(1);
-
+    
     kill(childPID, SIGUSR1);
     printf("waiting on signal SIGUSR2\n");
     sigpause(SIGUSR2);
@@ -82,12 +83,9 @@ void consumerReadText(){
 
   while(*sharedMem.numChars != -1){
     printf("waiting on signal SIGUSR1\n");
-    
-    sleep(2);
     sigpause(SIGUSR1);
-    
-    printf("consumer recieved = \"%s\"\n", sharedMem.data);
 
+    //printf("consumer recieved = \"%s\"\n", sharedMem.data);
     printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
     
     //fprintf(outputFile, "%s", sharedMem.data);
