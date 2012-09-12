@@ -2,13 +2,14 @@
 
 #define SHMKEY 2041
 #define SHMKEY2 2042
+sigset_t sig_set;
 struct sharedMemStruct{
   char * data;
   int * numChars;
 };
 
 void sigHandler(int n){
-  
+  signal(n, sigHandler);
 }
 
 void producerWriteText(char * filePath, pid_t childPID){
@@ -46,11 +47,12 @@ void producerWriteText(char * filePath, pid_t childPID){
     *(sharedMem.numChars) = (int)charsRead;
     printf("sending signal SIGUSR1\n");
     
-    sleep(1);
+    //sleep(1);
     
     kill(childPID, SIGUSR1);
     printf("waiting on signal SIGUSR2\n");
     sigpause(SIGUSR2);
+
     j = j+1;
     charsRead = fread(currentBlock, 1, 1024, inputFile);
   }
@@ -82,7 +84,7 @@ void consumerReadText(){
   while(*sharedMem.numChars != -1){
     printf("waiting on signal SIGUSR1\n");
     sigpause(SIGUSR1);
-    
+
     //printf("consumer recieved = \"%s\"\n", sharedMem.data);
     printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
     
@@ -90,7 +92,7 @@ void consumerReadText(){
     fwrite(sharedMem.data, sizeof(char) * 1, sizeof(char) * (*sharedMem.numChars), outputFile);
     
     printf("sending signal SIGUSR2\n");
-    sleep(1);
+    //sleep(1);
     kill(getppid(), SIGUSR2);
   }
   fclose(outputFile);
@@ -106,7 +108,6 @@ int main(int argc, char ** argv){
     printf("user must input only the filename to be transfered.\n");
     exit(1);
   }
-  
   char* filePath = argv[1];
   int status;
   signal(SIGUSR1, sigHandler);
