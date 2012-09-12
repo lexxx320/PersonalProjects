@@ -2,16 +2,14 @@
 
 #define SHMKEY 2041
 #define SHMKEY2 2042
+sigset_t sig_set;
 struct sharedMemStruct{
   char * data;
   int * numChars;
 };
 
-void parentHandler(int sig){
-  printf("Parent caught signal\n");
-}
-void childHandler(int sig){
-  printf("Child caught signal\n");
+void sigHandler(int n){
+  signal(n, sigHandler);
 }
 
 void producerWriteText(char * filePath, pid_t childPID){
@@ -39,7 +37,6 @@ void producerWriteText(char * filePath, pid_t childPID){
   
   char *currentBlock = (char*)malloc(sizeof(char) * 1024);
   int charsRead = fread(currentBlock, 1, 1024, inputFile);
-  //printf("chars read = %d\n", charsRead);
   int j = 0;
   while(charsRead > 0){
     int i;
@@ -50,19 +47,19 @@ void producerWriteText(char * filePath, pid_t childPID){
     *(sharedMem.numChars) = (int)charsRead;
     printf("sending signal SIGUSR1\n");
     //sleep(1);
+
     kill(childPID, SIGUSR1);
     printf("waiting on signal SIGUSR2\n");
-    //sigpause(SIGUSR2);
-    pause();
+    sigpause(SIGUSR2);
+
     j = j+1;
     charsRead = fread(currentBlock, 1, 1024, inputFile);
   }
   
   *(sharedMem.numChars) = -1;
   kill(childPID, SIGUSR1);
-  
+  shmdt((void*) sharedMem.data);
   free(currentBlock);
-  free(sharedMem.data);
 }
 
 void consumerReadText(){
@@ -82,7 +79,7 @@ void consumerReadText(){
     perror("Error attaching shared memory to consumer.\n");
     exit(1);
   }
-  int i = 0;
+
   while(*sharedMem.numChars != -1){
     printf("waiting on signal SIGUSR1\n");
     
@@ -90,16 +87,19 @@ void consumerReadText(){
     sigpause(SIGUSR1);
     
     printf("consumer recieved = \"%s\"\n", sharedMem.data);
+
     printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
     
+    //fprintf(outputFile, "%s", sharedMem.data);
+    fwrite(sharedMem.data, sizeof(char) * 1, sizeof(char) * (*sharedMem.numChars), outputFile);
+    
     printf("sending signal SIGUSR2\n");
-    sleep(1);
+    //sleep(1);
     kill(getppid(), SIGUSR2);
-    ++i;
-    if(i >= 500){
-      exit(0);
-    }
   }
+  fclose(outputFile);
+  shmdt((void*) sharedMem.data);
+  shmctl(sharedMemId, IPC_RMID, NULL);
   printf("exiting...\n");
   exit(0);
   
@@ -110,18 +110,13 @@ int main(int argc, char ** argv){
     printf("user must input only the filename to be transfered.\n");
     exit(1);
   }
-  
-  static struct sigaction pAction, cAction;
-  pAction.sa_handler = parentHandler;
-  sigaction(SIGUSR1, &pAction, NULL);
   char* filePath = argv[1];
   int status;
-  
+  signal(SIGUSR1, sigHandler);
+  signal(SIGUSR2, sigHandler);
   pid_t childPid = fork(); //fork a child process
   
   if(childPid == 0){ //child process goes to read function
-    cAction.sa_handler = childHandler;
-    sigaction(SIGUSR1, &cAction, NULL);
     consumerReadText();
   }
   else if(childPid > 0){ //parent process
