@@ -19,7 +19,7 @@ void producerWriteText(char * filePath, pid_t childPID){
     printf("input file, \"%s\" does not exist, exiting...\n", filePath);
     exit(1);
   }
-  
+  //--------------Get Shared Memory-----------
   int sharedMemId, charsReadId;
   sharedMemId = shmget(SHMKEY, 1024, 0666 | IPC_CREAT);
   charsReadId = shmget(SHMKEY2, 4, 0666 | IPC_CREAT);
@@ -34,13 +34,16 @@ void producerWriteText(char * filePath, pid_t childPID){
     perror("Error attaching shared memory.\n");
     exit(1);
   }
-  
+
   char *currentBlock = (char*)malloc(sizeof(char) * 1024);
   int charsRead = fread(currentBlock, 1, 1024, inputFile);
   int j = 0;
+  //sleep(1);
+  //-----Read in chars and write to Shared memory------
   while(charsRead > 0){
     int i;
-    
+
+    //Write to shared memory
     for(i = 0; i < charsRead; i++){
       sharedMem.data[i] = currentBlock[i];
     }
@@ -49,9 +52,9 @@ void producerWriteText(char * filePath, pid_t childPID){
     
     //sleep(1);
     
-    kill(childPID, SIGUSR1);
+    kill(childPID, SIGUSR1);  //send SIGUSR1
     printf("waiting on signal SIGUSR2\n");
-    sigpause(SIGUSR2);
+    sigpause(SIGUSR2);       //Wait for SIGUSR2
 
     j = j+1;
     charsRead = fread(currentBlock, 1, 1024, inputFile);
@@ -65,6 +68,7 @@ void producerWriteText(char * filePath, pid_t childPID){
 
 void consumerReadText(){
   FILE *outputFile = fopen("output", "w");
+  //-----------Get Shared Memory-----------------
   int sharedMemId, charsReadId;
   sharedMemId = shmget(SHMKEY, 1024, 0666);
   charsReadId = shmget(SHMKEY2, 4, 0666);
@@ -80,10 +84,10 @@ void consumerReadText(){
     perror("Error attaching shared memory to consumer.\n");
     exit(1);
   }
-
+  //---Read in from shared memory and write to output----
   while(*sharedMem.numChars != -1){
     printf("waiting on signal SIGUSR1\n");
-    sigpause(SIGUSR1);
+    sigpause(SIGUSR1);  //Wait for SIGUSR1
 
     //printf("consumer recieved = \"%s\"\n", sharedMem.data);
     printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
@@ -93,7 +97,7 @@ void consumerReadText(){
     
     printf("sending signal SIGUSR2\n");
     //sleep(1);
-    kill(getppid(), SIGUSR2);
+    kill(getppid(), SIGUSR2);  //Send SIGUSR2
   }
   fclose(outputFile);
   shmdt((void*) sharedMem.data);
