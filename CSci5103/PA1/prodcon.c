@@ -13,7 +13,7 @@ void sigHandler(int n){
 }
 
 void producerWriteText(char * filePath, pid_t childPID){
-  sigpause(SIGUSR2);
+  
   //open the file and check that it exists
   FILE *inputFile = fopen(filePath, "r");
   if(inputFile == NULL){
@@ -36,7 +36,8 @@ void producerWriteText(char * filePath, pid_t childPID){
     perror("Error attaching shared memory.\n");
     exit(1);
   }
-
+  sigpause(SIGUSR2);
+  printf("done setting up shared memory for producer\n");
   char *currentBlock = (char*)malloc(sizeof(char) * 1024);
   int charsRead = fread(currentBlock, 1, 1024, inputFile);
   int j = 0;
@@ -70,13 +71,14 @@ void producerWriteText(char * filePath, pid_t childPID){
 }
 
 void consumerReadText(){
+
+  sleep(1);
   FILE *outputFile = fopen("output", "w");
   if(outputFile == NULL){
     perror("Error opening output file\n");
     exit(0);
   }
-  kill(getppid(), SIGUSR2);
-
+  printf("getting shared memory to consumer\n");
   //-----------Get Shared Memory-----------------
   int sharedMemId, charsReadId;
   sharedMemId = shmget(SHMKEY, 1024, 0666);
