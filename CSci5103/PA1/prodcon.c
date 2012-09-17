@@ -116,6 +116,7 @@ void consumerReadText(){
     sleep(1);
     kill(getppid(), SIGUSR2);  //Send SIGUSR2
   }
+  printf("child leaving while loop\n");
   fclose(outputFile);
   shmdt((void*) sharedMem.data);
   shmctl(sharedMemId, IPC_RMID, NULL);
@@ -132,9 +133,8 @@ int main(int argc, char ** argv){
   char* filePath = argv[1];
   int status;
 
-  sigset_t sigs;
-  sigaddset(&sigs, SIGUSR1);
-  sigaddset
+  signal(SIGUSR1, sigHandler);
+  signal(SIGUSR2, sigHandler);
   
   pid_t childPid = fork(); //fork a child process
   
