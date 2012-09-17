@@ -11,7 +11,6 @@ struct sharedMemStruct{
 void sigHandler(int n){
   signal(n, sigHandler);
 }
-
 void producerWriteText(char * filePath, pid_t childPID){
   
   //open the file and check that it exists
@@ -41,7 +40,8 @@ void producerWriteText(char * filePath, pid_t childPID){
   char *currentBlock = (char*)malloc(sizeof(char) * 1024);
   int charsRead = fread(currentBlock, 1, 1024, inputFile);
   int j = 0;
-  sleep(1);
+
+  sleep(3);
   //-----Read in chars and write to Shared memory------
   while(charsRead > 0){
     int i;
@@ -53,11 +53,9 @@ void producerWriteText(char * filePath, pid_t childPID){
     *(sharedMem.numChars) = (int)charsRead;
     printf("sending signal SIGUSR1\n");
     
-    //sleep(1);
-    
-    kill(childPID, SIGUSR1);  //send SIGUSR1
+    kill(childPID, SIGUSR1); //send SIGUSR1
     printf("waiting on signal SIGUSR2\n");
-    sigpause(SIGUSR2);       //Wait for SIGUSR2
+    sigpause(SIGUSR2); //Wait for SIGUSR2
 
     j = j+1;
     charsRead = fread(currentBlock, 1, 1024, inputFile);
@@ -98,7 +96,7 @@ void consumerReadText(){
   //---Read in from shared memory and write to output----
   while(*sharedMem.numChars != -1){
     printf("waiting on signal SIGUSR1\n");
-    sigpause(SIGUSR1);  //Wait for SIGUSR1
+    sigpause(SIGUSR1); //Wait for SIGUSR1
 
     //printf("consumer recieved = \"%s\"\n", sharedMem.data);
     printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
@@ -110,16 +108,18 @@ void consumerReadText(){
     }
     tempString[i+1] = '\0';
     if((*sharedMem.numChars) >=0){
-      fprintf(outputFile, "%s", tempString);
+      //fprintf(outputFile, "%s", tempString);
+      fwrite(sharedMem.data, sizeof(char) * 1, sizeof(char) * (*sharedMem.numChars), outputFile);
     }
-    //fwrite(sharedMem.data, sizeof(char) * 1, sizeof(char) * (*sharedMem.numChars), outputFile);
+    
     free(tempString);
     printf("sending signal SIGUSR2\n");
     sleep(1);
-    kill(getppid(), SIGUSR2);  //Send SIGUSR2
+    kill(getppid(), SIGUSR2); //Send SIGUSR2
   }
   printf("child leaving while loop\n");
   fclose(outputFile);
+  *sharedMem.numChars = 0;
   shmdt((void*) sharedMem.data);
   shmctl(sharedMemId, IPC_RMID, NULL);
   printf("exiting...\n");
