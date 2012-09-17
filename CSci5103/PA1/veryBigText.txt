@@ -1,0 +1,217 @@
+The shared memory will contain a char array buffer of size 1024 to store data
+to be
+transferred, and an integer variable called count for synchronization. The
+positive integer
+value of the count variable would be used to indicate the number of bytes
+present in the
+buffer. A value of -1 would be used to indicate EOF in the sense that the
+producer has no
+more data to be produced.
+The producer process will read data from a file and write it into the shared
+memory
+buffer. This it may do repeatedly as the file may be much larger than the size
+of the
+shared memory. After writing the data in the shared memory, the producer
+process would
+set the integer variable count to the number of bytes stored in the shared
+memory to
+indicate to the consumer that data is available to be consumed. It will also
+send the signal
+SIGUSR1 to the consumer process. The producer process will wait to receive
+SIGUSR2
+before putting any new data into the buffer for the consumer. The process
+would repeat
+till the entire file has been transferred.
+The consumer will be waiting for the SIGUSR1 signal. On receiving this signal
+it would
+check the count variable, and when finding it non-zero and positive, it would
+read that
+many bytes from the shared memory, reset the count variable to zero, and then
+SIGUSR2
+to the producer process. The consumer process will append the received data to
+the
+output file, and once again wait for more data or EOF from the producer. On
+receiving
+EOF value of -1, it would close the output file and terminate.
+Write a program named prodcon.c. It will contain code for both the producer
+and the
+consumer processes. When executed, it would create a shared memory segment,
+and fork
+a child process. The parent would act as the producer, and the child would act
+as the
+consumer. The input file name would be given as a command line argument to
+this
+program.
+The shared memory will contain a char array buffer of size 1024 to store data
+to be
+transferred, and an integer variable called count for synchronization. The
+positive integer
+value of the count variable would be used to indicate the number of bytes
+present in the
+buffer. A value of -1 would be used to indicate EOF in the sense that the
+producer has no
+more data to be produced.
+The producer process will read data from a file and write it into the shared
+memory
+buffer. This it may do repeatedly as the file may be much larger than the size
+of the
+shared memory. After writing the data in the shared memory, the producer
+process would
+set the integer variable count to the number of bytes stored in the shared
+memory to
+indicate to the consumer that data is available to be consumed. It will also
+send the signal
+SIGUSR1 to the consumer process. The producer process will wait to receive
+SIGUSR2
+before putting any new data into the buffer for the consumer. The process
+would repeat
+till the entire file has been transferred.
+The consumer will be waiting for the SIGUSR1 signal. On receiving this signal
+it would
+check the count variable, and when finding it non-zero and positive, it would
+read that
+many bytes from the shared memory, reset the count variable to zero, and then
+SIGUSR2
+to the producer process. The consumer process will append the received data to
+the
+output file, and once again wait for more data or EOF from the producer. On
+receiving
+EOF value of -1, it would close the output file and terminate.
+Write a program named prodcon.c. It will contain code for both the producer
+and the
+consumer processes. When executed, it would create a shared memory segment,
+and fork
+a child process. The parent would act as the producer, and the child would act
+as the
+consumer. The input file name would be given as a command line argument to
+this
+program.The shared memory will contain a char array buffer of size 1024 to store data
+to be
+transferred, and an integer variable called count for synchronization. The
+positive integer
+value of the count variable would be used to indicate the number of bytes
+present in the
+buffer. A value of -1 would be used to indicate EOF in the sense that the
+producer has no
+more data to be produced.
+The producer process will read data from a file and write it into the shared
+memory
+buffer. This it may do repeatedly as the file may be much larger than the size
+of the
+shared memory. After writing the data in the shared memory, the producer
+process would
+set the integer variable count to the number of bytes stored in the shared
+memory to
+indicate to the consumer that data is available to be consumed. It will also
+send the signal
+SIGUSR1 to the consumer process. The producer process will wait to receive
+SIGUSR2
+before putting any new data into the buffer for the consumer. The process
+would repeat
+till the entire file has been transferred.
+The consumer will be waiting for the SIGUSR1 signal. On receiving this signal
+it would
+check the count variable, and when finding it non-zero and positive, it would
+read that
+many bytes from the shared memory, reset the count variable to zero, and then
+SIGUSR2
+to the producer process. The consumer process will append the received data to
+the
+output file, and once again wait for more data or EOF from the producer. On
+receiving
+EOF value of -1, it would close the output file and terminate.
+Write a program named prodcon.c. It will contain code for both the producer
+and the
+consumer processes. When executed, it would create a shared memory segment,
+and fork
+a child process. The parent would act as the producer, and the child would act
+as the
+consumer. The input file name would be given as a command line argument to
+this
+program.The shared memory will contain a char array buffer of size 1024 to store data
+to be
+transferred, and an integer variable called count for synchronization. The
+positive integer
+value of the count variable would be used to indicate the number of bytes
+present in the
+buffer. A value of -1 would be used to indicate EOF in the sense that the
+producer has no
+more data to be produced.
+The producer process will read data from a file and write it into the shared
+memory
+buffer. This it may do repeatedly as the file may be much larger than the size
+of the
+shared memory. After writing the data in the shared memory, the producer
+process would
+set the integer variable count to the number of bytes stored in the shared
+memory to
+indicate to the consumer that data is available to be consumed. It will also
+send the signal
+SIGUSR1 to the consumer process. The producer process will wait to receive
+SIGUSR2
+before putting any new data into the buffer for the consumer. The process
+would repeat
+till the entire file has been transferred.
+The consumer will be waiting for the SIGUSR1 signal. On receiving this signal
+it would
+check the count variable, and when finding it non-zero and positive, it would
+read that
+many bytes from the shared memory, reset the count variable to zero, and then
+SIGUSR2
+to the producer process. The consumer process will append the received data to
+the
+output file, and once again wait for more data or EOF from the producer. On
+receiving
+EOF value of -1, it would close the output file and terminate.
+Write a program named prodcon.c. It will contain code for both the producer
+and the
+consumer processes. When executed, it would create a shared memory segment,
+and fork
+a child process. The parent would act as the producer, and the child would act
+as the
+consumer. The input file name would be given as a command line argument to
+this
+program.The shared memory will contain a char array buffer of size 1024 to store data
+to be
+transferred, and an integer variable called count for synchronization. The
+positive integer
+value of the count variable would be used to indicate the number of bytes
+present in the
+buffer. A value of -1 would be used to indicate EOF in the sense that the
+producer has no
+more data to be produced.
+The producer process will read data from a file and write it into the shared
+memory
+buffer. This it may do repeatedly as the file may be much larger than the size
+of the
+shared memory. After writing the data in the shared memory, the producer
+process would
+set the integer variable count to the number of bytes stored in the shared
+memory to
+indicate to the consumer that data is available to be consumed. It will also
+send the signal
+SIGUSR1 to the consumer process. The producer process will wait to receive
+SIGUSR2
+before putting any new data into the buffer for the consumer. The process
+would repeat
+till the entire file has been transferred.
+The consumer will be waiting for the SIGUSR1 signal. On receiving this signal
+it would
+check the count variable, and when finding it non-zero and positive, it would
+read that
+many bytes from the shared memory, reset the count variable to zero, and then
+SIGUSR2
+to the producer process. The consumer process will append the received data to
+the
+output file, and once again wait for more data or EOF from the producer. On
+receiving
+EOF value of -1, it would close the output file and terminate.
+Write a program named prodcon.c. It will contain code for both the producer
+and the
+consumer processes. When executed, it would create a shared memory segment,
+and fork
+a child process. The parent would act as the producer, and the child would act
+as the
+consumer. The input file name would be given as a command line argument to
+this
+program.
