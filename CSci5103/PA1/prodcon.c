@@ -36,7 +36,7 @@ void producerWriteText(char * filePath, pid_t childPID){
     perror("Error attaching shared memory.\n");
     exit(1);
   }
-  sigpause(SIGUSR2);
+  //sigpause(SIGUSR2);
   printf("done setting up shared memory for producer\n");
   char *currentBlock = (char*)malloc(sizeof(char) * 1024);
   int charsRead = fread(currentBlock, 1, 1024, inputFile);
