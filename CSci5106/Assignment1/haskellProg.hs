@@ -3,7 +3,7 @@ import Prelude
 a = [1..5]
 b = [1..10]
 c = [1, 2, 3, 9]
-d = [1, 2, 3, 11]
+d = [1, 2, 9, 3]
 
 --This function looks at four different cases
 --Case1: both list are empty return true
@@ -13,8 +13,8 @@ d = [1, 2, 3, 11]
 sublist [] [] = True
 sublist [] (b:listB) = True
 sublist (a:listA) [] = False
-sublist (a:listA) (b:listB) = 
-  if length(filter (== a) (a:listA)) <= length(filter (== a) (b:listB))
+sublist (a:listA) listB = 
+  if length(filter (== a) (a:listA)) <= length(filter (== a) listB)
   then sublist listA listB
   else False
 
