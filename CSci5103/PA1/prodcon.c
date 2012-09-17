@@ -35,12 +35,10 @@ void producerWriteText(char * filePath, pid_t childPID){
     perror("Error attaching shared memory.\n");
     exit(1);
   }
-  //sigpause(SIGUSR2);
-  printf("done setting up shared memory for producer\n");
   char *currentBlock = (char*)malloc(sizeof(char) * 1024);
   int charsRead = fread(currentBlock, 1, 1024, inputFile);
   int j = 0;
-
+  printf("waiting for child to setup\n");
   sleep(3);
   //-----Read in chars and write to Shared memory------
   while(charsRead > 0){
@@ -51,10 +49,10 @@ void producerWriteText(char * filePath, pid_t childPID){
       sharedMem.data[i] = currentBlock[i];
     }
     *(sharedMem.numChars) = (int)charsRead;
-    printf("sending signal SIGUSR1\n");
+    printf("writing %d chars to shared memory\n", charsRead);
     
     kill(childPID, SIGUSR1); //send SIGUSR1
-    printf("waiting on signal SIGUSR2\n");
+    //printf("waiting on signal SIGUSR2\n");
     sigpause(SIGUSR2); //Wait for SIGUSR2
 
     j = j+1;
@@ -65,7 +63,7 @@ void producerWriteText(char * filePath, pid_t childPID){
   kill(childPID, SIGUSR1);
   shmdt((void*) sharedMem.data);
   free(currentBlock);
-  printf("parent exiting...\n");
+  //printf("parent exiting...\n");
 }
 
 void consumerReadText(){
@@ -76,7 +74,7 @@ void consumerReadText(){
     perror("Error opening output file\n");
     exit(0);
   }
-  printf("getting shared memory to consumer\n");
+  //printf("getting shared memory to consumer\n");
   //-----------Get Shared Memory-----------------
   int sharedMemId, charsReadId;
   sharedMemId = shmget(SHMKEY, 1024, 0666);
@@ -95,11 +93,11 @@ void consumerReadText(){
   }
   //---Read in from shared memory and write to output----
   while(*sharedMem.numChars != -1){
-    printf("waiting on signal SIGUSR1\n");
+    //printf("waiting on signal SIGUSR1\n");
     sigpause(SIGUSR1); //Wait for SIGUSR1
 
     //printf("consumer recieved = \"%s\"\n", sharedMem.data);
-    printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
+    //printf("consumer recieved numChars = \"%d\"\n", *sharedMem.numChars);
     
     char *tempString = (char*)malloc(sizeof(char) * (*sharedMem.numChars) + 1);
     int i;
@@ -113,16 +111,16 @@ void consumerReadText(){
     }
     
     free(tempString);
-    printf("sending signal SIGUSR2\n");
+    //printf("sending signal SIGUSR2\n");
     sleep(1);
     kill(getppid(), SIGUSR2); //Send SIGUSR2
   }
-  printf("child leaving while loop\n");
+  //printf("child leaving while loop\n");
   fclose(outputFile);
   *sharedMem.numChars = 0;
   shmdt((void*) sharedMem.data);
   shmctl(sharedMemId, IPC_RMID, NULL);
-  printf("exiting...\n");
+  //printf("exiting...\n");
   exit(0);
   
 }
