@@ -22,7 +22,7 @@ fun sublist [] [] = true
     val currentSizeB = length(filter (equal a) (b::listB))
   in
     if currentSizeA = currentSizeB
-    then sublist listA listB
+    then sublist listA (b::listB)
     else false
   end
 
