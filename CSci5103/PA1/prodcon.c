@@ -114,8 +114,11 @@ int main(int argc, char ** argv){
   }
   char* filePath = argv[1];
   int status;
-  signal(SIGUSR1, sigHandler);
-  signal(SIGUSR2, sigHandler);
+
+  sigset_t sigs;
+  sigaddset(&sigs, SIGUSR1);
+  sigaddset
+  
   pid_t childPid = fork(); //fork a child process
   
   if(childPid == 0){ //child process goes to read function
