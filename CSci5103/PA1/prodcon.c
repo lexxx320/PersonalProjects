@@ -1,6 +1,5 @@
 #include "prodcon.h"
 
-sigset_t sig_set;
 struct sharedMemStruct{
   char * data;
   int * numChars;
@@ -49,56 +48,7 @@ void producerWriteText(char * filePath, pid_t childPID, char* data, int* numChar
   free(currentBlock);
 }
 
-void consumerReadText(key_t dataKey, key_t numCharsKey){
 
-  FILE *outputFile = fopen("output", "w");
-  if(outputFile == NULL){
-    perror("Error opening output file\n");
-    exit(0);
-  }
-  //-----------Get Shared Memory-----------------
-  int sharedMemId, charsReadId;
-  sharedMemId = shmget(dataKey, 0, 0);
-  charsReadId = shmget(numCharsKey, 0, 0);
-  if(sharedMemId == -1 || charsReadId == -1){
-    perror("Error getting shared memory to consumer.\n");
-    exit(0);
-  }
-  
-  int flag = 00400| 00200 | 00040 | 00020 | 00004 | 00002 ;
-  
-  struct sharedMemStruct sharedMem;
-  sharedMem.data = shmat(sharedMemId, (void*) NULL, flag);
-  sharedMem.numChars = shmat(charsReadId, (void*)NULL, flag);
-  if(sharedMem.data == (char*) -1 || sharedMem.numChars == (int*) -1){
-    perror("Error attaching shared memory to consumer.\n");
-    exit(1);
-  }
-  //---Read in from shared memory and write to output----
-  while(*sharedMem.numChars != -1){
-    kill(getppid(), SIGUSR2);
-    sigpause(SIGUSR1); //Wait for SIGUSR1
-
-    char *tempString = (char*)malloc(sizeof(char) * (*sharedMem.numChars) + 1);
-    int i;
-    for(i = 0; i < (*sharedMem.numChars); i++){
-      tempString[i] = sharedMem.data[i];
-    }
-    tempString[i+1] = '\0';
-    if((*sharedMem.numChars) >=0){
-      fwrite(sharedMem.data, sizeof(char) * 1, sizeof(char) * (*sharedMem.numChars), outputFile);
-    }
-    
-    free(tempString);
-    kill(getppid(), SIGUSR2); //Send SIGUSR2
-  }
-  fclose(outputFile);
-  *sharedMem.numChars = 0;
-  shmdt((void*) sharedMem.data);
-  shmctl(sharedMemId, IPC_RMID, NULL);
-  exit(0);
-  
-}
 
 int main(int argc, char ** argv){
   if(argc != 2){
@@ -150,7 +100,17 @@ int main(int argc, char ** argv){
   pid_t childPid = fork(); //fork a child process
   
   if(childPid == 0){ //child process goes to read function
-    consumerReadText(key, key2);
+    char keystr1[10];
+    char keystr2[10];
+    char pidstr[10];
+    
+    sprintf(pidstr, "%d", getppid());
+    sprintf(keystr1, "%d", key);
+    sprintf(keystr2, "%d", key2);
+    
+    execl("./child", "child", keystr1, keystr2, pidstr, NULL);
+    
+    //consumerReadText(key, key2);
   }
   else if(childPid > 0){ //parent process
     sigpause(SIGUSR2);
