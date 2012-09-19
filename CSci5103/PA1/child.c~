@@ -1,15 +1,23 @@
 #include "child.h"
+/*******************************************
+Assignment 1B
+CSci 5103 Operating Systems Fall 2012
+Author: Matthew Le
+Student Id: 3975089
+x500: lexxx320
+********************************************/
 
+//This struct contains the shared memory segments for data
+//and number of chars in the data memory segment
 struct sharedMemStruct{
   char * data;
   int * numChars;
 };
 
 void sigHandler(int n){
-  signal(n, sigHandler);
+  signal(n, sigHandler);  //reinstall signal handler each time
 }
 
-//void consumerReadText(key_t dataKey, key_t numCharsKey){
 int main(int argc, char** argv){
   signal(SIGUSR1, sigHandler);
   signal(SIGUSR2, sigHandler);
@@ -41,11 +49,8 @@ int main(int argc, char** argv){
   }
   //---Read in from shared memory and write to output----
   while(*sharedMem.numChars != -1){
-    printf("sending SIGUSR2\n");
     kill(parentPID, SIGUSR2);
-    printf("Waiting for SIGUSR1 from parent\n");
     sigpause(SIGUSR1); //Wait for SIGUSR1
-    printf("done waiting on parent\n");
     char *tempString = (char*)malloc(sizeof(char) * (*sharedMem.numChars) + 1);
     int i;
     for(i = 0; i < (*sharedMem.numChars); i++){

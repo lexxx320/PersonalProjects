@@ -1,21 +1,31 @@
 #include "child.h"
+/*******************************************
+Assignment 1B
+CSci 5103 Operating Systems Fall 2012
+Author: Matthew Le
+Student Id: 3975089
+x500: lexxx320
+********************************************/
 
+//This struct contains the shared memory segments for data
+//and number of chars in the data memory segment
 struct sharedMemStruct{
   char * data;
   int * numChars;
 };
 
 void sigHandler(int n){
-  signal(n, sigHandler);
+  signal(n, sigHandler);  //reinstall signal handler each time
 }
 
-//void consumerReadText(key_t dataKey, key_t numCharsKey){
 int main(int argc, char** argv){
+  //install signal handler
   signal(SIGUSR1, sigHandler);
   signal(SIGUSR2, sigHandler);
-  key_t dataKey = atoi(argv[1]);
+  key_t dataKey = atoi(argv[1]);   //get keys from parent
   key_t numCharsKey = atoi(argv[2]);
   pid_t parentPID = (pid_t)atoi(argv[3]);
+  //open file
   FILE *outputFile = fopen("output", "w");
   if(outputFile == NULL){
     perror("Error opening output file\n");

@@ -1,6 +1,6 @@
 program prefix(input, output);
   Type
-    IntArray = array[1..500] of integer;
+    IntArray = array[0..499] of integer;
   Var
     listA : IntArray;
     listB : IntArray;
@@ -23,12 +23,16 @@ program prefix(input, output);
     end;
   end;
   Begin
+    i := 0;
+    writeln('Please enter a list element by element terminated by a negative number');
     repeat
+      writeln('reading number');
       read(tempString);
       Val(tempString, num, code);
+      writeln(code);
       if code <> 0 then
       begin
-        write('Error, one of the numbers was not a valid number\n');
+        writeln('Error, one of the numbers was not a valid number');
         Exit;
       end;
       listA[i] := num;
@@ -41,7 +45,7 @@ program prefix(input, output);
       Val(tempString, num, code);
       if code <> 0 then
       begin
-        write('Error, one of the numbers was not a valid number\n');
+        writeln('Error, one of the numbers was not a valid number');
         Exit;
       end;
       listB[i] := num;
@@ -49,10 +53,10 @@ program prefix(input, output);
     until(num < 0);
     sizeB := i-1;
     result := prefix(listA, sizeA, listB, sizeB);
-    if (result = true) then 
-      write('The first list is the prefix of the second list\n');
+    if result = true then 
+      writeln('The first list is the prefix of the second list')
     else 
-      write('The first list is not the prefix of the secod list\n');
+      writeln('The first list is not the prefix of the secod list')
 
 
     

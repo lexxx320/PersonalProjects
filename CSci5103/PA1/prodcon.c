@@ -1,5 +1,11 @@
 #include "prodcon.h"
-
+/*******************************************
+Assignment 1B
+CSci 5103 Operating Systems Fall 2012
+Author: Matthew Le
+Student Id: 3975089
+x500: lexxx320
+********************************************/
 struct sharedMemStruct{
   char * data;
   int * numChars;
@@ -70,6 +76,7 @@ int main(int argc, char ** argv){
   int shmem_id;
   char* shmem_ptr;
   
+  //--------Set up shared memory----------------
   shmem_id = shmget(key, size, flag);
   if(shmem_id == -1){
     perror("shmget failed data memory\n");
@@ -91,6 +98,7 @@ int main(int argc, char ** argv){
     perror("shmat failed for numChars memory\n");
     exit(1);
   }
+  //-----------------------------------------------
   
   sigset_t sigs;
   sigemptyset(&sigs);
