@@ -1,4 +1,4 @@
-program prefix(input, output);
+program prefix;
   Type
     IntArray = array[1..500] of integer;
   Var
