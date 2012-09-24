@@ -13,6 +13,3 @@ x500: lexxx320
 #include <unistd.h>
 #include <sys/ipc.h>
 #include <sys/types.h>
-
-
-
