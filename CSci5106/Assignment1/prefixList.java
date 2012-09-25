@@ -1,5 +1,13 @@
 import java.io.*;
 
+/****************************************************************
+Program Description:
+This function reads in a list using the getList method, which fills
+out the elements of the list, and then returns the number of elements
+read in by the stdin.  The program then calls the prefixList function, 
+which returns whether or not the n elements in the first list make up
+the first n elements in the second list.
+*****************************************************************/
 
 public class prefixList{
   public static boolean prefix(int listA[], int sizeA, int listB[], int sizeB){
@@ -11,9 +19,7 @@ public class prefixList{
     return true;
   }
 
-  public static void main(String [] args){
-    int listA[] = new int[500];
-    int listB[] = new int[500];
+  public static int getList(int listA[]){
     int i = 0;
     int num = 0;
     String tempString;
@@ -28,19 +34,15 @@ public class prefixList{
         i++;
       }while(num > 0);
     } catch (IOException e){}
-    int sizeA = i-1;
-    System.out.println("please enter another list element by element");
-    i = 0;
-    try{
-      do{
-        tempString = reader.readLine();
-        num = Integer.parseInt(tempString);
-        if(num > 0)
-          listB[i] = num;
-        i++;
-      }while(num > 0);
-    } catch (IOException e){}
-    int sizeB = i-1;
+    return i-1;
+  }
+
+  public static void main(String [] args){
+    int listA[] = new int[500];
+    int listB[] = new int[500];
+    
+    int sizeA = getList(listA);
+    int sizeB = getList(listB);
     
     boolean result = prefix(listA, sizeA, listB, sizeB);
     if(result){

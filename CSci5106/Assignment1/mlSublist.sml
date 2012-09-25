@@ -1,28 +1,28 @@
-fun filter f [] = []
-  |filter f (x::xs) = 
-    let val rst = filter f xs
-  in
-    if f x then x :: rst else rst
-  end
 
-fun equal a b = (a = b)
+--This function looks at four different cases
+--Case1: both list are empty return true
+--Case2: First list is empty return true
+--Case3: Second list is empty return false
+--Case4: Neither are empty then,
+--If the first element in listA is equal to the first
+--element in list b, then check for the rest of the list
+--If not, then restart listA and check against the rest of listB
 
+--Lists for testing purposes
 val a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 val b = [1, 2, 3, 4, 5]
 val c = [1, 2, 1, 2]
-val d = [1, 11, 21, 31]
-val e = [1, 21, 31, 11]
+val d = [1, 2, 3, 5, 4]
+val e = [1, 2, 4, 5]
 
-fun sublist [] [] = true
- |sublist [] (a::listA) = true
- |sublist (a::listA) [] = false
- |sublist (a::listA) (b::listB) =
-  let 
-    val currentSizeA = length(filter (equal a) (a::listA))
-    val currentSizeB = length(filter (equal a) (b::listB))
-  in
-    if currentSizeA = currentSizeB
-    then sublist listA (b::listB)
-    else false
-  end
+fun sublistHelper [] listA [] = true
+  |sublistHelper [] listA (b::listB) = true
+  |sublistHelper (a::listA) listA2 [] = false
+  |sublistHelper (a::listA) origListA (b::listB) = 
+    if a = b
+    then sublistHelper listA origListA listB
+    else sublistHelper origListA origListA listB
+
+fun sublist listA listB = sublistHelper listA listA listB
+
 

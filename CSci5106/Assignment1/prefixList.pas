@@ -22,7 +22,10 @@ program prefix;
         prefix := false;
     end;
   end;
-  Begin
+  function readList(list : IntArray) : Integer
+  var
+    i : Integer;
+  begin
     i := 0;
     writeln('Please enter a list element by element terminated by a negative number');
     repeat
@@ -37,21 +40,13 @@ program prefix;
       end;
       listA[i] := num;
       i := i+1;
-    until(num < 0);
-    sizeA := i-1;
-    i := 0;
-    repeat
-      read(tempString);
-      Val(tempString, num, code);
-      if code <> 0 then
-      begin
-        writeln('Error, one of the numbers was not a valid number');
-        Exit;
-      end;
-      listB[i] := num;
-      i := i+1;
-    until(num < 0);
-    sizeB := i-1;
+    until(num < 0)
+    readList = i-1;
+  end;
+  Begin
+    
+    sizeA := readList(listA);
+    sizeB := readList(listB);
     result := prefix(listA, sizeA, listB, sizeB);
     if result = true then 
       writeln('The first list is the prefix of the second list')
