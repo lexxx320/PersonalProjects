@@ -1,3 +1,6 @@
+--Matthew Le
+--3975089
+--lexxx320
 
 --This function looks at four different cases
 --Case1: both list are empty return true

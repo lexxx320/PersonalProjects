@@ -5,6 +5,10 @@ b = [1..10]
 c = [1, 2, 3, 9]
 d = [1, 2, 9, 3]
 e = [1,2,3,5,4]
+--Matthew Le
+--3975089
+--lexxx320
+
 --This function looks at four different cases
 --Case1: both list are empty return true
 --Case2: First list is empty return true

@@ -1,4 +1,8 @@
 /*****************************************************
+Matthew Le
+3975089
+lexxx320
+
 Progam Description:
 This program reads in two lists of funbers, using the 
 getList function, which enters the numbers into the list

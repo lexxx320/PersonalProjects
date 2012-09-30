@@ -1,6 +1,10 @@
 import java.io.*;
 
 /****************************************************************
+Matthew Le
+3975089
+lexxx320
+
 Program Description:
 This function reads in a list using the getList method, which fills
 out the elements of the list, and then returns the number of elements

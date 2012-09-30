@@ -1,3 +1,18 @@
+{-------------------------------------------
+Matthew Le
+3975089
+lexxx320
+
+Progam Description:
+This program reads in two lists of funbers, using the 
+getList function, which enters the numbers into the list
+as they are read from the terminal, returning the number
+of elements entered by the user.  The listPrefix function
+then checks to see if all of the elements of the first list
+make up the first n elements of the second list, where n is 
+the number of elements of the first list.
+---------------------------------------------------}
+
 program prefix;
   Type
     IntArray = array[0..499] of integer;
@@ -31,9 +46,11 @@ program prefix;
     end;
   end;
   //Read list function
-  function readList(list : IntArray) : Integer;
+  function readList() : IntArray;
   var
     i : Integer;
+    j : Integer;
+    list : IntArray;
   begin
     i := 0;
     writeln('Please enter a list element by element terminated by a negative number');
@@ -43,18 +60,36 @@ program prefix;
       if code <> 0 then
       begin
         writeln('Error, one of the numbers was not a valid number');
-        Exit;
+        exit;
       end;
       list[i] := num;
       i := i+1;
     until(num < 0);
-    readList := i-1;
+    for j := 0 to i-1 do
+      writeln(list[j]);
+    
+    readList := list;
+  end;
+  function getSize(list : IntArray) : Integer;
+  var
+    i : Integer;
+    count : Integer;
+  begin
+    count := 0;
+    while list[i] > 0 do
+    begin
+      
+       count := count+1;
+       i := i+ 1;
+    end;
+    getSize := count;
   end;
   //Main Function
   Begin
-    
-    sizeA := readList(listA);
-    sizeB := readList(listB);
+    listA := readList();
+    listB := readList();
+    sizeA := getSize(listA);
+    sizeB := getSize(listB);
     result := prefix(listA, sizeA, listB, sizeB);
     if result = true then 
       writeln('The first list is the prefix of the second list')

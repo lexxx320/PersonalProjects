@@ -18,7 +18,7 @@ sublist(L, L2) :- sublistHelper(L, L2, L).
 
 sublistHelper([], _, _).
 sublistHelper([X|L1], [X|L2], L3) :- sublistHelper(L1, L2, L3).
-sublistHelper([X|L1], [_|L2], L3) :- sublistHelper(L3, L2, L3).
+sublistHelper([_|_], [_|L2], L3) :- sublistHelper(L3, L2, L3).
 
 
 

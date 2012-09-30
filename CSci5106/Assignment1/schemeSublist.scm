@@ -1,3 +1,7 @@
+;Matthew Le
+;3975089
+;lexxx320
+
 ;This function looks at three different cases
 ;Case1: First list is empty, return true
 ;Case2: Else if second list is empty, return false
