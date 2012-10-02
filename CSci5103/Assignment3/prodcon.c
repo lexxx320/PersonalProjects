@@ -7,6 +7,8 @@
 #include <sys/types.h>
 #include <sys/shm.h>
 
+#include <time.h>
+
 #define True 1
 #define False 0
 #define iterations 100
@@ -14,17 +16,18 @@ sem_t mutex;
 sem_t empty;
 sem_t full;
 sem_t alternate;
-Buffer *buf;
 
-char *widgetArray[2] = {"red", "white"};
+char *widgetArray[3] = {"dummy", "red", "white"};
 int bufferSize;
-
+//at start, full = 0
+// empty = buffSize
+//mutex = 1
 void consumer(sharedMem_t *sharedMem){
   int i = 0;
   while(i < iterations){
     sem_wait(&full);
     sem_wait(&mutex);
-    Color c = removeFromBuffer(buf);
+    Color c = removeFromBuffer(sharedMem);
     printf("consumed %s widget.\n", widgetArray[c]);
     sem_post(&mutex);
     sem_post(&empty);
@@ -36,14 +39,15 @@ void whiteProducer(sharedMem_t *sharedMem){
   int i = 0;
   while(i < iterations){
     sem_wait(&empty);
-    sem_wait(&alternate);
+    //sem_wait(&alternate);
     sem_wait(&mutex);
-    printf("Adding red widget.\n");
-    addToBuffer(white, buf);
+    printf("Adding white widget.\n");
+    addToBuffer(white, sharedMem);
+    sleep(1);
     sem_post(&mutex);
-    sem_post(&alternate);
+    //sem_post(&alternate);
     sem_post(&full);
-    i++;
+    i++; 
   }
 }
 
@@ -51,12 +55,13 @@ void redProducer(sharedMem_t *sharedMem){
   int i = 0;
   while(i < iterations){
     sem_wait(&empty);
-    sem_wait(&alternate);
+    //sem_wait(&alternate);
     sem_wait(&mutex);
-    printf("Adding white widget.\n");
-    addToBuffer(red, buf);
+    printf("Adding red widget.\n");
+    addToBuffer(red, sharedMem);
+    sleep(1);
     sem_post(&mutex);
-    sem_post(&alternate);
+    //sem_post(&alternate);
     sem_post(&full);
     i++;
   }
@@ -68,8 +73,6 @@ int main(int argc, char**argv){
     exit(1);
   }
   bufferSize = atoi(argv[1]);
-  buf = (Buffer*)malloc(sizeof(Buffer));
-  buf->head = (Node*)malloc(sizeof(Node));
   sem_init(&mutex, 1, 1); 
   sem_init(&empty, 1, bufferSize);
   sem_init(&full, 1, 0);
@@ -99,11 +102,14 @@ int main(int argc, char**argv){
   sharedMem->maxSize = (int*)shmem_ptr+12;
   sharedMem->buf = (Color *)shmem_ptr+16;
   
-  
+  *sharedMem->size = 0;
+  *sharedMem->maxSize = bufferSize;
+  *sharedMem->head = 0;
+  *sharedMem->tail = 0;
   
   pid_t childPID = fork();
   if(childPID == 0){ //child process
-    redProducer(sharedMem);
+    //redProducer(sharedMem);
   }
   else if(childPID > 0){//parent process
     pid_t childPID2 = fork();
