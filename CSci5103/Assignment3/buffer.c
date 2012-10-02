@@ -1,59 +1,61 @@
 #include "buffer.h"
 
-int addToBuffer(Color c, Buffer *buf){
-  Node *ptr = buf->head->next;
-  Node *trailer = buf->head;
-  Node *item = (Node*)malloc(sizeof(Node));
-  item->color = c;
-  item->next = NULL;
-  
-  if(ptr == NULL){
-    trailer->next = item;
-    
-    buf->size = 1;
-    
-    return buf->size;
+int addToBuffer(Color c, sharedMem_t *sharedMem){
+  char *array[3] = {"dummy", "red", "white"};
+  printf("adding %s to buffer\n", array[c]);
+  if(*sharedMem->size == *sharedMem->maxSize){
+    printf("buffer is at max capacity.\n");
+    return -1;
   }
-  
-  while(ptr != NULL){
-    ptr = ptr->next;
-    trailer = trailer->next;
+  if(*sharedMem->tail == (*sharedMem->maxSize)){
+    sharedMem->buf[0] = c;
+    *sharedMem->size = *sharedMem->size+1;
+    *sharedMem->tail = 0;
+    return *sharedMem->size;
   }
-
-  trailer->next = item;
-  buf->size = buf->size+1;
-  return buf->size;  
-}
-
-Color removeFromBuffer(Buffer *buf){
-  if(buf->size == 0){
-    return (Color)NULL;
-  }
-  Node *temp = buf->head->next;
-  Color tempColor = temp->color;
-  buf->head->next = temp->next;
-  free(temp);
-  buf->size = buf->size - 1;
-  return tempColor;
+  printf("size = %d\n", *sharedMem->size);
+  sharedMem->buf[*sharedMem->tail] = c;
+  *sharedMem->size = *sharedMem->size+1;
+  *sharedMem->tail = *sharedMem->tail + 1;
+  return *sharedMem->size;
 } 
 
-void printBuffer(Buffer *buf){
-  char *colorArray[2] = {"red", "white"};
-  Node *ptr;
-  ptr = buf->head->next;
-  printf("buffer size = %d\n", buf->size);
-  while(ptr != NULL){
-    printf("color = %s\n", colorArray[ptr->color]);
-    ptr = ptr->next;
+Color removeFromBuffer(sharedMem_t *sharedMem){
+  char *array[3] = {"dummy", "red", "white"};
+  if(*sharedMem->head == *sharedMem->tail){
+    printf("Buffer is empty.\n");
+    return -1;
   }
+  
+  Color temp = sharedMem->buf[*sharedMem->head];
+  sharedMem->buf[*sharedMem->head] = 0;
+  
+  printf("removing %s from buffer\n", array[temp]);
+  if(*sharedMem->head == (*sharedMem->maxSize)-1){
+    *sharedMem->head = 0;
+    *sharedMem->size = *sharedMem->size - 1;
+    return temp;
+  }
+  *sharedMem->head = *sharedMem->head + 1;
+  *sharedMem->size = *sharedMem->size - 1;
+  return temp;
 }
 
-
-
-
-
-
-
-
-
-
+void printBuffer(sharedMem_t *sharedMem){
+  int i, n, j;
+  j = 0;
+  char *array[3] = {"dummy", "red", "white"};
+  n = *sharedMem->size;
+  i = *sharedMem->head;
+  while(i != (*sharedMem->tail)){
+    printf("buffer[%d] = %s\n", i, array[sharedMem->buf[i]]);
+    if(i == *sharedMem->maxSize - 1){
+      i = 0;
+    }
+    else{
+      i = i + 1;
+    }
+    j++;
+  }
+  
+}

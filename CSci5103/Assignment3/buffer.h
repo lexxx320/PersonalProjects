@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 typedef enum e_color{
+  dummy,
   red,
   white
 }Color;
@@ -16,9 +17,17 @@ typedef struct Buffer_t{
   int size;
 }Buffer;
 
-int addToBuffer(Color c, Buffer *buf);
-Color removeFromBuffer(Buffer *buf);
-void printBuffer(Buffer *buf);
+typedef struct sharedMem_t{
+  Color * buf;
+  int *head;
+  int *tail;
+  int *size;
+  int *maxSize;
+}sharedMem_t;
+
+int addToBuffer(Color c, sharedMem_t *);
+Color removeFromBuffer(sharedMem_t*);
+void printBuffer(sharedMem_t*);
 
 
 
