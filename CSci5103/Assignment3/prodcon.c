@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <semaphore.h>
 #include "buffer.h"
+#include <unistd.h>
 
 #define True 1
 #define False 0
@@ -58,7 +59,7 @@ void redProducer(){
   }
 }
 
-main(int argc, char**argv){ 
+int main(int argc, char**argv){ 
   if(argc != 2){
     printf("User must input only the size of the buffer.\n");
     exit(1);
@@ -92,6 +93,7 @@ main(int argc, char**argv){
     perror("Fork Error\n");
     exit(1);
   }
+  return 0;
 }
 
 
