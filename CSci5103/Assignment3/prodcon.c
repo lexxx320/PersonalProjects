@@ -25,8 +25,11 @@ int bufferSize;
 void consumer(sharedMem_t *sharedMem){
   int i = 0;
   while(i < iterations){
+    printf("consumer waiting on full semaphore.\n");
     sem_wait(&full);
+    printf("consumer waiting on mutex semaphore.\n");
     sem_wait(&mutex);
+    printf("consumer got mutex semaphore.\n");
     Color c = removeFromBuffer(sharedMem);
     printf("consumed %s widget.\n", widgetArray[c]);
     sem_post(&mutex);
@@ -37,16 +40,18 @@ void consumer(sharedMem_t *sharedMem){
 
 void whiteProducer(sharedMem_t *sharedMem){
   int i = 0;
+  sleep(1);
   while(i < iterations){
     sem_wait(&empty);
     //sem_wait(&alternate);
     sem_wait(&mutex);
     printf("Adding white widget.\n");
     addToBuffer(white, sharedMem);
-    sleep(1);
+    //sleep(1);
     sem_post(&mutex);
     //sem_post(&alternate);
     sem_post(&full);
+    printf("producer signaled full semaphore.\n");
     i++; 
   }
 }
