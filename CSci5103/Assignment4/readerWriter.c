@@ -29,22 +29,25 @@ int read(FILE *outputFile, FILE *writersFile, int numLines){
   return itemsRead;
 }
 
-void startRead(){
+void startRead(int id){
   sem_wait(&mutex);
   if(activeWriters + waitingWriters == 0){
     sem_post(&okToRead);
     activeReaders++;
   }
   else{
+    printf("reader%d waiting to read.\n", id);
     waitingReaders++;
   } 
   sem_post(&mutex);
   sem_wait(&okToRead);
+  printf("reader%d currently reading.\n", id);
 }
 
-void endRead(){
+void endRead(int id){
   sem_wait(&mutex);
   activeReaders--;
+  printf("reader%d done reading.\n", id);
   if(activeReaders == 0 && waitingWriters > 0){
     sem_post(&okToWrite);
     activeWriters++;
@@ -65,9 +68,9 @@ void* reader(void *args){
   int linesRead = 0;
 
   while(linesRead < info.totalLines){
-    startRead();
+    startRead(info.id);
     linesRead = read(readerFile, info.writerFile, linesRead);
-    endRead();
+    endRead(info.id);
   }
   return args; 
 }
@@ -81,22 +84,25 @@ int write(int id, int currentNum){
   return (currentNum+5);
 }
 
-void startWrite(){
+void startWrite(int id){
   sem_wait(&mutex);
   if(activeWriters + activeReaders + waitingWriters == 0){
     sem_post(&okToWrite);
     activeWriters++;
   }
   else{
+    printf("writer%d waiting to write.\n", id);
     waitingWriters++;
   }
   sem_post(&mutex);
   sem_wait(&okToWrite);
+  printf("writer%d currently writing.\n", id);
 }
 
-void endWrite(){
+void endWrite(int id){
   sem_wait(&mutex);
   activeWriters--;
+  printf("writer%d done writing.\n", id);
   if(waitingWriters > 0){
     sem_post(&okToWrite);
     activeWriters++;
@@ -118,9 +124,9 @@ void* writer(void *args){
   int currentNum = 1;
   
   while(currentNum < 100){
-    startWrite();
+    startWrite(info.id);
     currentNum = write(info.id, currentNum);
-    endWrite(); 
+    endWrite(info.id); 
   }  
   return args;
 }
