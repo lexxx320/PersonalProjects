@@ -16,6 +16,7 @@ typedef struct threadInfo_t{
 }ThreadInfo;
 
 int read(FILE *outputFile, FILE *writersFile, int numLines){
+  
   int itemsRead;
   char line[16];
   int i;
@@ -26,7 +27,7 @@ int read(FILE *outputFile, FILE *writersFile, int numLines){
     fprintf(outputFile, "%s", line);
     numLines++;
   }
-  return itemsRead;
+  return numLines;
 }
 
 void startRead(int id){
@@ -75,13 +76,13 @@ void* reader(void *args){
   return args; 
 }
 
-int write(int id, int currentNum){
-  FILE *writerFile = fopen("writer_output_file", "w+");
+int write(int id, int currentNum, FILE *writerFile){
   int i;
   for(i = currentNum; i < currentNum+5; i++){
     fprintf(writerFile, "<W%d, %d>\n", id, i);
   }
-  return (currentNum+5);
+  currentNum = currentNum+5;
+  return (currentNum);
 }
 
 void startWrite(int id){
@@ -125,7 +126,7 @@ void* writer(void *args){
   
   while(currentNum < 100){
     startWrite(info.id);
-    currentNum = write(info.id, currentNum);
+    currentNum = write(info.id, currentNum, info.writerFile);
     endWrite(info.id); 
   }  
   return args;
@@ -141,7 +142,6 @@ int main(int argc, char **argv){
   int numWriters = atoi(argv[2]);
 
   FILE *writerFile = fopen("writer_output_file", "w");
-  fclose(writerFile);
 
   pthread_t readers[numReaders];
   pthread_t writers[numWriters];
@@ -176,6 +176,7 @@ int main(int argc, char **argv){
   for(i = 0; i < numReaders; i++){
     pthread_join(readers[i], &returnStatus);
   }
+  fclose(writerFile);
   //*/
   return 0;
 }
