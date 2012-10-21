@@ -22,6 +22,8 @@ int read(FILE *outputFile, FILE *writersFile, int numLines){
   int i;
   for(i = 0; i < 5; i++){
     if(fgets(line, 16, writersFile) == NULL){
+      printf("No chars read.\n");
+      sleep(1);
       return numLines;
     }
     fprintf(outputFile, "%s", line);
