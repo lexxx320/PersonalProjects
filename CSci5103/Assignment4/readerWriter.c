@@ -40,10 +40,11 @@ void startRead(int id){
   }
   else{
     printf("reader%d waiting to read.\n", id);
-    waitingReaders++;
   } 
+  waitingReaders++;
   sem_post(&mutex);
   sem_wait(&okToRead);
+  waitingReaders--;
   printf("reader%d currently reading.\n", id);
 }
 
