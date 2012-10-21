@@ -1,2 +1,2 @@
 readerWriter:	readerWriter.c
-	gcc -g -lpthread readerWriter.c -o readerWriter
+	gcc -g -lrt -lpthread readerWriter.c -o readerWriter
