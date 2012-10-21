@@ -3,9 +3,8 @@
 #include <pthread.h>
 
 void* reader(void *args){
-  int threadId = 12;
-  threadId = *(int*)args;
-  printf("reader id = %d\n", threadId);
+  int *threadId = (int*)args;
+  printf("reader id = %d\n", *threadId);
 
   return args; 
 }
@@ -30,11 +29,11 @@ int main(int argc, char **argv){
   int i;
   //Dispatch reader threads
   for(i = 0; i < numReaders; i++){
-    pthread_create(readers + i, NULL, reader, (void*)&i);
+    pthread_create(&readers[i], NULL, (void*)reader, (void*)&i);
   }
   //Dispatch writer threads
   for(i = 0; i < numWriters; i++){
-    pthread_create(writers + i, NULL, writer, (void*)&i);
+    pthread_create(&writers[i], NULL, (void*)writer, (void*)&i);
   }
 
   void *returnStatus;
