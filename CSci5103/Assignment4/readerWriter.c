@@ -8,33 +8,38 @@ sem_t okToWrite;
 sem_t okToRead;
 sem_t mutex;
 int activeReaders, waitingReaders, activeWriters, waitingWriters;
-
+long int writerOffset;
 typedef struct threadInfo_t{
   int id;
   int totalLines;
   FILE *writerFile;
 }ThreadInfo;
 
-int read(FILE *outputFile, FILE *writersFile, int numLines){
+int read(FILE *outputFile, FILE *writersFile, int numLines, long int *offset){
   
   int itemsRead;
   char line[16];
   int i;
+  fseek(writersFile, *offset, SEEK_SET);
   for(i = 0; i < 5; i++){
+    printf("offset = %d\n", *offset); 
+    
     if(fgets(line, 16, writersFile) == NULL){
       printf("No chars read.\n");
       sleep(1);
+      *offset = ftell(writersFile);
       return numLines;
     }
     fprintf(outputFile, "%s", line);
     numLines++;
   }
+  *offset = ftell(writersFile);
   return numLines;
 }
 
 void startRead(int id){
   sem_wait(&mutex);
-  if(activeWriters + waitingWriters == 0){
+  if(activeWriters + waitingWriters == 0){          //no one writing or waiting to write
     sem_post(&okToRead);
     activeReaders++;
   }
@@ -53,9 +58,9 @@ void endRead(int id){
   activeReaders--;
   printf("reader%d done reading.\n", id);
   if(activeReaders == 0 && waitingWriters > 0){
-    sem_post(&okToWrite);
     activeWriters++;
     waitingWriters--;
+    sem_post(&okToWrite);
   }
   sem_post(&mutex);
 }
@@ -71,9 +76,11 @@ void* reader(void *args){
   FILE *readerFile = fopen(fileName, "w");
   int linesRead = 0;
 
+  long int fileOffset = 0;
+
   while(linesRead < info.totalLines){
     startRead(info.id);
-    linesRead = read(readerFile, info.writerFile, linesRead);
+    linesRead = read(readerFile, info.writerFile, linesRead, &fileOffset);
     endRead(info.id);
   }
   return args; 
@@ -81,10 +88,12 @@ void* reader(void *args){
 
 int write(int id, int currentNum, FILE *writerFile){
   int i;
+  fseek(writerFile, writerOffset, SEEK_SET);
   for(i = currentNum; i < currentNum+5; i++){
     fprintf(writerFile, "<W%d, %d>\n", id, i);
   }
   currentNum = currentNum+5;
+  writerOffset = ftell(writerFile);
   return (currentNum);
 }
 
@@ -108,6 +117,7 @@ void endWrite(int id){
   activeWriters--;
   printf("writer%d done writing.\n", id);
   if(waitingWriters > 0){
+    printf("%d writers are currently waiting.\n", waitingWriters);
     sem_post(&okToWrite);
     activeWriters++;
     waitingWriters--;
@@ -115,6 +125,7 @@ void endWrite(int id){
   else{
     int i;
     for(i = 0; i < waitingReaders; i++){
+
       sem_post(&okToRead);
       activeReaders++;
       waitingReaders--;
@@ -144,7 +155,7 @@ int main(int argc, char **argv){
   int numReaders = atoi(argv[1]); 
   int numWriters = atoi(argv[2]);
 
-  FILE *writerFile = fopen("writer_output_file", "w");
+  FILE *writerFile = fopen("writer_output_file", "w+r");
 
   pthread_t readers[numReaders];
   pthread_t writers[numWriters];
@@ -152,7 +163,7 @@ int main(int argc, char **argv){
   sem_init(&okToRead, 0, 0);
   sem_init(&okToWrite, 0, 0);
   sem_init(&mutex, 0, 1);
-  
+  writerOffset = 0;
   int i;
   ThreadInfo idsReaders[numReaders];  
   //Dispatch reader threads
