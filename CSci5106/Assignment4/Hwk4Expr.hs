@@ -33,10 +33,11 @@ expr_a = Mult (Add (VarName "x") (Const 3)) (VarName "y")
 expr_b = Equals (Sub (VarName "x") (Const 1)) (Or (Const 4) (Lte (VarName "y") (VarName "z")))
 expr_c = And (Not (VarName "p")) (Not(VarName "q")) 
 expr_d = Gt (Mult (VarName "x") (Add (VarName "y") (Const 1))) (Add (VarName "z") (Const 2))
+
 -- Below is the sample environment.
 env = [ ("x", 3), ("y", 4), ("z", 5), ("p", 1), ("q", 0) ]
 
-----------------------Testing Purposes----------------
+----------------------For Testing Purposes----------------
 --Print out the expression
 pp :: Expr -> [(String, Integer)] -> String
 pp (Add e1 e2) env = pp e1 env ++ " + " ++ pp e2 env
@@ -100,7 +101,7 @@ eval FalseE _ = 0
 
 ririr1 i = "R" ++ show(i) ++ ", R" ++ show(i) ++ ", R" ++ show(i+1)
 
-translate e i = putStr (translateHelper e i)
+translate e  = putStr (translateHelper e 0)
 
 translateHelper :: Expr -> Integer -> String
 
