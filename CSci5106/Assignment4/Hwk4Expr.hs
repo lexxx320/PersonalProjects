@@ -111,7 +111,7 @@ translateHelper (Sub e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i
   "SubOp " ++ (ririr1 i) ++ "\n"
 translateHelper (Mult e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
   "MultOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Not e1) i = (translateHelper e1 i) ++ "NotOp R" ++ show(i) ++ ", R" ++ show(i+1)
+translateHelper (Not e1) i = (translateHelper e1 i) ++ "NotOp R" ++ show(i) ++ ", R" ++ show(i+1) ++ "\n"
 translateHelper (And e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
   "AndOp " ++ (ririr1 i) ++ "\n"
 translateHelper (Or e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
