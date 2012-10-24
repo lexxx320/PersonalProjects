@@ -26,10 +26,10 @@ int read(FILE *outputFile, FILE *writersFile, int numLines, long int *offset){
     sem_post(&mutex);
     //-----------------------------------------------------------------
     if(temp == NULL){
-      printf("Did not read all 5 chars.\n");
+      //printf("Did not read all 5 chars.\n");
       return numLines;
     }
-    //printf("just read line%d\n", numLines);
+    printf("just read line%d\n", numLines);
     fprintf(outputFile, "%s", line);
     numLines++;
   }
@@ -42,15 +42,15 @@ void startRead(int id, int readLines){
     sem_post(&okToRead);
   }
   else{
-    printf("reader%d waiting to read.\n", id);
-    printf("activeWriters = %d, waitingWriters = %d\n", activeWriters, waitingWriters);
+    //printf("reader%d waiting to read.\n", id);
+    //printf("activeWriters = %d, waitingWriters = %d\n", activeWriters, waitingWriters);
   } 
   waitingReaders++;
   sem_post(&mutex);
   sem_wait(&okToRead);
   waitingReaders--;
   activeReaders++;
-  printf("reader%d currently reading.\n", id);
+  //printf("reader%d currently reading.\n", id);
 }
 
 void endRead(int id){
@@ -82,7 +82,7 @@ void* reader(void *args){
   while(linesRead < totalLines){
     startRead(id, readLines);
     linesRead = read(readerFile, writersFile, linesRead, &fileOffset);
-    printf("reader%d finished reading line %d\n", id, linesRead);
+    //printf("reader%d finished reading line %d\n", id, linesRead);
     endRead(id);
     if(previousLinesRead == linesRead){
       readLines = 0;
@@ -104,7 +104,7 @@ int write(int id, int currentNum, FILE *writerFile){
   }
   currentNum = currentNum+5;
   writerOffset = ftell(writerFile);
-  printf("writer%d finished writing element %d\n", id, currentNum);
+  //printf("writer%d finished writing element %d\n", id, currentNum);
   return (currentNum);
 }
 
@@ -115,20 +115,20 @@ void startWrite(int id){
     activeWriters++;
   }
   else{
-    printf("writer%d waiting to write.\n", id);
+   // printf("writer%d waiting to write.\n", id);
     waitingWriters++;
   }
   sem_post(&mutex);
   sem_wait(&okToWrite);
-  printf("writer%d currently writing.\n", id);
+ // printf("writer%d currently writing.\n", id);
 }
 
 void endWrite(int id){
   sem_wait(&mutex);
   activeWriters--;
-  printf("writer%d done writing.\n", id);
+  //printf("writer%d done writing.\n", id);
   if(waitingWriters > 0){
-    printf("%d writers are currently waiting.\n", waitingWriters);
+   // printf("%d writers are currently waiting.\n", waitingWriters);
     sem_post(&okToWrite);
     activeWriters++;
     waitingWriters--;
@@ -166,9 +166,6 @@ int main(int argc, char **argv){
 
   writersFile = fopen("writer_output_file", "w+r");
 
-  //pthread_t *readers = (pthread_t*)malloc(sizeof(pthread_t) * numReaders);
-  //pthread_t *writers = (pthread_t*)malloc(sizeof(pthread_t) * numWriters);
-  
   pthread_t readers[numReaders];
   pthread_t writers[numWriters];
   
@@ -205,11 +202,8 @@ int main(int argc, char **argv){
       exit(1);
     }
   }
-  //free(readers);
-  //free(writers);
   fclose(writersFile);
-  //*/
-  
+
   return 0;
 }
 
