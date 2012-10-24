@@ -3,6 +3,14 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <string.h>
+#include <time.h>
+#include <sys/time.h>
+
+/****************
+Name: Matthew Le
+Id: 3975089
+x500: lexxx320
+****************/
 
 sem_t okToWrite;
 sem_t okToRead;
@@ -10,6 +18,7 @@ sem_t mutex;
 FILE *writersFile;
 int activeReaders, waitingReaders, activeWriters, waitingWriters, totalLines;
 long int writerOffset;
+struct timeval timer;
 
 int read(FILE *outputFile, FILE *writersFile, int numLines, long int *offset){
   
@@ -26,10 +35,8 @@ int read(FILE *outputFile, FILE *writersFile, int numLines, long int *offset){
     sem_post(&mutex);
     //-----------------------------------------------------------------
     if(temp == NULL){
-      //printf("Did not read all 5 chars.\n");
       return numLines;
     }
-    printf("just read line%d\n", numLines);
     fprintf(outputFile, "%s", line);
     numLines++;
   }
@@ -40,27 +47,28 @@ void startRead(int id, int readLines){
   sem_wait(&mutex);
   if(activeWriters + waitingWriters == 0){          //no one writing or waiting to write
     sem_post(&okToRead);
+    activeReaders++;
   }
-  else{
-    //printf("reader%d waiting to read.\n", id);
-    //printf("activeWriters = %d, waitingWriters = %d\n", activeWriters, waitingWriters);
+  else{                                             
+    gettimeofday(&timer, NULL);
+    printf("%ld  reader%d  waiting to read.\n", timer.tv_usec, id);
+    waitingReaders++;
   } 
-  waitingReaders++;
   sem_post(&mutex);
   sem_wait(&okToRead);
-  waitingReaders--;
-  activeReaders++;
-  //printf("reader%d currently reading.\n", id);
+  gettimeofday(&timer, NULL);
+  printf("%ld  reader%d  currently reading.\n", timer.tv_usec, id);
 }
 
 void endRead(int id){
   sem_wait(&mutex);
   activeReaders--;
-  //printf("reader%d done reading.\n", id);
+  gettimeofday(&timer, NULL);
+  printf("%ld  reader%d  done reading.\n", timer.tv_usec, id);
   if(activeReaders == 0 && waitingWriters > 0){
+    sem_post(&okToWrite);
     activeWriters++;
     waitingWriters--;
-    sem_post(&okToWrite);
   }
   sem_post(&mutex);
 }
@@ -79,10 +87,10 @@ void* reader(void *args){
   long int fileOffset = 0;
   int readLines = 1;
   
-  while(linesRead < totalLines){
+  while(linesRead < totalLines-1){
     startRead(id, readLines);
     linesRead = read(readerFile, writersFile, linesRead, &fileOffset);
-    //printf("reader%d finished reading line %d\n", id, linesRead);
+    gettimeofday(&timer, NULL);
     endRead(id);
     if(previousLinesRead == linesRead){
       readLines = 0;
@@ -92,7 +100,6 @@ void* reader(void *args){
     }
     previousLinesRead = linesRead;
   }
-  printf("reader%d exiting...\n", id);
   return args; 
 }
 
@@ -104,7 +111,6 @@ int write(int id, int currentNum, FILE *writerFile){
   }
   currentNum = currentNum+5;
   writerOffset = ftell(writerFile);
-  //printf("writer%d finished writing element %d\n", id, currentNum);
   return (currentNum);
 }
 
@@ -115,28 +121,32 @@ void startWrite(int id){
     activeWriters++;
   }
   else{
-   // printf("writer%d waiting to write.\n", id);
+    gettimeofday(&timer, NULL);
+    printf("%ld  writer%d  waiting to write.\n", timer.tv_usec, id);
     waitingWriters++;
   }
   sem_post(&mutex);
   sem_wait(&okToWrite);
- // printf("writer%d currently writing.\n", id);
+  gettimeofday(&timer, NULL);
+  printf("%ld  writer%d  currently writing.\n", timer.tv_usec, id);
 }
 
 void endWrite(int id){
   sem_wait(&mutex);
   activeWriters--;
-  //printf("writer%d done writing.\n", id);
+  gettimeofday(&timer, NULL);
+  printf("%ld  writer%d  done writing.\n", timer.tv_usec, id);
   if(waitingWriters > 0){
-   // printf("%d writers are currently waiting.\n", waitingWriters);
     sem_post(&okToWrite);
     activeWriters++;
     waitingWriters--;
   }
   else{
-    int i;
-    for(i = 0; i < waitingReaders; i++){
+    printf("no writers are waiting, waitingReaders = %d.\n", waitingReaders);
+    while(waitingReaders > 0){
       sem_post(&okToRead);
+      waitingReaders--;
+      activeReaders++;
     }
   }
   sem_post(&mutex);
@@ -151,7 +161,6 @@ void* writer(void *args){
     currentNum = write(id, currentNum, writersFile);
     endWrite(id); 
   }  
-  printf("writer%d exiting...\n", id);
   return args;
 }
 
@@ -161,6 +170,9 @@ int main(int argc, char **argv){
     printf("usage: \"%s [numReaders] [numWriters]\"\n", argv[0]);
     exit(1);
   }
+  
+  
+  
   int numReaders = atoi(argv[1]); 
   int numWriters = atoi(argv[2]);
 
@@ -168,7 +180,6 @@ int main(int argc, char **argv){
 
   pthread_t readers[numReaders];
   pthread_t writers[numWriters];
-  
   sem_init(&okToRead, 0, 0);
   sem_init(&okToWrite, 0, 0);
   sem_init(&mutex, 0, 1);
