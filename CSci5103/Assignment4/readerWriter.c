@@ -25,21 +25,20 @@ int read(FILE *outputFile, FILE *writersFile, int numLines, long int *offset){
   int itemsRead;
   char line[16];
   int i;
-   
-  for(i = 0; i < 5; i++){
+  char *temp;
+  do{
     //--------------------------Get Line--------------------------------
     sem_wait(&mutex);
     fseek(writersFile, *offset, SEEK_SET);       //find correct offset
-    char *temp = fgets(line, 16, writersFile);   //read from file
+    temp = fgets(line, 16, writersFile);   //read from file
     *offset = ftell(writersFile);                //update offset
     sem_post(&mutex);
     //-----------------------------------------------------------------
-    if(temp == NULL){
-      return numLines;
+    if(temp != NULL){
+      fprintf(outputFile, "%s", line);
+      numLines++;
     }
-    fprintf(outputFile, "%s", line);
-    numLines++;
-  }
+  }while(temp != NULL);
   return numLines;
 }
 
@@ -142,7 +141,6 @@ void endWrite(int id){
     waitingWriters--;
   }
   else{
-    printf("no writers are waiting, waitingReaders = %d.\n", waitingReaders);
     while(waitingReaders > 0){
       sem_post(&okToRead);
       waitingReaders--;
