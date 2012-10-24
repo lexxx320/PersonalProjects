@@ -1,5 +1,5 @@
 #include "buffer.h"
-
+ 
 int addToBuffer(Color c, Buffer *buf){
   Node *ptr = buf->head->next;
   Node *trailer = buf->head;

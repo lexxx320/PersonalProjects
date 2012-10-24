@@ -1,4 +1,4 @@
---Matthew Le
+(*--Matthew Le
 --3975089
 --lexxx320
 
@@ -11,7 +11,7 @@
 --element in list b, then check for the rest of the list
 --If not, then restart listA and check against the rest of listB
 
---Lists for testing purposes
+--Lists for testing purposes*)
 val a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 val b = [1, 2, 3, 4, 5]
 val c = [1, 2, 1, 2]
