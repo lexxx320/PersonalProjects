@@ -7,13 +7,9 @@
 sem_t okToWrite;
 sem_t okToRead;
 sem_t mutex;
-int activeReaders, waitingReaders, activeWriters, waitingWriters;
+FILE *writersFile;
+int activeReaders, waitingReaders, activeWriters, waitingWriters, totalLines;
 long int writerOffset;
-typedef struct threadInfo_t{
-  int id;
-  int totalLines;
-  FILE *writerFile;
-}ThreadInfo;
 
 int read(FILE *outputFile, FILE *writersFile, int numLines, long int *offset){
   
@@ -22,32 +18,32 @@ int read(FILE *outputFile, FILE *writersFile, int numLines, long int *offset){
   int i;
    
   for(i = 0; i < 5; i++){
+    //--------------------------Get Line--------------------------------
     sem_wait(&mutex);
     fseek(writersFile, *offset, SEEK_SET);       //find correct offset
     char *temp = fgets(line, 16, writersFile);   //read from file
     *offset = ftell(writersFile);                //update offset
     sem_post(&mutex);
+    //-----------------------------------------------------------------
     if(temp == NULL){
-      printf("No chars read.\n");
+      printf("Did not read all 5 chars.\n");
       return numLines;
     }
-    printf("just read line%d\n", numLines);
+    //printf("just read line%d\n", numLines);
     fprintf(outputFile, "%s", line);
     numLines++;
-  }
-  if(i != 5){
-    printf("ERROR, reader did not read 5 lines.\n");
   }
   return numLines;
 }
 
 void startRead(int id, int readLines){
   sem_wait(&mutex);
-  if(activeWriters + waitingWriters == 0 && readLines != 0){          //no one writing or waiting to write
+  if(activeWriters + waitingWriters == 0){          //no one writing or waiting to write
     sem_post(&okToRead);
   }
   else{
     printf("reader%d waiting to read.\n", id);
+    printf("activeWriters = %d, waitingWriters = %d\n", activeWriters, waitingWriters);
   } 
   waitingReaders++;
   sem_post(&mutex);
@@ -70,10 +66,10 @@ void endRead(int id){
 }
 
 void* reader(void *args){
-  ThreadInfo info = *((ThreadInfo*)args);
+  int id = *((int*)args);
   char fileName[100];
   char idString[10];
-  sprintf(idString, "%d", info.id);
+  sprintf(idString, "%d", id);
   strcpy(fileName, "reader");
   strcat(fileName, idString);
   strcat(fileName, "_output_file");
@@ -83,11 +79,11 @@ void* reader(void *args){
   long int fileOffset = 0;
   int readLines = 1;
   
-  while(linesRead < info.totalLines){
-    startRead(info.id, readLines);
-    linesRead = read(readerFile, info.writerFile, linesRead, &fileOffset);
-    printf("reader%d finished reading line %d\n", info.id, linesRead);
-    endRead(info.id);
+  while(linesRead < totalLines){
+    startRead(id, readLines);
+    linesRead = read(readerFile, writersFile, linesRead, &fileOffset);
+    printf("reader%d finished reading line %d\n", id, linesRead);
+    endRead(id);
     if(previousLinesRead == linesRead){
       readLines = 0;
     } 
@@ -96,6 +92,7 @@ void* reader(void *args){
     }
     previousLinesRead = linesRead;
   }
+  printf("reader%d exiting...\n", id);
   return args; 
 }
 
@@ -146,14 +143,15 @@ void endWrite(int id){
 }
 
 void* writer(void *args){
-  ThreadInfo info = *((ThreadInfo*)args);
+  int id = *((int*)args);
   int currentNum = 1;
   
   while(currentNum < 100){
-    startWrite(info.id);
-    currentNum = write(info.id, currentNum, info.writerFile);
-    endWrite(info.id); 
+    startWrite(id);
+    currentNum = write(id, currentNum, writersFile);
+    endWrite(id); 
   }  
+  printf("writer%d exiting...\n", id);
   return args;
 }
 
@@ -166,8 +164,11 @@ int main(int argc, char **argv){
   int numReaders = atoi(argv[1]); 
   int numWriters = atoi(argv[2]);
 
-  FILE *writerFile = fopen("writer_output_file", "w+r");
+  writersFile = fopen("writer_output_file", "w+r");
 
+  //pthread_t *readers = (pthread_t*)malloc(sizeof(pthread_t) * numReaders);
+  //pthread_t *writers = (pthread_t*)malloc(sizeof(pthread_t) * numWriters);
+  
   pthread_t readers[numReaders];
   pthread_t writers[numWriters];
   
@@ -176,32 +177,37 @@ int main(int argc, char **argv){
   sem_init(&mutex, 0, 1);
   writerOffset = 0;
   int i;
-  ThreadInfo idsReaders[numReaders];  
+  totalLines = 100*numWriters;
+  int idsReaders[numReaders];  
   //Dispatch reader threads
   for(i = 0; i < numReaders; i++){
-    idsReaders[i].writerFile = writerFile;
-    idsReaders[i].id = i;
-    idsReaders[i].totalLines = numWriters * 100;
+    idsReaders[i] = i;
     pthread_create(readers + i, NULL, reader, (void*)&idsReaders[i]);
   }
   
-  ThreadInfo idsWriters[numReaders];
+  int idsWriters[numWriters];
   //Dispatch writer threads
   for(i = 0; i < numWriters; i++){
-    idsWriters[i].writerFile = writerFile;
-    idsWriters[i].id = i;
-    idsWriters[i].totalLines = numWriters * 100;
+    idsWriters[i] = i;
     pthread_create(writers + i, NULL, writer, (void*)&idsWriters[i]);
   }
-
-  void *returnStatus;
+  
+  
   for(i = 0; i < numWriters; i++){
-    pthread_join(writers[i], NULL);
+    if((pthread_join(writers[i], NULL)) != 0){
+      perror("pthread_join writers.\n");
+      exit(1);
+    }
   }
   for(i = 0; i < numReaders; i++){
-    pthread_join(readers[i], NULL);
+    if((pthread_join(readers[i], NULL)) != 0){
+      perror("pthread_join readers.\n");
+      exit(1);
+    }
   }
-  fclose(writerFile);
+  //free(readers);
+  //free(writers);
+  fclose(writersFile);
   //*/
   
   return 0;
