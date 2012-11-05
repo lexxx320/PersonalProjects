@@ -181,13 +181,44 @@ void printStmt(struct Stmt_t *s){
   }
 }
 
-int main(int argc, char **argv){
-  struct Stmt_t *statements = mkTree();
-  printf("unparse: \n");
-  printStmt(statements);
-  printf("\nTranslation:\n");
-  translateStmt(statements, 0);
+void cleanupExpr(struct Expr_t *e){
+  switch(e->production){
+    case 6:
+      free(e);
+      break;
+    case 7:
+      free(e);
+      break;
+    default:
+      cleanupExpr(e->binary.left);
+      cleanupExpr(e->binary.right);
+      free(e);
+  }
+}
 
+void cleanupStmt(struct Stmt_t *s){
+  switch(s->production){
+    case 0:
+      cleanupStmt(s->seq.first);
+      cleanupStmt(s->seq.rest);
+      free(s);
+      break;
+    case 1:
+      cleanupExpr(s->assignment.rh);
+      free(s);
+      break;
+    default:
+      break;
+  }
+}
+
+int main(int argc, char **argv){
+  struct Stmt_t *statements = mkTree();  //make the tree
+  printf("unparse: \n");
+  printStmt(statements);                 //pretty print
+  printf("\nTranslation:\n");
+  translateStmt(statements, 0);          //assembly translation
+  cleanupStmt(statements);               //clean up
   return 0;
 }
 
