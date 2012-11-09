@@ -50,20 +50,20 @@ void startRead(int id, int readLines){
   }
   else{                                             
     gettimeofday(&timer, NULL);
-    printf("%ld  reader%d  waiting to read.\n", timer.tv_usec, id);
+    printf("%ld  reader-%d  waiting-for-lock.\n", timer.tv_usec, id);
     waitingReaders++;
   } 
   sem_post(&mutex);
   sem_wait(&okToRead);
   gettimeofday(&timer, NULL);
-  printf("%ld  reader%d  currently reading.\n", timer.tv_usec, id);
+  printf("%ld  reader-%d  lock-acquired.\n", timer.tv_usec, id);
 }
 
 void endRead(int id){
   sem_wait(&mutex);
   activeReaders--;
   gettimeofday(&timer, NULL);
-  printf("%ld  reader%d  done reading.\n", timer.tv_usec, id);
+  printf("%ld  reader-%d  lock-released.\n", timer.tv_usec, id);
   if(activeReaders == 0 && waitingWriters > 0){
     sem_post(&okToWrite);
     activeWriters++;
@@ -115,26 +115,26 @@ int write(int id, int currentNum, FILE *writerFile){
 
 void startWrite(int id){
   sem_wait(&mutex);
-  if(activeWriters + activeReaders + waitingWriters == 0){
+  if(activeWriters + activeReaders + waitingWriters + waitingReaders== 0){
     sem_post(&okToWrite);
     activeWriters++;
   }
   else{
     gettimeofday(&timer, NULL);
-    printf("%ld  writer%d  waiting to write.\n", timer.tv_usec, id);
+    printf("%ld  writer-%d  waiting-for-lock.\n", timer.tv_usec, id);
     waitingWriters++;
   }
   sem_post(&mutex);
   sem_wait(&okToWrite);
   gettimeofday(&timer, NULL);
-  printf("%ld  writer%d  currently writing.\n", timer.tv_usec, id);
+  printf("%ld  writer-%d  acquired-lock.\n", timer.tv_usec, id);
 }
 
 void endWrite(int id){
   sem_wait(&mutex);
   activeWriters--;
   gettimeofday(&timer, NULL);
-  printf("%ld  writer%d  done writing.\n", timer.tv_usec, id);
+  printf("%ld  writer-%d  lock-released.\n", timer.tv_usec, id);
   if(waitingWriters > 0){
     sem_post(&okToWrite);
     activeWriters++;
