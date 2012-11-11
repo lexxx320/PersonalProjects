@@ -5,6 +5,10 @@ import Char
 import System.IO.Unsafe
 import Prelude hiding(getLine)
 
+type Line = [String]
+type Stanza = [Line]         
+type Poem = [Stanza]
+
 check f = 
   do
     text <- readFile f
@@ -14,18 +18,73 @@ check f =
                       then "The file does contain a paradelle."
                       else "The file does not contain a paradelle."
 
+
+
+
+
 is_paradelle :: String -> Bool
-is_paradelle text 
-  = False
+is_paradelle text = checkLine1 && checkLine2 && checkLine3 && checkLine4
+  where
+    previousStanzas = (foldr (++) [] (getStanza poem 1)) ++ (foldr (++) [] (getStanza poem 2)) ++ (foldr (++) [] (getStanza poem 3))
+    poem = parseIntoStanzas (parseIntoLines text)
+    checkLine1 = checkStanza (getStanza poem 1)
+    checkLine2 = checkStanza (getStanza poem 2)
+    checkLine3 = checkStanza (getStanza poem 3)
+    checkLine4 = checkLastStanza (getStanza poem 4) previousStanzas
+    
 
 
-isPunctuation c = c /= '.' || c /= ',' || c /= '!' || c /= '?' || c /= ';' || c /= ':'
+checkStanza :: Stanza -> Bool    
+checkStanza stanza = linesEqual (getLine stanza 1) (getLine stanza 2) &&  --first and second are equal
+                     linesEqual (getLine stanza 3) (getLine stanza 4) &&  --third and fourth are equal
+                     foldr (&&) True (map (wordInSet set) (getLine stanza 5)) && --fifth is composed of 1-4
+                     foldr (&&) True (map (wordInSet set) (getLine stanza 6))    --6 is composed of 1-4
+                     where
+                      set = (getLine stanza 1) ++ (getLine stanza 2) ++ (getLine stanza 3) ++ (getLine stanza 3)
+                      wordInSet set word = length (intersect [word] set) > 0
+                      
+checkLastStanza :: Stanza -> Line -> Bool
+checkLastStanza stanza set = foldr (&&) True (map (checkLine set) stanza)
+                             where
+                              wordInSet set word = length(intersect [word] set) > 0
+                              checkLine set line = foldr (&&) True (map (wordInSet set) line)
 
-dropPunctuation s = filter isPunctuation s
 
-getLine poem = takeWhile (\x -> x /= '\n') poem
+stanza = head poem
+word = ["love"]
+set = foldr (++) [] stanza
+
+getStanza :: Poem -> Int -> Stanza
+getStanza poem i = if i == 1
+                   then head poem
+                   else getStanza (tail poem) (i-1)
+
+getLine :: Stanza -> Int -> Line
+getLine stanza i = if i == 1 
+                   then head stanza
+                   else getLine (tail stanza) (i-1)
+
+linesEqual l1 l2 = if length l1 == length l2
+                   then foldr (&&) True (map (\(l, r) -> l == r) (zip l1 l2))
+                   else False
 
 
+parseIntoLines :: [Char] -> [Line]
+parseIntoLines [] = []
+parseIntoLines lines = if head lines == '\n'
+                       then parseIntoLines (tail lines)
+                       else [words currentLine] ++ parseIntoLines (drop (length currentLine) lines)
+                       where
+                        currentLine = takeWhile (\x -> x /= '\n') lines
+                        
+parseIntoStanzas :: [Line] -> Poem
+parseIntoStanzas [] = []
+parseIntoStanzas poem = if length poem < 6
+                        then []
+                        else [fst (splitAt 6 poem)] ++ parseIntoStanzas (snd (splitAt 6 poem))
+
+
+poem = parseIntoStanzas (parseIntoLines s)
 {- 
   Your task is to implement the above function and additional
   functions used by it to solve the assigned problem.
@@ -70,5 +129,11 @@ allEven xs = foldr f z xs
   experimenting with your helper functions.  To do this, use the
   following:
 -}
+notPunctuation c = c /= '.' && c /= ',' && c /= '!' && c /= '?' && c /= ';' && c /= ':'
 s :: String
-s = map toLower (unsafePerformIO ( readFile "paradelle_susan_1.txt"))
+s = filter notPunctuation (map toLower (unsafePerformIO ( readFile "paradelle_susan_1.txt")))
+
+
+
+
+
