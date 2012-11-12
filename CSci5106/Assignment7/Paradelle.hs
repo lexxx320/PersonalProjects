@@ -34,9 +34,9 @@ is_paradelle text = checkLine1 && checkLine2 && checkLine3 && checkLine4 && leng
 checkStanza :: Stanza -> Bool    
 checkStanza stanza = getLine stanza 1 == getLine stanza 2 &&  --first and second are equal
                      getLine stanza 3 == getLine stanza 4 &&  --third and fourth are equal
-                     sort (nub lastTwoLines) == sort (nub firstFourLines) --
+                     sort lastTwoLines == sort linesOneAndThree --as
                      where
-                      firstFourLines = (getLine stanza 1) ++ (getLine stanza 2) ++ (getLine stanza 3) ++ (getLine stanza 4)
+                      linesOneAndThree = (getLine stanza 1) ++ (getLine stanza 3) 
                       lastTwoLines = getLine stanza 5 ++ getLine stanza 6
 
 --check that the given stanza is composed of all of the words provided by set,
