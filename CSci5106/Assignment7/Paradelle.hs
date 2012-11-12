@@ -5,84 +5,93 @@ import Char
 import System.IO.Unsafe
 import Prelude hiding(getLine)
 
+--Additional types used
 type Line = [String]
 type Stanza = [Line]         
 type Poem = [Stanza]
 
+
 check f = 
   do
     text <- readFile f
-    return (resultMessage (is_paradelle text))
+    return (resultMessage (is_paradelle (map toLower text) ))
   where
     resultMessage r = if r
                       then "The file does contain a paradelle."
                       else "The file does not contain a paradelle."
 
-
-
-
-
 is_paradelle :: String -> Bool
-is_paradelle text = checkLine1 && checkLine2 && checkLine3 && checkLine4
+is_paradelle text = checkLine1 && checkLine2 && checkLine3 && checkLine4 && length poem == 4
   where
-    previousStanzas = (foldr (++) [] (getStanza poem 1)) ++ (foldr (++) [] (getStanza poem 2)) ++ (foldr (++) [] (getStanza poem 3))
     poem = parseIntoStanzas (parseIntoLines text)
+    previousStanzas = (foldr (++) [] (getStanza poem 1)) ++ (foldr (++) [] (getStanza poem 2)) ++ (foldr (++) [] (getStanza poem 3))
     checkLine1 = checkStanza (getStanza poem 1)
     checkLine2 = checkStanza (getStanza poem 2)
     checkLine3 = checkStanza (getStanza poem 3)
     checkLine4 = checkLastStanza (getStanza poem 4) previousStanzas
-    
 
-
+--Check for first three stanzas    
 checkStanza :: Stanza -> Bool    
-checkStanza stanza = linesEqual (getLine stanza 1) (getLine stanza 2) &&  --first and second are equal
-                     linesEqual (getLine stanza 3) (getLine stanza 4) &&  --third and fourth are equal
-                     foldr (&&) True (map (wordInSet set) (getLine stanza 5)) && --fifth is composed of 1-4
-                     foldr (&&) True (map (wordInSet set) (getLine stanza 6))    --6 is composed of 1-4
+checkStanza stanza = getLine stanza 1 == getLine stanza 2 &&  --first and second are equal
+                     getLine stanza 3 == getLine stanza 4 &&  --third and fourth are equal
+                     sort (nub lastTwoLines) == sort (nub firstFourLines) --
                      where
-                      set = (getLine stanza 1) ++ (getLine stanza 2) ++ (getLine stanza 3) ++ (getLine stanza 3)
-                      wordInSet set word = length (intersect [word] set) > 0
-                      
+                      firstFourLines = (getLine stanza 1) ++ (getLine stanza 2) ++ (getLine stanza 3) ++ (getLine stanza 4)
+                      lastTwoLines = getLine stanza 5 ++ getLine stanza 6
+
+--check that the given stanza is composed of all of the words provided by set,
+--set should contain a list of Strings, containing all words previously used.                      
 checkLastStanza :: Stanza -> Line -> Bool
-checkLastStanza stanza set = foldr (&&) True (map (checkLine set) stanza)
-                             where
-                              wordInSet set word = length(intersect [word] set) > 0
-                              checkLine set line = foldr (&&) True (map (wordInSet set) line)
+checkLastStanza stanza set = sort (nub lastStanza) == sort (nub set)
+                           where
+                            lastStanza = foldr (++) [] stanza
 
+s1 = (foldr (++) [] (getStanza poem 1)) ++ (foldr (++) [] (getStanza poem 2)) ++ (foldr (++) [] (getStanza poem 3))
+s2 = foldr (++) [] (getStanza poem 4)
 
-stanza = head poem
-word = ["love"]
-set = foldr (++) [] stanza
-
+--return the ith stanza
 getStanza :: Poem -> Int -> Stanza
 getStanza poem i = if i == 1
                    then head poem
                    else getStanza (tail poem) (i-1)
 
+--return the ith line
 getLine :: Stanza -> Int -> Line
 getLine stanza i = if i == 1 
                    then head stanza
                    else getLine (tail stanza) (i-1)
 
-linesEqual l1 l2 = if length l1 == length l2
-                   then foldr (&&) True (map (\(l, r) -> l == r) (zip l1 l2))
-                   else False
+------------------------------------File Parsing--------------------------------------
+--Strip out anything that isn't a letter
+parseLine :: [Char] -> Line
+parseLine [] = []
+parseLine line = if not (isAlpha (head line))
+                 then parseLine (tail line)
+                 else [currentWord] ++ (parseLine rest)
+                   where
+                    rest = drop (length currentWord) line
+                    currentWord = takeWhile (\x -> isAlpha x || x == '\'') line
+                  
 
-
+--if first character is a newline then continue, otherwise grab the first n characters
+--until you hit a \n
 parseIntoLines :: [Char] -> [Line]
 parseIntoLines [] = []
 parseIntoLines lines = if head lines == '\n'
                        then parseIntoLines (tail lines)
-                       else [words currentLine] ++ parseIntoLines (drop (length currentLine) lines)
+                       else [parseLine currentLine] ++ parseIntoLines (drop (length currentLine) lines)
                        where
                         currentLine = takeWhile (\x -> x /= '\n') lines
-                        
+
+
+--Take a list of lines, and group every six lines.  If there are less than six lines then
+--return the empty list, we check for 4 stanzas in the check function.             
 parseIntoStanzas :: [Line] -> Poem
 parseIntoStanzas [] = []
 parseIntoStanzas poem = if length poem < 6
                         then []
                         else [fst (splitAt 6 poem)] ++ parseIntoStanzas (snd (splitAt 6 poem))
-
+---------------------------------------------------------------------------------------
 
 poem = parseIntoStanzas (parseIntoLines s)
 {- 
@@ -129,9 +138,8 @@ allEven xs = foldr f z xs
   experimenting with your helper functions.  To do this, use the
   following:
 -}
-notPunctuation c = c /= '.' && c /= ',' && c /= '!' && c /= '?' && c /= ';' && c /= ':'
 s :: String
-s = filter notPunctuation (map toLower (unsafePerformIO ( readFile "paradelle_susan_1.txt")))
+s = map toLower (unsafePerformIO ( readFile "paradelle_susan_1.txt"))
 
 
 
