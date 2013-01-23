@@ -15,6 +15,11 @@ type table = (id * int) list
 
 exception LookUp
 
+fun maxargs (stmt : stm) : int = 
+   PrintStm e = 1
+  |AssignStm lhs rhs = 0
+  |CompoundStm first rest = maxargs first + maxargs rest
+
 fun lookup nil id = 
      (print "Error: undefined id "; print id; print "\n"; 
       raise LookUp)
