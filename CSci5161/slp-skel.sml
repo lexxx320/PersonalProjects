@@ -8,17 +8,12 @@ datatype stm = CompoundStm of stm * stm
 
      and exp = IdExp of id
 	     | NumExp of int
-             | OpExp of exp * binop * exp
-             | EseqExp of stm * exp
+       | OpExp of exp * binop * exp
+       | EseqExp of stm * exp
 
 type table = (id * int) list
 
 exception LookUp
-
-fun maxargs (stmt : stm) : int = 
-   PrintStm e = 1
-  |AssignStm lhs rhs = 0
-  |CompoundStm first rest = maxargs first + maxargs rest
 
 fun lookup nil id = 
      (print "Error: undefined id "; print id; print "\n"; 
@@ -36,6 +31,42 @@ val prog =
   CompoundStm(AssignStm("b",
       EseqExp(PrintStm[IdExp"a",OpExp(IdExp"a", Minus,NumExp 1)],
            OpExp(NumExp 10, Times, IdExp"a"))),
-   PrintStm[IdExp "b"]))
+   PrintStm[IdExp "b"]) )
+
+(*Probelm 1 Part 1*)
+fun maxargs (PrintStm (e)) = 1 + (checkEseqExp e)
+  |maxargs (AssignStm (lhs, rhs)) = checkEseqExp [rhs]
+  |maxargs (CompoundStm (first, rest)) = maxargs first + maxargs rest
+
+and checkEseqExp (nil) : int = 0 
+  |checkEseqExp (x::xs) = case x of
+	   (IdExp(_)) => checkEseqExp xs
+	  |(NumExp(_)) => checkEseqExp xs
+    |(OpExp(_,_,_)) => checkEseqExp xs
+    |(EseqExp(s, _)) => (maxargs s) + (checkEseqExp xs)
+ 
+(*Problem 1 Part 2*)
+
+fun interpStm (CompoundStm(first, rest)) env = interpStm rest (interpStm first env)
+   |interpStm (AssignStm(lhs, rhs)) env = update env lhs (interpExp rhs env)
+   |interpStm (PrintStm(e)) env = (interpExprs e env)
+
+and interpExp (IdExp id) env= ((lookup env id), env)
+
+and interpExprs (x::xs) env = interpExprs xs (interpExp x env)
+   |interpExprs nil env = env
+
+fun interp (s:stm) = interpStm s []
+
+
+
+
+
+
+
+
+
+
+
 
 
