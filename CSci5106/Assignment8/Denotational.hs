@@ -1,9 +1,5 @@
 module Denotational where
 
-{- For question 4(a) you will need to extend this algebraic data type
-   with variants for the needed expression operations.  
--}
-
 data Expr = Add Expr Expr
           | Sub Expr Expr
           | Mult Expr Expr
@@ -21,7 +17,7 @@ data Expr = Add Expr Expr
           | VarName String
           | TrueE
           | FalseE
-  deriving (Show,Eq) -- disregard this for now.
+  deriving (Show,Eq) 
 
 data Stmt = Seq Stmt Stmt
           | Assignment String Expr
@@ -44,21 +40,17 @@ s5 = Assignment "i" (Add (VarName "i") (Const 1))
 exponentProg = Program "x" "y" (foldr Seq s3 [s1, s2]) "z"
 
 --------------GCD Program-----------------------------
-s6 = IfThenElse (Lt (VarName "m") (VarName "n")) s7 s8
+s6 = IfThenElse (Gt (VarName "m") (VarName "n")) s7 s8
 s7 = Assignment "i" (VarName "n")
 s8 = Assignment "i" (VarName "m") 
 s9 = While (Or (Neq (Mod (VarName "n") (VarName "i")) (Const 0)) (Neq (Mod (VarName "m") (VarName "i")) (Const 0))) (Assignment "i" (Sub (VarName "i") (Const 1)))
 gcdProg = Program "m" "n" (Seq s6 s9) "i"
-
--- Below is the sample environment.
-env = [ ("x", 3), ("y", 4), ("z", 5), ("p", 1), ("q", 0) ]
-
-
-t = Mod (Const 5) (Const 10)
+----------------------------------------------------------
 
 update :: String -> Integer -> State -> State
 update var val oldState = (var, val) : oldState
 
+-------------------ExecStmt--------------------------------------------
 execStmt :: Stmt -> State -> State
 execStmt (Seq s1 s2) currentState = execStmt s2 (execStmt s1 currentState)  
 execStmt (Assignment lh rh) currentState = update lh (eval rh currentState) currentState
@@ -73,7 +65,6 @@ execStmt (IfThen cond body) state = if eval cond state == 1
 execStmt (IfThenElse cond thenClause elseClause) state = if eval cond state == 1
                                                          then execStmt thenClause state
                                                          else execStmt elseClause state
-
 
 execProg :: Prog -> Integer -> Integer -> Integer
 execProg (Program arg1 arg2 stmts output)
@@ -90,74 +81,14 @@ execProgState (Program arg1 arg2 stmts output)
     where 
       initialState = [(arg1, vArg1), (arg2, vArg2)]                                                        
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-----------------------For Testing Purposes----------------
---Print out the expression
---pp :: a -> [(String, Integer)] -> String
-pp (Add e1 e2) env = pp e1 env ++ " + " ++ pp e2 env
-pp (Sub e1 e2) env = pp e1 env ++ " - " ++ pp e2 env
-pp (Mult e1 e2) env = pp e1 env ++ " * " ++ pp e2 env
-pp (And e1 e2) env = pp e1 env ++ " && " ++ pp e2 env
-pp (Mod e1 e2) env = pp e1 env ++ " % " ++ pp e2 env
-pp (Or e1 e2) env = pp e1 env ++ " || " ++ pp e2 env
-pp (Equals e1 e2) env = pp e1 env ++ " == " ++ pp e2 env
-pp (Gt e1 e2) env = pp e1 env ++ " > " ++ pp e2 env
-pp (Gte e1 e2) env = pp e1 env ++ " >= " ++ pp e2 env
-pp (Lte e1 e2) env = pp e1 env ++ " <= " ++ pp e2 env
-pp (Lt e1 e2) env = pp e1 env ++ " < " ++ pp e2 env
-pp (Neq e1 e2) env = pp e1 env ++ " != " ++ pp e2 env
-pp (Not e) env = "!" ++ pp e env
-pp (Const x) _ = show(x)
-pp (VarName v) env = case lookup v env of
-  Nothing -> error("Undefined variable \"" ++ v ++ "\".")
-  Just _ -> v
-pp TrueE _ = "True"
-pp FalseE _ = "False"
-
-------------------------------------------------------------
-
-{- For question 4(c) complete the implementation of eval below.  You
-   will need a clause for each constructor of the type Expr.
--}
-
+------------Eval Expressions---------------------
 eval :: Expr -> [(String, Integer)] -> Integer
 eval (Add e1 e2) env = eval e1 env + eval e2 env
 eval (Sub e1 e2) env = eval e1 env - eval e2 env
 eval (Mult e1 e2) env = eval e1 env * eval e2 env
-eval (Mod e1 e2) env = mod (eval e1 env) (eval e1 env) 
+
+eval (Mod e1 e2) env = mod (eval e1 env) (eval e2 env) 
+
 eval (Not e1) env = if (eval e1 env) == 0
                     then 1
                     else 0
@@ -193,56 +124,33 @@ eval (VarName v) env
 eval TrueE _ = 1
 eval FalseE _ = 0
 
+----------------------For Testing Purposes----------------
+--Print out the expression
+--pp :: a -> [(String, Integer)] -> String
+ppProg (Program arg1 arg2 stmts output) vArg1 vArg2 = arg1 ++ " = " ++ show(vArg1) ++ ";\n" ++ arg2 ++ " = " ++ show(vArg2) ++ ";\n" ++ ppStmt stmts ([(arg1, vArg1), (arg2, vArg2)]) 
 
+ppStmt (Seq s1 s2) env = ppStmt s1 env ++ ";\n" ++ ppStmt s2 env
+ppStmt (Assignment lh rh) env = lh ++ " = " ++ pp rh env ++ ";\n"
+ppStmt (While e body) env = "While(" ++ pp e env ++ "){\n" ++ ppStmt body env ++ "}\n"
+ppStmt (IfThen cond body) env = "if(" ++ pp cond env ++ "){\n" ++ ppStmt body env ++ "}\n"
+ppStmt (IfThenElse cond s1 s2) env = "if(" ++ pp cond env ++ "){\n" ++ ppStmt s1 env ++ "}" ++ "else{\n" ++ ppStmt s2 env ++ "}\n"
 
-
-
-{- For question 4(d) implement the translate function below.  It
-   should return a String and take as input an Expr and an Integer.
--}
-
-ririr1 i = "R" ++ show(i) ++ ", R" ++ show(i) ++ ", R" ++ show(i+1)
-
-translate e  = putStr (translateHelper e 0)
-
-translateHelper :: Expr -> Integer -> String
-
-translateHelper (Add e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "AddOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Sub e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "SubOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Mult e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "MultOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Not e1) i = (translateHelper e1 i) ++ "NotOp R" ++ show(i) ++ ", R" ++ show(i+1) ++ "\n"
-translateHelper (And e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "AndOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Or e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "OrOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Equals e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "EqualsOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Gt e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "GtOp " ++ (ririr1 i) ++ "\n"
-translateHelper (Lte e1 e2) i = (translateHelper e1 i) ++ (translateHelper e2 (i+1)) ++ 
-  "LteOp " ++ (ririr1 i) ++ "\n"
-
-translateHelper (Const x) i = "LoadC R" ++ show(i) ++ ", " ++ show(x) ++ "\n"
-translateHelper (VarName v) i = "Load R" ++ show(i) ++ ", " ++ v ++ "\n"
-translateHelper TrueE _ = "True"
-translateHelper FalseE _ = "False"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+pp (Add e1 e2) env = pp e1 env ++ " + " ++ pp e2 env
+pp (Sub e1 e2) env = pp e1 env ++ " - " ++ pp e2 env
+pp (Mult e1 e2) env = pp e1 env ++ " * " ++ pp e2 env
+pp (And e1 e2) env = pp e1 env ++ " && " ++ pp e2 env
+pp (Mod e1 e2) env = pp e1 env ++ " % " ++ pp e2 env
+pp (Or e1 e2) env = pp e1 env ++ " || " ++ pp e2 env
+pp (Equals e1 e2) env = pp e1 env ++ " == " ++ pp e2 env
+pp (Gt e1 e2) env = pp e1 env ++ " > " ++ pp e2 env
+pp (Gte e1 e2) env = pp e1 env ++ " >= " ++ pp e2 env
+pp (Lte e1 e2) env = pp e1 env ++ " <= " ++ pp e2 env
+pp (Lt e1 e2) env = pp e1 env ++ " < " ++ pp e2 env
+pp (Neq e1 e2) env = pp e1 env ++ " != " ++ pp e2 env
+pp (Not e) env = "!" ++ pp e env
+pp (Const x) _ = show(x)
+pp (VarName v)_ = v
+pp TrueE _ = "True"
+pp FalseE _ = "False"
 
 

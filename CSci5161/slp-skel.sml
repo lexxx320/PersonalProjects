@@ -46,18 +46,23 @@ and checkEseqExp (nil) : int = 0
     |(EseqExp(s, _)) => (maxargs s) + (checkEseqExp xs)
  
 (*Problem 1 Part 2*)
-
 fun interpStm (CompoundStm(first, rest)) env = interpStm rest (interpStm first env)
-   |interpStm (AssignStm(lhs, rhs)) env = update env lhs (interpExp rhs env)
-   |interpStm (PrintStm(e)) env = (interpExprs e env)
+   |interpStm (AssignStm(lhs, rhs)) env = update env lhs (#1 (interpExp rhs env))
+   (*|interpStm (PrintStm(e)) env = foldl interpExp env e*)
 
-and interpExp (IdExp id) env= ((lookup env id), env)
-
-and interpExprs (x::xs) env = interpExprs xs (interpExp x env)
-   |interpExprs nil env = env
-
+and interpExp (IdExp id) env = ((lookup env id), env)
+   |interpExp (NumExp n) env = (n, env)
+   |interpExp (OpExp(l, binOp, r)) env = let val (lEvaluated, env') = interpExp l env
+                                             val (rEvaluated, env'') = interpExp r env'
+                                         in case binOp of
+                                             Times => (lEvaluated * rEvaluated, env'')
+                                            |Div => (lEvaluated div rEvaluated, env'')
+                                            |Plus => (lEvaluated + rEvaluated, env'')
+                                            |Minus => (lEvaluated - rEvaluated, env'')
+                                         end
+   |interpExp (EseqExp(s, e)) env = let val env' = interpStm s
+                                    in interpExp e env' end                                     
 fun interp (s:stm) = interpStm s []
-
 
 
 
