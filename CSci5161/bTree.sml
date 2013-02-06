@@ -42,7 +42,7 @@ functor BTree(Item : ITEM) : BTREE =
                                         TextIO.print(toString(i) ^ ", ");
                                         print right)
   end;
-
+(*
 structure StringItem = 
   struct
     type item = string
@@ -69,7 +69,7 @@ structure sTree = BTree(StringItem)
 val s1 = foldr sTree.insert (sTree.initTree("a")) ["c", "a", "b", "w", "k", "asd", "d", "p", "q", "h", "z"]
 
    
-   
+   *)
    
    
    
