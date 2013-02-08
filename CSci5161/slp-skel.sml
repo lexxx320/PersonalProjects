@@ -1,3 +1,10 @@
+(*
+Name: Matthew Le
+ID: 3975089
+Date: 2/6/2013
+Problem 1
+*)
+
 type id = string
 
 datatype binop = Plus | Minus | Times | Div
@@ -33,6 +40,39 @@ val prog =
            OpExp(NumExp 10, Times, IdExp"a"))),
    PrintStm[IdExp "b"]) )
 
+val prog2 = 
+  CompoundStm(
+    AssignStm("a",OpExp(NumExp 5, Plus, NumExp 3)),
+    CompoundStm(AssignStm("b",
+                EseqExp(PrintStm[IdExp"a",
+                                 EseqExp(PrintStm [IdExp "a", 
+                                                   IdExp "a", 
+                                                   IdExp "a"],
+                                         OpExp(IdExp"a", Minus,NumExp 1)),
+                                 EseqExp(PrintStm[NumExp 4, 
+                                                  NumExp 4, 
+                                                  NumExp 4, 
+                                                  NumExp 4
+                                                 ],
+                                         OpExp( IdExp "a", Minus, NumExp 3))],
+                        OpExp(NumExp 10, Times, IdExp"a"))),
+                PrintStm[IdExp "b"]))
+
+val prog3 = 
+ CompoundStm(AssignStm("a",OpExp(NumExp 5, Plus, NumExp 3)),
+             CompoundStm(
+                AssignStm("b",
+                          EseqExp(PrintStm[IdExp"a",
+                                           EseqExp(AssignStm("a",
+                                                             OpExp(IdExp "a", 
+                                                                   Times, 
+                                                                   NumExp 5)),
+                                                   OpExp(IdExp"a", 
+                                                         Minus,
+                                                         NumExp 1))],
+                                  OpExp(NumExp 10, Times, IdExp"a"))),
+             PrintStm[IdExp "b"]))
+
 (*Probelm 1 Part 1*)
 fun maxargs (PrintStm (e)) = 1 + (checkEseqExp e)
   |maxargs (AssignStm (lhs, rhs)) = checkEseqExp [rhs]
@@ -46,8 +86,9 @@ and checkEseqExp (nil) : int = 0
     |(EseqExp(s, _)) => (maxargs s) + (checkEseqExp xs)
  
 (*Problem 1 Part 2*)
-fun interpStm ((CompoundStm(first, rest)) : stm) (env : table) : table = interpStm rest (interpStm first env)
-   |interpStm (AssignStm(lhs, rhs)) env = update env lhs (#1 (interpExp rhs env))
+fun interpStm (CompoundStm(first, rest)) env = interpStm rest (interpStm first env)
+   |interpStm (AssignStm(lhs, rhs)) env = let val (e, env') = interpExp rhs env
+                                          in update env' lhs e end
    |interpStm (PrintStm(e)) env = printExprs e env
 
 and interpExp (IdExp id) env = ((lookup env id), env)
@@ -64,11 +105,12 @@ and interpExp (IdExp id) env = ((lookup env id), env)
                                     in interpExp e env' end    
                                     
 and printExprs (x::xs) env = let val (e, env') = interpExp x env
-                                 val dummy = print(Int.toString(e) ^ "\n")
-                             in printExprs xs env' end
-   |printExprs nil env = env
+                                 val dummy = print(Int.toString(e) ^ " ")
+                             in 
+                                 (printExprs xs env') end
+   |printExprs nil env = (print "\n"; env)
                                                                     
-fun interp (s:stm) = interpStm s []
+fun interp (s:stm) = (interpStm s [])
 
 
 

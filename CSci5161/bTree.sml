@@ -1,3 +1,11 @@
+(*
+Name: Matthew Le
+ID: 3975089
+Date: 2/6/2013
+Problem 3 of Homework 1
+*)
+
+(*Part 1*)
 signature BTREE = 
   sig
     type item
@@ -9,6 +17,7 @@ signature BTREE =
     val print: tree -> unit
   end;
   
+(*Part 2*)  
 signature ITEM = 
   sig
     type item 
@@ -17,6 +26,7 @@ signature ITEM =
     val toString: item -> string
   end;
     
+(*Part 3*)
 functor BTree(Item : ITEM) : BTREE = 
   struct
     type item = Item.item
@@ -42,7 +52,8 @@ functor BTree(Item : ITEM) : BTREE =
                                         TextIO.print(toString(i) ^ ", ");
                                         print right)
   end;
-(*
+
+(*Part 4*)
 structure StringItem = 
   struct
     type item = string
@@ -59,7 +70,8 @@ structure IntItem =
     fun toString (i:item) = Int.toString(i)
   end
     
-    
+
+(*Part 5*)
 structure iTree = BTree(IntItem)
 val i1 = foldr iTree.insert (iTree.initTree(4)) [4, 2, 5, 123, 52, 1, 231, 2, 4, 34, 10, 6, 8, 5, 3, 2]  
   
@@ -69,7 +81,7 @@ structure sTree = BTree(StringItem)
 val s1 = foldr sTree.insert (sTree.initTree("a")) ["c", "a", "b", "w", "k", "asd", "d", "p", "q", "h", "z"]
 
    
-   *)
+   
    
    
    

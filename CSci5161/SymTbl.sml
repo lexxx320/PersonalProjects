@@ -1,3 +1,12 @@
+(*
+Name: Matthew Le
+ID: 3975089
+Date 2/6/2013
+Problem 2
+*)
+
+
+(*Part 2.a*)
 signature IntMapSig = 
 sig
   type 'a map
@@ -6,6 +15,7 @@ sig
   exception NotFound
 end
 
+(*Part 2.b*)
 functor IntMapFct() : IntMapSig = 
 struct
   type 'a map = (int * 'a list) list
@@ -26,16 +36,19 @@ struct
      |update(Nil, i, newList) = Cons(i, newList, Nil)
 end
 
+(*Part 2.a*)
 signature ValSig = 
 sig
   type value
 end
 
+(*Part 2.b*)
 functor ValFct() : ValSig = 
 struct
   type value = real
 end
 
+(*Part 2.a*)
 signature SymSig = 
 sig
   type sym
@@ -43,11 +56,12 @@ sig
   val hash : sym -> int
 end
 
+(*Part 2.b*)
 functor SymFct() : SymSig = 
 struct
   type sym = string
   fun equal(s1, s2) = (s1 = s2)
-  fun hash(s) = 
+  fun hash(s) = 1
 end
 
 functor SymTblFct(
@@ -80,6 +94,7 @@ functor SymTblFct(
         in find (s,l)
         end handle IntMap.NotFound => raise Lookup
 
+  (*Part 2.a*)
   fun update (TBL map, sym, v) = 
        let val n = Sym.hash(sym)
            val l = IntMap.apply(map, n) handle IntMap.NotFound => []
