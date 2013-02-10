@@ -47,7 +47,7 @@ testcases contain all testcases. Input is the name of the file which contains th
 directory. Output files are written to output directory *)
   fun parseall filename = 
     let val infile = TextIO.openIn filename
-	val dir_inname = "/home/it20/pack0048/SML/testcases/"
+	val dir_inname = "testcases/syntax-and-sem-analysis/"
 	val dir_outname = "./outputs/"
 	fun process_file(infile) = 
 	  let val current_file = TextIO.inputLine(infile)
