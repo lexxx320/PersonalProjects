@@ -23,7 +23,7 @@ fun eof() = let val pos = hd(!linePos)
 
 
 %% 
-%s comment string;
+%s comment string escape controlChar;
 ws = [\ \t];
 
 %%
@@ -72,33 +72,43 @@ ws = [\ \t];
 
 
 
-<INITIAL> \" => (doneWithString := 0; YYBEGIN string; let val rest = lex()
+<INITIAL> ["] => (doneWithString := 0; YYBEGIN string; let val rest = lex()
                                                       val totalSize = size(yytext) + size(rest)
-                                 in if !doneWithString = 0
+                                 in if !doneWithString = 0 (*Didn't mach string, go back to INITIAL start state and continue*)
                                     then (ErrorMsg.error yypos ("unmatched string");
                                           YYBEGIN INITIAL;
                                           lex())
-                                    else Tokens.STRING(String.substring(yytext ^ rest, 1, totalSize-2), yypos, yypos + size(yytext) + size(rest))
+                                    else Tokens.STRING(rest, yypos, yypos + size(yytext) + size(rest))
                                  end);
 
-<string> \\[0-9][0-9][0-9] =>(let val str = Char.fromString yytext
-                              in
-                                case str 
-                                  of SOME t => if Char.ord(t) > 127
-                                               then yytext ^ lex()
-                                               else Char.toString(t) ^ lex()
-                                    |NONE => (ErrorMsg.error yypos ("Illegal ASCII escape sequence" ^ yytext); lex())
-                              end);
+
+
+
                                           
 
-<string> ([^\n\"\\]|\\\"|\\\\|\\n|\\t|\\\^[a-z])+ => (let val rest = lex() 
-                                                        in yytext ^ rest 
-                                                        end);
+<string> \\ => (YYBEGIN escape; continue());
 
-<string> \n => (yytext);
+<escape> "n" => (YYBEGIN string; "\n" ^ continue());
+<escape> "t" => (YYBEGIN string; "\t" ^ continue());
+<escape> [\"] => (YYBEGIN string; "\"" ^ continue());
+<escape> [\\] => (YYBEGIN string; "\\" ^ continue());
+<escape> [0-9][0-9][0-9] => (YYBEGIN string; case Int.fromString(yytext) of
+                                              SOME t => String.str(Char.chr(t)) ^ continue()
+                                             |NONE   => (ErrorMsg.error yypos ("illegal escape sequence " ^ yytext); continue()));
+<escape> \^ => (YYBEGIN controlChar; continue());
+
+<controlChar> ([a-z]|[A-Z]|[_]|) => (YYBEGIN string; case Char.fromString("\\^" ^ yytext)
+                                                      of SOME t => (String.str(t) ^ continue())
+                                                        |NONE => (ErrorMsg.error yypos ("Illegal control character \\^" ^ yytext); continue() ) );
+                                             
+<escape> . => (YYBEGIN string; ErrorMsg.error yypos ("illegal escape sequence \\" ^ yytext); continue());
+                                             
+<string> ([^\n\"\\])+ => (yytext ^ lex());
+
+<string> \n => (lineNum := !lineNum+1; linePos := yypos :: !linePos;yytext);
                                                         
 <string> \\({ws}|\n)+\\ => (lex());
-<string> \" => (doneWithString := 1; YYBEGIN INITIAL; yytext);
+<string> \" => (doneWithString := 1; YYBEGIN INITIAL; "");
 
 <INITIAL>[a-zA-Z][a-zA-Z0-9_]* => (Tokens.ID(yytext, yypos, yypos+size(yytext)));
 <INITIAL>[0-9]+ => (Tokens.INT((revfold (fn(a,r)=>ord(a)-ord(#"0")+10*r) 
@@ -114,7 +124,7 @@ ws = [\ \t];
 
 
                        
-.       => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
+<INITIAL, string>.       => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
 
 
 
