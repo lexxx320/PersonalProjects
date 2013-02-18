@@ -4,13 +4,7 @@ struct
       (ErrorMsg.lineNum := 1;
        ErrorMsg.linePos := [1];
        ErrorMsg.anyErrors := false
-      )
-
-val newLineF = TextIO.openIn "newline.tig"
-fun get _ = TextIO.input newLineF
-val lexer = Mlex.makeLexer get
-val t = lexer()
-                    
+      )            
       
   fun parse filename =
       let val file = TextIO.openIn filename
