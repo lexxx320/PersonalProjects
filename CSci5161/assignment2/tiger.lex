@@ -77,7 +77,7 @@ ws = [\ \t];
                                  in if !doneWithString = 0 (*Didn't mach string, go back to INITIAL start state and continue*)
                                     then (ErrorMsg.error yypos ("unmatched string");
                                           YYBEGIN INITIAL;
-                                          lex())
+                                          Tokens.STRING("", yypos, yypos)
                                     else Tokens.STRING(rest, yypos, yypos + size(yytext) + size(rest))
                                  end);
 

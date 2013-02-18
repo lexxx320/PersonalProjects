@@ -1,11 +1,12 @@
 structure Parse =
 struct 
+  
+
   fun reinit () = 
       (ErrorMsg.lineNum := 1;
        ErrorMsg.linePos := [1];
        ErrorMsg.anyErrors := false
-      )            
-      
+
   fun parse filename =
       let val file = TextIO.openIn filename
 	  fun get _ = TextIO.input file
@@ -48,8 +49,8 @@ testcases contain all testcases. Input is the name of the file which contains th
 directory. Output files are written to output directory *)
   fun parseall filename = 
     let val infile = TextIO.openIn filename
-	val dir_inname = "testcases/syntax-and-sem-analysis/"
-	val dir_outname = "./outputs/"
+	val dir_inname = "/export/scratch/lematt/Spring12Classes/CSci5161/assignment2/syntax-and-sem-analysis/"
+	val dir_outname = "/export/scratch/lematt/Spring12Classes/CSci5161/assignment2/testing/outputs/"
 	fun process_file(infile) = 
 	  let val current_file = TextIO.inputLine(infile)
 	      val current_filename = case current_file of
