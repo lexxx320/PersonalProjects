@@ -6,14 +6,7 @@ struct
       (ErrorMsg.lineNum := 1;
        ErrorMsg.linePos := [1];
        ErrorMsg.anyErrors := false
-      )
-
-val newLineF = TextIO.openIn "newline.tig"
-fun get _ = TextIO.input newLineF
-val lexer = Mlex.makeLexer get
-val t = lexer()
-                    
-      
+      )  
   fun parse filename =
       let val file = TextIO.openIn filename
 	  fun get _ = TextIO.input file
@@ -84,6 +77,6 @@ directory. Output files are written to output directory *)
 	else
           process_file(infile)
     end
-val s = parse "testcases/syntax-and-sem-analysis/strings.tig"
+
 end
 
