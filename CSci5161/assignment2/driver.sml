@@ -5,7 +5,7 @@ struct
   fun reinit () = 
       (ErrorMsg.lineNum := 1;
        ErrorMsg.linePos := [1];
-       ErrorMsg.anyErrors := false
+       ErrorMsg.anyErrors := false)
 
   fun parse filename =
       let val file = TextIO.openIn filename
