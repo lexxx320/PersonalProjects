@@ -100,9 +100,13 @@ ws = [\ \t];
                                              
 <escape> \^ => (YYBEGIN controlChar; continue());
 
+<<<<<<< HEAD
 <escape> . => (YYBEGIN string; ErrorMsg.error yypos ("illegal escape sequence " ^ yytext); continue());
 
 <controlChar> [@-_] => (YYBEGIN string; case Char.fromString("\\^" ^ yytext)
+=======
+<controlChar> ([@-_]) => (YYBEGIN string; case Char.fromString("\\^" ^ yytext)
+>>>>>>> 37716b37453d1367d7746e49ca4970c85160a482
                                                       of SOME t => (String.str(t) ^ continue())
                                                         |NONE => (ErrorMsg.error yypos ("Illegal control character \\^" ^ yytext); continue() ) );
 <controlChar> => (YYBEGIN string; ErrorMsg.error yypos ("illegal control character " ^ yytext); continue());
@@ -116,7 +120,11 @@ ws = [\ \t];
 <string> \\({ws}|\n)+\\ => (lex());
 <string> \" => (doneWithString := 1; YYBEGIN INITIAL; "");
 
+<<<<<<< HEAD
 <string> . => (YYBEGIN INITIAL; ErrorMsg.error yypos ("illegal character in string " ^ yytext));
+=======
+<string> . => (ErrorMsg.error yypos ("Illegal character in string " ^ yytext); continue());
+>>>>>>> 37716b37453d1367d7746e49ca4970c85160a482
 
 <INITIAL>[a-zA-Z][a-zA-Z0-9_]* => (Tokens.ID(yytext, yypos, yypos+size(yytext)));
 <INITIAL>[0-9]+ => (Tokens.INT((revfold (fn(a,r)=>ord(a)-ord(#"0")+10*r) 
