@@ -77,16 +77,15 @@ ws = [\ \t];
                                  in if !doneWithString = 0 (*Didn't mach string, go back to INITIAL start state and continue*)
                                     then (ErrorMsg.error yypos ("unmatched string");
                                           YYBEGIN INITIAL;
-                                          Tokens.STRING("", yypos, yypos)
+                                          Tokens.STRING("", yypos, yypos))
                                     else Tokens.STRING(rest, yypos, yypos + size(yytext) + size(rest))
                                  end);
 
 
 
 
-                                          
+                                      
 
-<string> \\ => (YYBEGIN escape; continue());
 
 <escape> "n" => (YYBEGIN string; "\n" ^ continue());
 <escape> "t" => (YYBEGIN string; "\t" ^ continue());
@@ -95,12 +94,19 @@ ws = [\ \t];
 <escape> [0-9][0-9][0-9] => (YYBEGIN string; case Int.fromString(yytext) of
                                               SOME t => String.str(Char.chr(t)) ^ continue()
                                              |NONE   => (ErrorMsg.error yypos ("illegal escape sequence " ^ yytext); continue()));
+<escape> ^[@-_] => (YYBEGIN string; case Char.fromString(yytext)
+                                      of SOME t => String.str(t) ^ continue()
+                                        |NONE => (ErrorMsg.error yypos ("illegal escape sequence " ^ yytext); continue()));
+                                             
 <escape> \^ => (YYBEGIN controlChar; continue());
 
-<controlChar> ([a-z]|[A-Z]|[_]|) => (YYBEGIN string; case Char.fromString("\\^" ^ yytext)
+<escape> . => (YYBEGIN string; ErrorMsg.error yypos ("illegal escape sequence " ^ yytext); continue());
+
+<controlChar> [@-_] => (YYBEGIN string; case Char.fromString("\\^" ^ yytext)
                                                       of SOME t => (String.str(t) ^ continue())
                                                         |NONE => (ErrorMsg.error yypos ("Illegal control character \\^" ^ yytext); continue() ) );
-                                             
+<controlChar> => (YYBEGIN string; ErrorMsg.error yypos ("illegal control character " ^ yytext); continue());
+
 <escape> . => (YYBEGIN string; ErrorMsg.error yypos ("illegal escape sequence \\" ^ yytext); continue());
                                              
 <string> ([^\n\"\\])+ => (yytext ^ lex());
@@ -109,6 +115,8 @@ ws = [\ \t];
                                                         
 <string> \\({ws}|\n)+\\ => (lex());
 <string> \" => (doneWithString := 1; YYBEGIN INITIAL; "");
+
+<string> . => (YYBEGIN INITIAL; ErrorMsg.error yypos ("illegal character in string " ^ yytext));
 
 <INITIAL>[a-zA-Z][a-zA-Z0-9_]* => (Tokens.ID(yytext, yypos, yypos+size(yytext)));
 <INITIAL>[0-9]+ => (Tokens.INT((revfold (fn(a,r)=>ord(a)-ord(#"0")+10*r) 
@@ -124,7 +132,7 @@ ws = [\ \t];
 
 
                        
-<INITIAL, string>.       => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
+<INITIAL>.       => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
 
 
 
