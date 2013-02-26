@@ -16,9 +16,9 @@ type lexresult = (svalue,pos) Tokens.token
   | AND | OR | ASSIGN
   | ARRAY | IF | THEN | ELSE | WHILE | FOR | TO | DO | LET | IN | END | OF 
   | BREAK | NIL
-  | FUNCTION | VAR | TYPE 
+  | FUNCTION | VAR | TYPE | UMINUS
 
-%nonterm  exp | program of A.exp | lExpr | dec | decs | exps |tydec | vardec | fundec | ty | tyfields
+%nonterm  exp | program of A.exp | lvalue | dec | decs | exps |tydec | vardec | fundec | ty | tyfields | typeid | matchedExp | unmatchedExp |idEQExpPairs
 
 %pos int
 %verbose
@@ -34,10 +34,15 @@ type lexresult = (svalue,pos) Tokens.token
 
 %prefer THEN ELSE LPAREN
 
+%nonassoc LBRACK RBRACK
+%nonassoc LPAREN RPAREN
 %left TIMES DIVIDE
 %left PLUS MINUS
 %nonassoc EQ LT LE GT GE NEQ
 %left AND OR
+%left UMINUS 
+%nonassoc ASSIGN
+%nonassoc IF THEN ELSE WHILE DO
 
 %value ID ("bogus")
 %value INT (1)
@@ -47,14 +52,14 @@ type lexresult = (svalue,pos) Tokens.token
 
 program	: exp				(exp)
      
-lExpr : ID ()
-       |lExpr DOT ID ()
-       |lExpr LBRACK exp RBRACK ()
+lvalue : ID ()
+       |lvalue DOT ID ()
+       |lvalue LBRACK exp RBRACK ()
 	
-exp: NIL		(A.NilExpr)
-    |INT  (A.IntExpr INT)
-    |STRING (A.StringExpr STRING)
-    |lExpr ()
+exp: NIL		()
+    |INT  ()
+    |STRING ()
+    |lvalue ()
     |LPAREN exps RPAREN ()
     |LPAREN RPAREN ()
     |ID LPAREN exps RPAREN ()
@@ -71,6 +76,27 @@ exp: NIL		(A.NilExpr)
     |exp AND exp ()
     |exp OR exp ()
     |LET decs IN exps END ()
+    |MINUS exp %prec UMINUS ()
+    |lvalue ASSIGN exp ()
+    |matchedExp ()
+    |unmatchedExp ()
+    |WHILE exp DO exp ()
+    |FOR ID ASSIGN exp TO exp DO exp ()
+    |BREAK ()
+    |LPAREN exp RPAREN ()
+    |typeid LBRACK exp RBRACK exp OF exp ()
+    |typeid LBRACE idEQExpPairs RBRACE ()
+
+idEQExpPairs : ID EQ exp ()
+              |ID EQ exp COMMA idEQExpPairs ()
+    
+    
+matchedExp : IF exp THEN matchedExp ELSE matchedExp ()
+
+unmatchedExp : IF exp THEN exp ()
+              |IF exp THEN matchedExp ELSE unmatchedExp ()
+
+typeid : ID ()
     
 exps : exp () 
       |exp SEMICOLON exps ()
@@ -82,18 +108,18 @@ dec : tydec ()
      |vardec ()
      |fundec ()
 
-tydec : TYPE ID EQ ty()
+tydec : TYPE typeid EQ ty()
 
-ty : ID ()
+ty : typeid ()
     |LBRACE tyfields RBRACE ()
-    |ARRAY OF ID ()
+    |ARRAY OF typeid ()
 
-tyfields : ID COLON ID ()
-          |COMMA ID COLON ID ()
+tyfields : ID COLON typeid ()
+          |COMMA ID COLON typeid ()
           | ()
 
 vardec : VAR ID ASSIGN exp ()
-        |VAR ID COLON ID ASSIGN exp ()
+        |VAR ID COLON typeid ASSIGN exp ()
 
 fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp ()
         |FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp ()
