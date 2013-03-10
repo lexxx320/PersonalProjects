@@ -1,0 +1,1 @@
+CM.make "../sources.cm"; Parse.parseandprint %f outputs/test45.tig.output

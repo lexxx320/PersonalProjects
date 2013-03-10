@@ -1,0 +1,47 @@
+-------Info----------------------
+Name: Matthew Le
+ID: 3975089
+x500: lexxx320
+Assignment 3
+-------Conflicts-----------------
+There are no conflicts in my parser.  There were a few "nifty" things that I had to do in order to get rid of a few conflicts.  First, I had a shift/reduce conflict on funcdecs, and tydecs.  
+
+Here we have:
+
+fundecs : fundec fundecs %prec LOWPREC (fundec :: fundecs)          
+         |  fundec  %prec LOWPREC ([fundec]) 
+
+and
+
+tydecs : tydec tydecs %prec LOWPREC (tydec :: tydecs)
+        |tydec        %prec LOWPREC ([tydec])
+
+In both cases, we would like the parser to shift either "Function" or "Type", instead of reducing on "tydecs : tydec" and "fundecs : fundec", the reason for this, is that we would like to capture the largest block of decls possible and get them all into one list.  In order to solve this problem, I gave each production lower precedence than whatever keyword would get shifted onto the stack (i.e. FUNCTION and TYPE).  The reason for this is that the parser will always take the shift if it has higher precedence.
+
+Other shift reduce conflicts that I encountered were resolved using precedence as well.
+
+------Page 83 Conflict------------
+The conflict mentioned on page 83 of the textbook, between 
+
+variable [expression]
+
+and
+
+type-id [expression] of expression
+
+is a harmful conflict because in this conflict, the parser will choose to do a shift, instead of a reduction.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
