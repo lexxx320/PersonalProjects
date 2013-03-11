@@ -22,7 +22,8 @@ fun revfold _ nil b = b (* If the second argument is nil (an empty list), return
 fun eof() = let val pos = hd(!linePos) 
             in 
               if !commentNesting > 0
-              then (ErrorMsg.error pos ("Unmatched block comment");
+              then (commentNesting := 0;
+                    ErrorMsg.error pos ("Unmatched block comment");
                     Tokens.EOF(pos, pos))
               else Tokens.EOF(pos,pos) 
             end
