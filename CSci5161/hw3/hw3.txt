@@ -18,18 +18,30 @@ tydecs : tydec tydecs %prec LOWPREC (tydec :: tydecs)
 
 In both cases, we would like the parser to shift either "Function" or "Type", instead of reducing on "tydecs : tydec" and "fundecs : fundec", the reason for this, is that we would like to capture the largest block of decls possible and get them all into one list.  In order to solve this problem, I gave each production lower precedence than whatever keyword would get shifted onto the stack (i.e. FUNCTION and TYPE).  The reason for this is that the parser will always take the shift if it has higher precedence.
 
-Other shift reduce conflicts that I encountered were resolved using precedence as well.
+Other shift reduce conflicts that I encountered were resolved using precedence as well, and are more straight-forward than the two described above.
 
-------Page 83 Conflict------------
-The conflict mentioned on page 83 of the textbook, between 
+------Page 82 Conflict------------
+The conflict mentioned on page 82 of the textbook:
 
-variable [expression]
+exp : ID . LPAREN optionalCommaExps RPAREN 
+exp : ID . LBRACK exp RBRACK OF exp 
+exp : ID . LBRACE optionalIdEQExpPairs RBRACE 
+lvalue : ID .  (reduce by rule 1)
 
-and
+is harmful in the context of a function call.  If you were trying to parse the expression "f(x)", the parser has no way of knowing if it should reduce on "f", yielding a varRef and a parenthesized expression, or if it should parse a function call.  In my grammar, I have resolved this problem by moving the "optional" portion of an lvalue into a new nonterminal and used an inherited attribute to piece the two parts together.  The reason that this solves the conflict is that the parser no longer tries to reduce on "exp : ID", instead it shifts the new nonterminal for the optional portion onto the stack.
 
-type-id [expression] of expression
+-----Nifty Error Correction--------
+As far as nifty error correction goes, I have stuck to what has been given to use, namely, "%prefer THEN ELSE LPAREN IF."  there is one instance that I have noticed that I am recovering from errors differently than the correct outputs given to us.  In test49.tig, I insert a PLUS op, where the correct output inserts an IF keyword.  I feel as though this difference is negligable and the fact that we insert different terminals seems arbitrary.  Both parsers recognize that an error occured, and both continue to parse the rest of the file.  
 
-is a harmful conflict because in this conflict, the parser will choose to do a shift, instead of a reduction.  
+
+-----Lexer------------------------
+I am not able to get my lexer to work with the parser for this homework assignment.  I believe that my parser is working correctly, however, I have yet to figure out how to "glue" it together with my parser.  For this reason, I have chosen to use the lexer that was given to us by Gopolan.  Additionally, I have modified the runsml script in order to accomadate these changes.  We were told in class that this was OK, and that we wouldn't lose any points, so if this is not the case, please let me know
+
+
+
+
+
+  
 
 
 

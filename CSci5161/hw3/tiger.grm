@@ -74,7 +74,6 @@ type pos = int
 
 (*Rules are labeled by number to make it easier to identify what rules
   are involved in shift/reduce and reduce/reduce conflicts*)
-
 program	: exp				(exp)     (*0*)
 
 
@@ -88,6 +87,7 @@ optionalLValue : DOT ID optionalLValue (fn x => optionalLValue(A.FieldVar(
                     A.SubscriptVar(x, exp, LBRACKleft)))
                 |(fn x => x)
 
+        
 exp: NIL		(A.NilExp)                                              (*5*)
     |INT  (A.IntExp(INT))                                         (*6*)
     |STRING (A.StringExp(STRING, STRINGleft))                     (*7*)
