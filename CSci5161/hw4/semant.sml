@@ -123,10 +123,11 @@ and transDec(venv, tenv, A.VarDec{name, escape, typ=NONE, init, pos}) =
               firstPass(rest, Symbol.enter(env, name, E.NAME(name, ref(NONE))))
           val tenv' = firstPass(args, tenv)
           fun translateTypes({name, ty, pos}::rest) = 
-              let val decl = Symbol.look(tenv', name)
-                  val t = case decl of  (*Fix this.*)
-                         
-      in {venv=venv, tenv=tenv} end
+              let val t = case Symbol.look(tenv', name) 
+                              of SOME(E.NAME(_, theType)) => theType
+                                |_ => ref(NONE)
+              in (!t = SOME(transTy(tenv', ty)); translateTypes(rest)) end        
+      in {venv=venv, tenv=tenv'} end
           
       (*transDec(venv, Symbol.enter(tenv, name, transTy(tenv, ty)), A.TypeDec(rest))*)
    |transDec(venv, tenv, A.TypeDec([])) = {venv=venv, tenv=tenv}
