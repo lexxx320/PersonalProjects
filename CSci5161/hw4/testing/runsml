@@ -1,0 +1,51 @@
+NOLEX=true
+NOPARSER=true
+CODE_DIR='../'
+TESTCASE_DIR='../../testcases/syntax-and-sem-analysis'
+CURR_DIR=`pwd`
+# 
+# Clean up the code directory and install given lexer and parser if needed
+rm -f $CODE_DIR/tiger.lex.sml
+if [ $NOLEX = true ]; then 
+   cp tiger.lex.sml $CODE_DIR/
+fi
+rm -f $CODE_DIR/tiger.grm.sml
+rm -f $CODE_DIR/tiger.grm.sig
+if [ $NOPARSER = true ]; then 
+  cp tiger.grm.sig $CODE_DIR/
+  cp tiger.grm.sml $CODE_DIR/
+fi
+#
+# Update the parse.sml file to have the right directory names
+sed -i "/val dir_inname/c val dir_inname = \"$TESTCASE_DIR/\"" parse.sml
+sed -i "/val dir_outname/c val dir_outname = \"$CURR_DIR/outputs/\"" parse.sml
+#
+# Update the sml_input file to reflect the correct directory for the sml source
+sed -i "/CM.make /c CM.make \"$CODE_DIR/sources.cm\";" sml_input
+#
+# Save original parse.sml and copy the desired one for tests there
+mv $CODE_DIR/parse.sml $CODE_DIR/parse.sml.bak
+cp parse.sml $CODE_DIR/parse.sml
+# 
+# Create a list of files to test
+ls $TESTCASE_DIR > files.list
+#
+# Clean up my outputs directory and run my parser
+rm outputs/*
+sml < sml_input
+#
+# Run my semantic analysis program and save screen interaction to file
+sml < sml_input > my_output_script
+#
+# Compare the types and error messages I get to a "standard"
+echo "Comparing my outputs to those of the baseline semantic analyzer..."
+diff standard_output_script my_output_script > diffOutput
+#
+# For added comfort, comparing my parser output to those of the standard
+echo "Diffing the directories..."
+diff correct_outputs outputs
+echo "Done."
+#
+# Restore the original parse.sml file
+mv $CODE_DIR/parse.sml.bak $CODE_DIR/parse.sml
+

@@ -1,0 +1,8 @@
+
+let 
+  type intlist = {a : int, b : intlist}
+  var x : intlist := intlist{a = 3, b = nil}
+in x end
+
+
+
