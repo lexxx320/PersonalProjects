@@ -1,2 +1,2 @@
-Spring12Classes
+Classes
 ===============
