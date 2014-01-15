@@ -1,7 +1,0 @@
-LetExp([
- VarDec(d,true,NONE,
-  IntExp(0))],
- VarExp(
-  SubscriptVar(
-   SimpleVar(d),
-   IntExp(3))))

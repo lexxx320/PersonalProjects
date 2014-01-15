@@ -1,6 +1,0 @@
-Name: Matthew Le
-ID: 3975089
-Date 4/1/2013
-
-In this assignment, I have one difference with the expected output, in test49.tig. In this problem, the parser uses different error correction, thus yeilding a different AST to be type checked.  I figure this is OK, since the program is not even syntactically correct, so type checking doesn't really matter as the program will be rejected anyways. 
-

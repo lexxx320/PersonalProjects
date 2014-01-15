@@ -1,5 +1,0 @@
-Name: Matthew Le
-ID: 3975089
-Assignment 3
-
-You can run and test this assignment by starting sml and executing CM.make "sources.cm".  From here, you can parse a test file by calling Parse.parse <filename>.  Additionally, you can use the automated testing framework by calling ./runsml.  See hw3.txt for additional information about the parser, and answers to written questions.

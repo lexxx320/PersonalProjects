@@ -1,7 +1,0 @@
-LetExp([
- VarDec(a,true,NONE,
-  SeqExp[])],
- OpExp(PlusOp,
-  VarExp(
-   SimpleVar(a)),
-  IntExp(3)))

@@ -1,9 +1,0 @@
-LetExp([
- FunctionDec[
-  (g,[
-   (a,true,int)],
-NONE,
-   VarExp(
-    SimpleVar(a)))]],
- CallExp(g,[
-  IntExp(2)]))

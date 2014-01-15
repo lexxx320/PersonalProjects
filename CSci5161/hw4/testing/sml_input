@@ -1,3 +1,0 @@
-CM.make "../../hw4/sources.cm";
-Parse.parseall "files.list";
-
