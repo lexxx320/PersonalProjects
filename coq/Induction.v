@@ -107,8 +107,17 @@ Qed.
 Theorem andb_true_elim2 : forall b c : bool,
   andb b c = true -> c = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros b c H.
+  destruct c.
+  Case "c = true".
+  reflexivity.
+  Case "c = false".
+  rewrite <- H.
+  destruct b.
+  SCase "b = false".
+  reflexivity.
+  reflexivity.
+  Qed.
 
 (** There are no hard and fast rules for how proofs should be
     formatted in Coq -- in particular, where lines should be broken
@@ -218,25 +227,46 @@ Proof.
 Theorem mult_0_r : forall n:nat,
   n * 0 = 0.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n as [|n'].
+  Case "n' = 0".
+  reflexivity.
+  Case "n' = S n'".
+  simpl. rewrite -> IHn'.
+  reflexivity. Qed.
 
 Theorem plus_n_Sm : forall n m : nat, 
   S (n + m) = n + (S m).
 Proof. 
-  (* FILL IN HERE *) Admitted.
-
+  intros n m.
+  induction n as [|n'].
+  Case "n = 0".
+  simpl. reflexivity.
+  Case "n = S n'".
+  simpl. rewrite -> IHn'. reflexivity.
+  Qed.
 
 Theorem plus_comm : forall n m : nat,
   n + m = m + n.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+  intros n m.
+  induction n as [|n'].
+  Case "n = 0".
+  simpl. rewrite -> plus_0_r. reflexivity.
+  Case "n = S n'".
+  simpl. rewrite -> IHn'. rewrite -> plus_n_Sm.
+  reflexivity. Qed.
 
 Theorem plus_assoc : forall n m p : nat,
   n + (m + p) = (n + m) + p.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros n m p.
+  induction n as [|n'].
+  Case "n = 0".
+  simpl. reflexivity.
+  Case "n = S n'".
+  simpl. rewrite -> IHn'. reflexivity.
+  Qed.
+
 
 (** **** Exercise: 2 stars (double_plus) *)
 
@@ -252,15 +282,20 @@ Fixpoint double (n:nat) :=
 
 Lemma double_plus : forall n, double n = n + n .
 Proof.  
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
+  intros n.
+  induction n as [|n'].
+  Case "n = 0".
+  simpl. reflexivity.
+  Case "n = S n'".
+  simpl. rewrite -> IHn'. rewrite -> plus_n_Sm.
+  reflexivity. Qed.
 
 (** **** Exercise: 1 star (destruct_induction) *)
 (** Briefly explain the difference between the tactics
     [destruct] and [induction].  
 
-(* FILL IN HERE *)
+(* destruct performs case analysis, where as induction also provides us with 
+   an induction hypothesis that we can use for rewriting.*)
 
 *)
 (** [] *)
