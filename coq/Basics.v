@@ -487,12 +487,16 @@ Fixpoint exp (base power : nat) : nat :=
     Translate this into Coq. *)
 
 Fixpoint factorial (n:nat) : nat := 
-(* FILL IN HERE *) admit.
+  match n with
+      |O => 1
+      |S n' => mult n (factorial n')
+  end.
+
 
 Example test_factorial1:          (factorial 3) = 6.
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 Example test_factorial2:          (factorial 5) = (mult 10 12).
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 (** [] *)
 
 (** We can make numerical expressions a little easier to read and
@@ -571,14 +575,17 @@ Proof. reflexivity.  Qed.
     simple, elegant solution for which [simpl] suffices. *)
 
 Definition blt_nat (n m : nat) : bool :=
-  (* FILL IN HERE *) admit.
+  match beq_nat n m, ble_nat n m with
+      |false, true => true
+      |_, _ => false
+  end.
 
 Example test_blt_nat1:             (blt_nat 2 2) = false.
-(* FILL IN HERE *) Admitted.
+Proof.  reflexivity. Qed.
 Example test_blt_nat2:             (blt_nat 2 4) = true.
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 Example test_blt_nat3:             (blt_nat 4 2) = false.
-(* FILL IN HERE *) Admitted.
+Proof. reflexivity. Qed.
 (** [] *)
 
 (* ###################################################################### *)
@@ -687,7 +694,7 @@ Theorem plus_id_example : forall n m:nat,
 Proof.
   intros n m.   (* move both quantifiers into the context *)
   intros H.     (* move the hypothesis into the context *)
-  rewrite -> H. (* Rewrite the goal using the hypothesis *)
+  rewrite <- H. (* Rewrite the goal using the hypothesis *)
   reflexivity.  Qed.
 
 (** The first line of the proof moves the universally quantified
@@ -709,9 +716,12 @@ Proof.
 Theorem plus_id_exercise : forall n m o : nat,
   n = m -> m = o -> n + m = m + o.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
+  intros n m o.
+  intros H1 H2.
+  rewrite -> H1.
+  rewrite <- H2.
+  reflexivity.
+  Qed.
 (** As we've seen in earlier examples, the [Admitted] command
     tells Coq that we want to skip trying to prove this theorem and
     just accept it as a given.  This can be useful for developing
@@ -739,9 +749,13 @@ Theorem mult_S_1 : forall n m : nat,
   m = S n -> 
   m * (1 + n) = m * m.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
+ intros n m.
+ intros H.
+ rewrite -> plus_1_l.
+ rewrite <- H.
+ reflexivity.
+ Qed.
+  
 
 
 (* ###################################################################### *)
@@ -825,9 +839,11 @@ Proof.
 Theorem zero_nbeq_plus_1 : forall n : nat,
   beq_nat 0 (n + 1) = false.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
+  intros n.
+  destruct n.    
+  reflexivity.
+  reflexivity.
+  Qed.
 (* ###################################################################### *)
 (** * More Exercises *)
 
@@ -840,24 +856,61 @@ Theorem identity_fn_applied_twice :
   (forall (x : bool), f x = x) ->
   forall (b : bool), f (f b) = b.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+  intros f x b.
+  rewrite -> x.
+  rewrite -> x.
+  reflexivity.
+  Qed.
 (** Now state and prove a theorem [negation_fn_applied_twice] similar
     to the previous one but where the second hypothesis says that the
     function [f] has the property that [f x = negb x].*)
 
-(* FILL IN HERE *)
+Theorem negation_fn_applied_twice : 
+  forall (f : bool -> bool), 
+  (forall (x : bool), f x  = negb x) ->
+  forall (b : bool), f (f b) = b.
+Proof.
+  intros f x b.
+  rewrite -> x.
+  rewrite -> x.
+  rewrite -> negb_involutive.
+  reflexivity.
+  Qed.
 
 (** **** Exercise: 2 stars (andb_eq_orb) *)
 (** Prove the following theorem.  (You may want to first prove a
     subsidiary lemma or two.) *)
+Lemma l1 : 
+  forall (b : bool),
+    andb true b = b.
+Proof.
+  reflexivity.
+  Qed.
+
+Lemma l2 : 
+  forall (b : bool),
+    (orb false b = b).
+Proof.
+  reflexivity.
+  Qed.
 
 Theorem andb_eq_orb : 
   forall (b c : bool),
   (andb b c = orb b c) ->
   b = c.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros b c.
+  destruct b.
+  rewrite -> l1.
+  simpl. intros H.
+  rewrite -> H.
+  reflexivity.
+  rewrite -> l2.
+  simpl.
+  intros H.
+  rewrite -> H.
+  reflexivity.
+  Qed.
 
 (** **** Exercise: 3 stars (binary) *)
 (** Consider a different, more efficient representation of natural
@@ -894,9 +947,29 @@ Proof.
         converting it to unary and then incrementing. 
 *)
 
-(* FILL IN HERE *)
+Inductive bin : Type := 
+  | BinO : bin
+  | Odd : bin -> bin
+  | Even : bin -> bin.
 (** [] *)
 
+Fixpoint inc (n : bin) : bin := 
+  match n with
+      |BinO => Odd BinO
+      |Even n => Odd n
+      |Odd n => Even(inc n)
+  end.
+
+Fixpoint binToUnary(n : bin) : nat := 
+  match n with
+      |BinO => 0
+      |Even n => 2 * (binToUnary n)
+      |Odd n => 1 + 2 * binToUnary n
+  end.
+Example convert1 : binToUnary(Even(Even(Even(Odd(Odd BinO))))) = 24.
+Proof. reflexivity. Qed.
+Example convert2 : binToUnary (inc(Even (Odd BinO))) = 1 + (binToUnary(Even (Odd BinO))).
+Proof. reflexivity. Qed.
 (* ###################################################################### *)
 (** * Optional Material *)
 
@@ -960,8 +1033,21 @@ Fixpoint plus' (n : nat) (m : nat) : nat :=
     _does_ terminate on all inputs, but that Coq will _not_ accept
     because of this restriction. *)
 
-(* FILL IN HERE *)
-(** [] *)
+Fixpoint factHelper (i n : nat) : nat := 
+  match ble_nat i n with
+      |false => factHelper 1 i 
+      |true => match beq_nat i n with
+                 |true => i
+                 |false =>  i * factHelper (i+1) n
+                end
+  end.                              
+                
+Fixpoint fact (n : nat) : nat :=
+  match n with
+      |O => 1
+      |factHelper 1 n
+  end.
+                                   
 
 (* $Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)
 
