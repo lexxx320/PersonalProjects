@@ -246,6 +246,7 @@ Proof.
   simpl. rewrite -> IHn'. reflexivity.
   Qed.
 
+
 Theorem plus_comm : forall n m : nat,
   n + m = m + n.
 Proof.
@@ -443,6 +444,7 @@ Proof.
   Case "n = S n'". 
   assert(H:evenb(S(S(n'))) = evenb n'). reflexivity.
   rewrite -> H.  
+  Admitted.
  
 
 
@@ -571,7 +573,7 @@ Proof.
   intros n m p.
   replace (m + (n + p)) with ((m + n) + p).
   rewrite -> plus_assoc.  
-  replace (n+m) with (m+n).reflexivity.
+  replace (n+m) with (m+n). reflexivity.
   rewrite -> plus_comm. reflexivity.
   rewrite -> plus_assoc. reflexivity.
   Qed.
@@ -605,10 +607,20 @@ Fixpoint inc (n : bin) : bin :=
 Fixpoint binToUnary(n : bin) : nat := 
   match n with
       |BinO => 0
-      |Even n => 2 * (binToUnary n)
-      |Odd n => 1 + 2 * binToUnary n
+      |Even n => 2 * (binToUnary n) 
+      |Odd n => 1 + 2 * binToUnary n 
   end.
 
+Theorem BinToUnaryCorrect : forall n : bin, binToUnary(inc n) = binToUnary(n) + 1.
+Proof.
+  intros n.
+  induction n as [|n' | n'].
+  Case "n = 0".
+  simpl. reflexivity.
+  Case "n = Even n'".
+  simpl. rewrite -> plus_n_Sm. rewrite -> plus_0_r. rewrite -> plus_0_r.
+  rewrite -> IHn'. rewrite -> plus_swap. rewrite -> plus_assoc. rewrite -> plus_assoc.
+  Admitted.
 
 (** **** Exercise: 5 stars, advanced (binary_inverse) *)
 (** This exercise is a continuation of the previous exercise about
@@ -635,8 +647,6 @@ Fixpoint binToUnary(n : bin) : nat :=
     here. 
 *)
 
-(* FILL IN HERE *)
-(** [] *)
 
 (* ###################################################################### *)
 (** * Advanced Material *)
@@ -745,7 +755,13 @@ Proof.
 
 (** Theorem: Addition is commutative.
  
-    Proof: (* FILL IN HERE *)
+    Proof: Proof by induction on n:
+    Case (n = 0): We have "0 + m = m + 0", which simplifies to "m = m"
+    Case (n = n' + 1): We have "(n' + 1) + m = m + (n' + 1)"
+    By the definition of plus, we have "S(n' + m) = m + S n'" 
+    By the induction hypothesis, we have "S(m + n') = m + S n'"
+    By Theorem plus_n_Sm, we have "m + S n' = m + S n'"
+
 []
 *)
 
