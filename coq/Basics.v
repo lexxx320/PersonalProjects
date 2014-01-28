@@ -265,6 +265,13 @@ Example test_andb34:                 (andb3 true true false) = false.
 Proof. reflexivity. Qed.
 (** [] *)
 
+Fixpoint evenb (n:nat) : bool :=
+  match n with
+  | O        => true
+  | S O      => false
+  | S (S n') => evenb n'
+  end.
+
 (* ###################################################################### *)
 (** ** Function Types *)
 
@@ -398,12 +405,7 @@ Check minustwo.
     whether [n-2] is even.  To write such functions, we use the
     keyword [Fixpoint]. *)
 
-Fixpoint evenb (n:nat) : bool :=
-  match n with
-  | O        => true
-  | S O      => false
-  | S (S n') => evenb n'
-  end.
+
 
 (** We can define [oddb] by a similar [Fixpoint] declaration, but here
     is a simpler definition that will be a bit easier to work with: *)
@@ -1032,7 +1034,7 @@ Fixpoint plus' (n : nat) (m : nat) : nat :=
     [Fixpoint] definition (of a simple function on numbers, say) that
     _does_ terminate on all inputs, but that Coq will _not_ accept
     because of this restriction. *)
-
+(*
 Fixpoint factHelper (i n : nat) : nat := 
   match ble_nat i n with
       |false => factHelper 1 i 
@@ -1047,7 +1049,7 @@ Fixpoint fact (n : nat) : nat :=
       |O => 1
       |factHelper 1 n
   end.
-                                   
+                           *)        
 
 (* $Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)
 

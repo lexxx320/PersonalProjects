@@ -593,7 +593,6 @@ Inductive bin : Type :=
   | BinO : bin
   | Odd : bin -> bin
   | Even : bin -> bin.
-(** [] *)
 
 Fixpoint inc (n : bin) : bin := 
   match n with
@@ -609,6 +608,15 @@ Fixpoint binToUnary(n : bin) : nat :=
       |Odd n => 1 + 2 * binToUnary n
   end.
 
+Theorem bin_commute : forall n : bin, binToUnary(n)+1 = binToUnary(inc(n)).
+Proof.
+  intros n.
+  induction n as [|n' | n']. reflexivity.
+  Case "n = Odd n'".
+  simpl. rewrite -> plus_0_r. rewrite -> plus_0_r.
+  rewrite -> plus_n_Sm.
+  rewrite <- IHn'.  rewrite -> plus_assoc.
+  
 
 (** **** Exercise: 5 stars, advanced (binary_inverse) *)
 (** This exercise is a continuation of the previous exercise about
