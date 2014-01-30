@@ -432,7 +432,6 @@ Proof.
 
 
 (** **** Exercise: 2 stars, optional (evenb_n__oddb_Sn) *)
-
 (** Prove the following simple fact: *)
 (*TODO: discuss this in class*)
 Theorem evenb_n_oddb_Sn : forall n : nat,
@@ -610,6 +609,11 @@ Fixpoint binToUnary(n : bin) : nat :=
       |Even n => 2 * (binToUnary n) 
       |Odd n => 1 + 2 * binToUnary n 
   end.
+Lemma succXPlusOne : forall x : nat, S x = x + 1.
+Proof.
+  intros x. rewrite -> plus_comm. simpl.
+  reflexivity.
+  Qed.
 
 (*TODO: discuss this in class*)
 Theorem BinToUnaryCorrect : forall n : bin, binToUnary(inc n) = binToUnary(n) + 1.
@@ -625,8 +629,7 @@ Proof.
   intros x. rewrite -> plus_comm. rewrite -> plus_swap. simpl. reflexivity.
   rewrite -> H. reflexivity.
   simpl. rewrite -> plus_n_Sm. rewrite -> plus_0_r. 
-  assert(H: forall x, S x = x + 1). intros x. rewrite -> plus_comm. simpl.
-  reflexivity. rewrite -> H. rewrite -> plus_assoc. reflexivity.
+  rewrite -> succXPlusOne. rewrite -> plus_assoc. reflexivity.
   Qed.
 
 (** **** Exercise: 5 stars, advanced (binary_inverse) *)
@@ -653,6 +656,43 @@ Proof.
     Again, feel free to change your earlier definitions if this helps
     here. 
 *)
+
+Fixpoint natToBin(n : nat) : bin :=
+match n with
+    |O => BinO
+    |S n' => inc(natToBin n')
+end.
+
+Theorem natToBinCorrect : forall n : nat, binToUnary(natToBin n) = n.
+Proof.
+  intros n.
+  induction n as [|n'].
+  Case "n = 0". reflexivity.
+  Case "n = S n'". simpl. destruct (natToBin n') as [|m | m].
+    SCase "n' = BinO". rewrite <- IHn'. simpl. reflexivity.
+    SCase "n' = Odd m". simpl. rewrite <- IHn'. rewrite -> plus_0_r.
+    simpl. rewrite -> plus_0_r. rewrite -> BinToUnaryCorrect. 
+    assert(H:S(binToUnary m + binToUnary m) = (binToUnary m + binToUnary m) + 1).
+    rewrite -> succXPlusOne. reflexivity. rewrite -> H.
+    assert(H2:S(binToUnary m + binToUnary m + 1) = (binToUnary m + binToUnary m + 1) + 1).
+    rewrite -> succXPlusOne. reflexivity.
+    rewrite -> H2. rewrite -> plus_swap. rewrite -> plus_assoc. rewrite -> plus_assoc.
+    reflexivity.
+    SCase "n' = Even m". simpl. rewrite <- IHn'. rewrite -> succXPlusOne. simpl.
+    simpl. rewrite -> plus_0_r. 
+    assert(H:S(binToUnary m + binToUnary m) = (binToUnary m + binToUnary m) + 1).
+    rewrite -> succXPlusOne. reflexivity.
+    rewrite -> H. reflexivity.
+    Qed.
+
+
+Theorem binToNatCorrect : forall b : bin, natToBin(binToUnary b) = b.
+Proof.
+  intros b.
+  induction b as [|n|n].
+  reflexivity.
+  Case "b = Odd n". simpl. rewrite -> plus_0_r.
+  
 
 
 (* ###################################################################### *)

@@ -754,7 +754,7 @@ Proof.
   intros l.
   induction l as [|hd tl].
   reflexivity.
-  simpl.
+  simpl. 
 
 
 (** There is a short solution to the next exercise.  If you find
