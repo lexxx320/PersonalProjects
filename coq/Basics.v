@@ -4,7 +4,7 @@
    for backward compatibility with Coq 8.3.  
    Please ignore. *)
 Definition admit {T: Type} : T.  Admitted.
-
+ 
 (* ###################################################################### *)
 (** * Introduction *)
 

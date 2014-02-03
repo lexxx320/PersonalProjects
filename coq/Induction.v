@@ -602,7 +602,19 @@ Fixpoint inc (n : bin) : bin :=
       |Even n => Odd n
       |Odd n => Even(inc n)
   end.
-
+(*
+Odd 0
+Even(Odd 0)
+Odd(Odd 0)
+Even(Even(Odd 0))
+Odd(Even(Odd 0))
+Even(Odd(Odd 0))
+Odd(Odd(Odd 0))
+Even(Even(Even(Odd 0)))
+Odd(Even(Even(Odd 0)))
+Even(Odd(Even(Odd 0)))
+Odd(Odd(Even(Odd 0)))
+*)
 Fixpoint binToUnary(n : bin) : nat := 
   match n with
       |BinO => 0
@@ -685,7 +697,6 @@ Proof.
     rewrite -> H. reflexivity.
     Qed.
 
-
 Theorem binToNatCorrect : forall b : bin, natToBin(binToUnary b) = b.
 Proof.
   intros b.
@@ -694,6 +705,7 @@ Proof.
   Case "b = Odd n". simpl. rewrite -> plus_0_r.
   
 
+                                       
 
 (* ###################################################################### *)
 (** * Advanced Material *)
