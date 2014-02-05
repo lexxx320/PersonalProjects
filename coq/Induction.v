@@ -602,26 +602,13 @@ Fixpoint inc (n : bin) : bin :=
       |Even n => Odd n
       |Odd n => Even(inc n)
   end.
-(*
-Odd 0
-Even(Odd 0)
-Odd(Odd 0)
-Even(Even(Odd 0))
-Odd(Even(Odd 0))
-Even(Odd(Odd 0))
-Odd(Odd(Odd 0))
-Even(Even(Even(Odd 0)))
-Odd(Even(Even(Odd 0)))
-Even(Odd(Even(Odd 0)))
-Odd(Odd(Even(Odd 0)))
-*)
 
 Fixpoint binToUnary(n : bin) : nat := 
   match n with
       |BinO => 0
       |Even n => 2 * (binToUnary n) 
       |Odd n => 1 + 2 * binToUnary n 
-  end.
+  end. 
 Lemma succXPlusOne : forall x : nat, S x = x + 1.
 Proof.
   intros x. rewrite -> plus_comm. simpl.
@@ -681,10 +668,43 @@ Proof.
   intros n.
   induction n as [|n'].
   Case "n = 0". reflexivity.
-  Case "n = S n'". assert(H: natToBin(S n') = inc(natToBin n')). reflexivity.
-  rewrite -> H. rewrite -> BinToUnaryCorrect. rewrite -> IHn'. rewrite -> plus_comm.
+  Case "n = S n'". simpl. rewrite -> BinToUnaryCorrect. rewrite -> IHn'. rewrite -> plus_comm.
   reflexivity.
   Qed.
+
+
+Fixpoint normalize (b : bin) : bin := 
+match b with
+    |BinO => BinO
+    |Even(b') => match normalize b' with
+                     |BinO => BinO
+                     |n => Even(Even n)
+                 end
+    |Odd(b') => Odd(normalize b')
+end.
+
+Theorem L : forall n, natToBin(n + n) = normalize(Even (natToBin n)).
+Proof.
+  intros. induction n as [|n'].
+  simpl. reflexivity.
+  simpl.  destruct (normalize(inc(natToBin n'))).
+
+Theorem binToNatCorrect : forall b : bin, natToBin(binToUnary b) = normalize b.
+Proof.
+  intros b.
+  induction b as [|n|n].
+  reflexivity.
+  Case "b = Odd n". simpl. rewrite -> plus_0_r.
+  rewrite -> L. simpl. rewrite -> IHn. reflexivity.
+  Case "b = Odd n". simpl. rewrite -> plus_0_r.
+  rewrite -> L. rewrite -> IHn. reflexivity.
+  Qed.
+
+(*
+Theorem NPlusNEven : forall n, natToBin(n + n) = Even (natToBin n).
+Proof.
+  intros. induction n as [|n'].
+  Admitted.
 
 Theorem binToNatCorrect : forall b : bin, natToBin(binToUnary b) = b.
 Proof.
@@ -692,9 +712,10 @@ Proof.
   induction b as [|n|n].
   reflexivity.
   Case "b = Odd n". simpl. rewrite -> plus_0_r.
-  
-
-                                       
+  rewrite -> NPlusNEven. simpl. rewrite -> IHn. reflexivity.
+  Case "b = Odd n". simpl. rewrite -> plus_0_r.
+  rewrite -> NPlusNEven. rewrite -> IHn. reflexivity.
+  Qed.*)
 
 (* ###################################################################### *)
 (** * Advanced Material *)

@@ -753,7 +753,7 @@ Theorem rev_involutive : forall l : natlist,
 Proof.
   intros l.
   induction l as [|hd tl].
-  reflexivity.
+  reflexivity. 
   simpl. Admitted.
 
 (** There is a short solution to the next exercise.  If you find
@@ -772,16 +772,22 @@ Proof.
   intros. induction l as [|hd tl]. reflexivity.
   simpl. rewrite -> IHtl. reflexivity. Qed.
 
+Lemma SnocApp1 : forall l1 l2 h, snoc(l1 ++ l2) h = l1 ++ snoc l2 h.
+Proof.
+  intros.
+  induction l1 as [|hd tl].
+  reflexivity.
+  simpl. rewrite -> IHtl. reflexivity.
+  Qed.
+
 Theorem distr_rev : forall l1 l2 : natlist,
   rev (l1 ++ l2) = (rev l2) ++ (rev l1).
 Proof.
   intros. induction l1 as [|hd tl].
-  simpl. assert(H:forall x, x ++ [] = x).
-  intros x. induction x as [|hd' tl]. reflexivity.
-  simpl. rewrite -> IHtl. reflexivity.
-  rewrite -> H. reflexivity.
-  simpl. rewrite -> IHtl. Admitted.
-
+  simpl. rewrite -> app_nil_end. reflexivity.
+  simpl. rewrite -> IHtl. rewrite -> SnocApp1.
+  reflexivity. Qed.
+  
 (** An exercise about your implementation of [nonzeros]: *)
 
 Lemma nonzeros_app : forall l1 l2 : natlist,
@@ -853,8 +859,8 @@ Theorem CountSum : forall b v, count v (sum b b) = count v b + count v b.
 Proof.
   intros.
   induction b as [|hd tl]. reflexivity.
-  simpl. destruct (beq_nat hd v). simpl. rewrite -> plus_comm. simpl.
-  rewrite <- IHtl. Admitted.
+  simpl. destruct (beq_nat hd v). simpl. rewrite -> plus_comm. 
+  simpl. rewrite <- IHtl. Admitted.
   
 (** **** Exercise: 4 stars, advanced (rev_injective) *)
 (** Prove that the [rev] function is injective, that is,
@@ -866,8 +872,9 @@ There is a hard way and an easy way to solve this exercise.
 
 Theorem rev_injective : forall l1 l2 , rev l1 = rev l2 -> l1 = l2.
 Proof.
-  Admitted. 
+  intros. Admitted.
   
+
 (* ###################################################### *)
 (** * Options *)
 
