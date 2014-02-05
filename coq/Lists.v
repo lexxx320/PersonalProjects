@@ -323,7 +323,7 @@ Definition bag := natlist.
 
 Fixpoint count (v:nat) (s:bag) : nat := 
 match s with
-    |x::xs => if beq_nat x v then 1 + count v xs else count v xs
+    |x::xs => if beq_nat x v then S(count v xs) else count v xs
     |nil => 0
 end.
 
@@ -748,14 +748,6 @@ Proof.
   simpl. rewrite -> IHtl. reflexivity.
   Qed.
   
-Theorem rev_involutive : forall l : natlist,
-  rev (rev l) = l.
-Proof.
-  intros l.
-  induction l as [|hd tl].
-  reflexivity. 
-  simpl. Admitted.
-
 (** There is a short solution to the next exercise.  If you find
     yourself getting tangled up, step back and try to look for a
     simpler way. *)
@@ -814,6 +806,18 @@ Proof.
   reflexivity. simpl. rewrite -> IHtl.
   reflexivity. Qed.
 
+(*This originally came after app_nil_end, I moved it down here so I could use 
+**SnocApp and distr_rev to get this to work out.*)
+Theorem rev_involutive : forall l : natlist,
+  rev (rev l) = l.
+Proof.
+  intros l.
+  induction l as [|hd tl].
+  reflexivity. 
+  simpl. rewrite -> SnocApp. rewrite -> distr_rev. simpl. rewrite -> IHtl.
+  reflexivity.
+  Qed.
+
 Theorem AppMid : forall l1 v, l1 ++ (v::l1) = (snoc l1 v) ++ l1.
 Proof.
   intros.
@@ -854,14 +858,14 @@ Proof.
 (** **** Exercise: 3 stars, optional (bag_count_sum) *)  
 (** Write down an interesting theorem about bags involving the
     functions [count] and [sum], and prove it.*)
-
-Theorem CountSum : forall b v, count v (sum b b) = count v b + count v b.
-Proof.
+ 
+Theorem CountSum : forall b1 b2 v, count v (sum b1 b2) = count v b1 + count v b2.
+Proof. 
   intros.
-  induction b as [|hd tl]. reflexivity.
-  simpl. destruct (beq_nat hd v). simpl. rewrite -> plus_comm. 
-  simpl. rewrite <- IHtl. Admitted.
-  
+  induction b1 as [|hd tl]. reflexivity.
+  simpl. destruct(beq_nat hd v). simpl. rewrite -> IHtl. reflexivity.
+  rewrite -> IHtl. reflexivity. Qed.
+
 (** **** Exercise: 4 stars, advanced (rev_injective) *)
 (** Prove that the [rev] function is injective, that is,
 
@@ -872,8 +876,9 @@ There is a hard way and an easy way to solve this exercise.
 
 Theorem rev_injective : forall l1 l2 , rev l1 = rev l2 -> l1 = l2.
 Proof.
-  intros. Admitted.
-  
+  intros. rewrite <- rev_involutive. assert(H2:l1 = rev(rev(l1))).
+  rewrite -> rev_involutive. reflexivity. rewrite -> H2. 
+  rewrite -> H. reflexivity. Qed.
 
 (* ###################################################### *)
 (** * Options *)
