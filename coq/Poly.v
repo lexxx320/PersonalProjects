@@ -154,15 +154,16 @@ Inductive grumble (X:Type) : Type :=
   | d : mumble -> grumble X
   | e : X -> grumble X.
 
+
 (** Which of the following are well-typed elements of [grumble X] for
     some type [X]?
-      - [d (b a 5)]
-      - [d mumble (b a 5)]
-      - [d bool (b a 5)]
-      - [e bool true]
-      - [e mumble (b c 0)]
-      - [e bool (b c 0)]
-      - [c] 
+      - [d (b a 5)] no (requires a type as first arg)
+      - [d mumble (b a 5)] yes
+      - [d bool (b a 5)] yes
+      - [e bool true] no (second argument must be a type)
+      - [e mumble (b c 0)] yes
+      - [e bool (b c 0)] no (b c 0) must be a bool, not a mumble
+      - [c] yes
 (* FILL IN HERE *)
 [] *)
 
