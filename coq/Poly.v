@@ -808,13 +808,29 @@ Proof. reflexivity.  Qed.
 (** Show that [map] and [rev] commute.  You may need to define an
     auxiliary lemma. *)
 
+Theorem MapDistr : forall (X Y : Type) (l1 l2 : list X) (f : X -> Y), 
+                     map f (l1 ++ l2) = map f l1 ++ map f l2.
+Proof.
+  intros.
+  induction l1 as [|hd tl]. reflexivity.
+  simpl. rewrite -> IHtl. reflexivity. Qed.
+
+Theorem SnocApp : forall (X : Type) (l : list X) (v : X), 
+                    snoc l v = l ++ [v].
+Proof.
+  intros.
+  induction l as [|hd tl]. reflexivity.
+  simpl. rewrite -> IHtl. reflexivity. Qed.
 
 Theorem map_rev : forall (X Y : Type) (f : X -> Y) (l : list X),
   map f (rev l) = rev (map f l).
 Proof.
   intros. induction l as [|hd tl].
   reflexivity.
-  simpl. rewrite -> SnocApp. simpl. Admitted.
+  simpl. rewrite -> SnocApp. rewrite -> SnocApp. rewrite -> MapDistr. 
+  rewrite -> IHtl. simpl. reflexivity. Qed.
+
+
 
 (** **** Exercise: 2 stars (flat_map) *)
 (** The function [map] maps a [list X] to a [list Y] using a function
@@ -828,13 +844,15 @@ Proof.
 
 Fixpoint flat_map {X Y:Type} (f:X -> list Y) (l:list X)
                    : (list Y) :=
-  (* FILL IN HERE *) admit.
+  match l with
+      |nil => nil
+      |x::xs => f x ++ flat_map f xs
+  end.
 
 Example test_flat_map1:
   flat_map (fun n => [n;n;n]) [1;5;4]
   = [1; 1; 1; 5; 5; 5; 4; 4; 4].
- (* FILL IN HERE *) Admitted.
-(** [] *)
+ Proof. reflexivity. Qed.
 
 (** Lists are not the only inductive type that we can write a
     [map] function for.  Here is the definition of [map] for the
@@ -958,11 +976,11 @@ Proof. reflexivity. Qed.
     understand exactly what the theorem is saying and can paraphrase
     it in your own words.  The proof itself is straightforward. *)
 
+(*This doesn't simplify, but follows from reflexivity.*)
 Theorem override_example : forall (b:bool),
   (override (constfun b) 3 true) 2 = b.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  reflexivity. Qed.
 
 (** We'll use function overriding heavily in parts of the rest of the
     course, and we will end up needing to know quite a bit about its
@@ -1025,9 +1043,10 @@ Theorem override_neq : forall (X:Type) x1 x2 k1 k2 (f : nat->X),
   f k1 = x1 ->
   beq_nat k2 k1 = false ->
   (override f k2 x2) k1 = x1.
-Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+Proof. 
+  intros.
+  unfold override. rewrite -> H0. rewrite -> H. reflexivity. Qed.
+   
 
 (** As the inverse of [unfold], Coq also provides a tactic
     [fold], which can be used to "unexpand" a definition.  It is used
@@ -1050,21 +1069,29 @@ Proof. reflexivity. Qed.
 
 Theorem fold_length_correct : forall X (l : list X),
   fold_length l = length l.
-(* FILL IN HERE *) Admitted. 
-(** [] *)
+Proof.
+  intros.
+  unfold fold_length. induction l as [|hd tl]. reflexivity.
+  simpl. rewrite -> IHtl. reflexivity.
+  Qed.
 
 (** **** Exercise: 3 stars (fold_map) *)
 (** We can also define [map] in terms of [fold].  Finish [fold_map]
     below. *)
 
 Definition fold_map {X Y:Type} (f : X -> Y) (l : list X) : list Y :=
-(* FILL IN HERE *) admit.
+  fold (fun x y => f x :: y) l nil. 
 
 (** Write down a theorem in Coq stating that [fold_map] is correct,
     and prove it. *)
 
-(* FILL IN HERE *)
-(** [] *)
+Theorem mapCorrect : forall (X Y : Type) (f : X -> Y) (l : list X), 
+                       fold_map f l = map f l.
+Proof.
+  intros.
+  unfold fold_map. induction l as [|hd tl].
+  reflexivity.
+  simpl. rewrite -> IHtl. reflexivity. Qed.
 
 (* $Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)
 
