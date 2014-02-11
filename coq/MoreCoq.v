@@ -387,12 +387,8 @@ Theorem plus_n_n_injective : forall n m,
      n + n = m + m ->
      n = m.
 Proof.
-  intros n. induction n as [| n']. 
-  simpl. intros. destruct m. reflexivity. inversion H. 
-  simpl.
-
-    (* Hint: use the plus_n_Sm lemma *)
-    (* FILL IN HERE *) Admitted.
+  intros n. induction n as [|n'].
+  Admitted.
 (** [] *)
 
 (* ###################################################### *)
@@ -413,7 +409,7 @@ Proof.
     all is well.  But if we begin it with
       intros n m. induction n.
     we get stuck in the middle of the inductive case... *)
-
+ 
 Theorem double_injective_FAILED : forall n m,
      double n = double m ->
      n = m.
@@ -487,6 +483,7 @@ Proof.
 (** The good proof of [double_injective] leaves [m] in the goal
     statement at the point where the [induction] tactic is invoked on
     [n]: *)
+
 
 Theorem double_injective : forall n m,
      double n = double m ->
@@ -657,10 +654,12 @@ Theorem index_after_last: forall (n : nat) (X : Type) (l : list X),
      length l = n ->
      index n l = None.
 Proof.
-  intros. induction l.
-  reflexivity.
-  generalize dependent n. Admitted.
-  
+  intros. generalize dependent n.
+  induction l as [|hd tl]. simpl. intros. reflexivity.
+  simpl. destruct n. simpl. intros. inversion H.
+  simpl. intros. inversion H. rewrite -> H1. apply IHtl in H1.
+  rewrite -> H1. reflexivity. Qed.
+
 
 (** **** Exercise: 3 stars, advanced, optional (index_after_last_informal) *)
 (** Write an informal proof corresponding to your Coq proof
@@ -684,11 +683,11 @@ Theorem length_snoc''' : forall (n : nat) (X : Type)
 Proof.  
   intros. generalize dependent n. induction l as [| h t].
   {intros. rewrite <- H. simpl. reflexivity. }
-  {intros n eq.    
+  {intros n eq. simpl. apply f_equal. destruct n. inversion eq.
+   apply IHt. simpl in eq. inversion eq. rewrite -> H0.
+   reflexivity. }
+Qed.
 
-
-(* FILL IN HERE *) Admitted.
-(** [] *)
 
 (** **** Exercise: 3 stars, optional (app_length_cons) *)
 (** Prove this by induction on [l1], without using [app_length]. *)
@@ -698,9 +697,17 @@ Theorem app_length_cons : forall (X : Type) (l1 l2 : list X)
      length (l1 ++ (x :: l2)) = n ->
      S (length (l1 ++ l2)) = n.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
+  intros X l1 l2 x. 
+  induction l1 as [| hd tl]. 
+  {simpl. intros. rewrite -> H. reflexivity. }
+  {simpl. destruct n. 
+   {simpl. intros. inversion H. }
+   {intros. inversion H. apply f_equal. apply IHtl in H1.
+    inversion H. rewrite -> H1.  rewrite -> H2.
+    reflexivity. }
+     }
+Qed.
+    
 (** **** Exercise: 4 stars, optional (app_length_twice) *)
 (** Prove this by induction on [l], without using app_length. *)
 
@@ -709,9 +716,17 @@ Theorem app_length_twice : forall (X:Type) (n:nat) (l:list X),
      length (l ++ l) = n + n.
 Proof.
   intros. 
+  generalize dependent n.
+  induction l as [|hd tl].
+  {intros. simpl in *. destruct n.
+   {reflexivity. }
+   {inversion H. }
+  }
+  {intros. simpl. destruct n. 
+   {inversion H. }
+   {simpl in H. inversion H. simpl. apply f_equal.
+    apply IHtl in H1. Admitted.
 
-  (* FILL IN HERE *) Admitted.
-(** [] *)
 
 (* ###################################################### *)
 (** * Using [destruct] on Compound Expressions *)
@@ -756,8 +771,11 @@ Proof.
 Theorem override_shadow : forall (X:Type) x1 x2 k1 k2 (f : nat->X),
   (override (override f k1 x2) k1 x1) k2 = (override f k1 x1) k2.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros.
+  unfold override. destruct (beq_nat k1 k2). 
+  {reflexivity. }
+  {reflexivity. }
+Qed.
 
 (** **** Exercise: 3 stars, optional (combine_split) *)
 (** Complete the proof below *)
@@ -766,8 +784,9 @@ Theorem combine_split : forall X Y (l : list (X * Y)) l1 l2,
   split l = (l1, l2) ->
   combine l1 l2 = l.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. Admitted.
+
+
 
 (** Sometimes, doing a [destruct] on a compound expression (a
     non-variable) will erase information we need to complete a proof. *)
@@ -835,17 +854,38 @@ Theorem bool_fn_applied_thrice :
   forall (f : bool -> bool) (b : bool), 
   f (f (f b)) = f b.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros.
+  destruct (f b) eqn:eqFB.
+  {destruct (f true) eqn:eqFT.
+   {rewrite -> eqFT. reflexivity. }
+   {destruct (f false) eqn :eqFF.
+    {reflexivity. }
+    {destruct b. rewrite -> eqFB in eqFT. inversion eqFT.
+     rewrite -> eqFB in eqFF. inversion eqFF. }
+   }
+  }
+  {destruct (f false) eqn : eqFF.
+   {destruct (f true) eqn : eqFT.
+    {destruct b. rewrite -> eqFB in eqFT. inversion eqFT. 
+     rewrite ->eqFB in eqFF. inversion eqFF. }
+   {destruct b. rewrite -> eqFB in eqFT. reflexivity. reflexivity. }
+   }
+  {rewrite -> eqFF. reflexivity. }
+  }
+Qed. 
 
 (** **** Exercise: 2 stars (override_same) *)
 Theorem override_same : forall (X:Type) x1 k1 k2 (f : nat->X),
   f k1 = x1 -> 
   (override f k1 x1) k2 = f k2.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
+  intros.
+  unfold override. destruct (beq_nat k1 k2) eqn : H1.
+  rewrite <- H. apply f_equal. apply beq_nat_true in H1.
+  rewrite -> H1. reflexivity.
+  reflexivity.
+  Qed.
+  
 (* ################################################################## *)
 (** * Review *)
 
@@ -928,8 +968,10 @@ Proof.
 Theorem beq_nat_sym : forall (n m : nat),
   beq_nat n m = beq_nat m n.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros.
+  destruct (beq_nat n m) eqn : H.
+  apply beq_nat_true in H. rewrite -> H. symmetry.
+  apply beq_nat_true.
 
 (** **** Exercise: 3 stars, advanced, optional (beq_nat_sym_informal) *)
 (** Give an informal proof of this lemma that corresponds to your
