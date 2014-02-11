@@ -7,6 +7,7 @@
     as data).
 *)
 
+
 Require Export Lists.   
 
 (* ###################################################### *)
@@ -651,9 +652,7 @@ Theorem curry_uncurry : forall (X Y Z : Type)
   prod_uncurry (prod_curry f) p = f p.
 Proof.
   intros. unfold prod_uncurry. unfold prod_curry. 
-  assert(H : (fst p, snd p) = p).
-  destruct p. reflexivity. rewrite -> H. reflexivity.
-  Qed.
+  destruct p. reflexivity. Qed.
 
 (* ###################################################### *)
 (** ** Filter *)

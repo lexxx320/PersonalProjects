@@ -294,7 +294,7 @@ Proof. intros A B f x y eq. rewrite eq.  reflexivity.  Qed.
     above.  The extra equalities force us to do a little more
     equational reasoning and exercise some of the tactics we've seen
     recently. *)
-
+ 
 Theorem length_snoc' : forall (X : Type) (v : X)
                               (l : list X) (n : nat),
      length l = n ->
@@ -657,7 +657,10 @@ Theorem index_after_last: forall (n : nat) (X : Type) (l : list X),
      length l = n ->
      index n l = None.
 Proof.
-  Admitted.
+  intros. induction l.
+  reflexivity.
+  generalize dependent n. Admitted.
+  
 
 (** **** Exercise: 3 stars, advanced, optional (index_after_last_informal) *)
 (** Write an informal proof corresponding to your Coq proof
@@ -673,13 +676,18 @@ Proof.
 
 (** **** Exercise: 3 stars, optional (gen_dep_practice_more) *)
 (** Prove this by induction on [l]. *)
-
+ 
 Theorem length_snoc''' : forall (n : nat) (X : Type) 
                               (v : X) (l : list X),
      length l = n ->
      length (snoc l v) = S n. 
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof.  
+  intros. generalize dependent n. induction l as [| h t].
+  {intros. rewrite <- H. simpl. reflexivity. }
+  {intros n eq.    
+
+
+(* FILL IN HERE *) Admitted.
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (app_length_cons) *)
@@ -700,6 +708,8 @@ Theorem app_length_twice : forall (X:Type) (n:nat) (l:list X),
      length l = n ->
      length (l ++ l) = n + n.
 Proof.
+  intros. 
+
   (* FILL IN HERE *) Admitted.
 (** [] *)
 
