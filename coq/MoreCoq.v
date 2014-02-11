@@ -166,7 +166,7 @@ Proof.
     in the [with] clause; Coq is often smart enough to
     figure out which instantiation we're giving. We could
     instead write: [apply trans_eq with [c,d]]. *)
-
+ 
 (** **** Exercise: 3 stars, optional (apply_with_exercise) *)
 Example trans_eq_exercise : forall (n m o p : nat),
      m = (minustwo o) ->
@@ -359,7 +359,7 @@ Proof.
 
     Here is a variant of a proof from above, using forward reasoning
     throughout instead of backward reasoning. *)
-
+ 
 Theorem silly3' : forall (n : nat),
   (beq_nat n 5 = true -> beq_nat (S (S n)) 7 = true) ->
      true = beq_nat n 5  ->
@@ -387,8 +387,10 @@ Theorem plus_n_n_injective : forall n m,
      n + n = m + m ->
      n = m.
 Proof.
-  intros n. induction n as [| n'].
-  simpl. 
+  intros n. induction n as [| n']. 
+  simpl. intros. destruct m. reflexivity. inversion H. 
+  simpl.
+
     (* Hint: use the plus_n_Sm lemma *)
     (* FILL IN HERE *) Admitted.
 (** [] *)
@@ -536,8 +538,11 @@ Proof.
 Theorem beq_nat_true : forall n m,
     beq_nat n m = true -> n = m.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros n. induction n as [|n'].
+  intros. destruct m. reflexivity. inversion H.
+  intros. destruct m. inversion H.
+  apply IHn' in H. rewrite -> H. reflexivity.
+  Qed.
 
 (** **** Exercise: 2 stars, advanced (beq_nat_true_informal) *)
 (** Give a careful informal proof of [beq_nat_true], being as explicit
@@ -652,8 +657,7 @@ Theorem index_after_last: forall (n : nat) (X : Type) (l : list X),
      length l = n ->
      index n l = None.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  Admitted.
 
 (** **** Exercise: 3 stars, advanced, optional (index_after_last_informal) *)
 (** Write an informal proof corresponding to your Coq proof

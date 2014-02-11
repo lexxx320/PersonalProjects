@@ -178,7 +178,7 @@ Inductive baz : Type :=
 
 
 (** How _many_ elements does the type [baz] have? 
-(* FILL IN HERE *)
+0?
 [] *)
 
 End MumbleBaz.
@@ -640,16 +640,20 @@ Definition prod_uncurry {X Y Z : Type}
 Check @prod_curry. (*forall X Y Z : Type, (X*Y->Z) -> X -> Y -> Z*)
 Check @prod_uncurry. (*forall X Y Z : Type, (X -> Y -> Z) -> (X * Y) -> Z*)
 
+(*Discuss these in class*)
 Theorem uncurry_curry : forall (X Y Z : Type) (f : X -> Y -> Z) x y,
   prod_curry (prod_uncurry f) x y = f x y.
 Proof. 
   intros. reflexivity. Qed.
-
+ 
 Theorem curry_uncurry : forall (X Y Z : Type)
                                (f : (X * Y) -> Z) (p : X * Y),
   prod_uncurry (prod_curry f) p = f p.
 Proof.
-  intros. Admitted.
+  intros. unfold prod_uncurry. unfold prod_curry. 
+  assert(H : (fst p, snd p) = p).
+  destruct p. reflexivity. rewrite -> H. reflexivity.
+  Qed.
 
 (* ###################################################### *)
 (** ** Filter *)
