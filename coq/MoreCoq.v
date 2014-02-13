@@ -971,7 +971,8 @@ Proof.
   intros.
   destruct (beq_nat n m) eqn : H.
   apply beq_nat_true in H. rewrite -> H. symmetry.
-  apply beq_nat_true.
+  
+
 
 (** **** Exercise: 3 stars, advanced, optional (beq_nat_sym_informal) *)
 (** Give an informal proof of this lemma that corresponds to your
