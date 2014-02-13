@@ -382,14 +382,22 @@ Proof.
 
 (** **** Exercise: 3 stars (plus_n_n_injective) *)
 (** Practice using "in" variants in this exercise. *)
-
+ 
 Theorem plus_n_n_injective : forall n m,
      n + n = m + m ->
      n = m.
 Proof.
   intros n. induction n as [|n'].
-  Admitted.
-(** [] *)
+  simpl. destruct m. intros. reflexivity.
+  intros. inversion H.
+  simpl. intros. destruct m. inversion H.
+  simpl in H. inversion H. apply f_equal.
+  assert(forall n, n + S n = S(n + n)).
+  intros. rewrite -> plus_n_Sm. reflexivity.
+  rewrite -> H0 in H1. rewrite -> H0 in H1. inversion H1.
+  apply IHn' in H3. rewrite -> H3. reflexivity.
+  Qed.
+  
 
 (* ###################################################### *)
 (** * Varying the Induction Hypothesis *)
@@ -728,6 +736,7 @@ Proof.
     apply IHtl in H1. Admitted.
 
 
+
 (* ###################################################### *)
 (** * Using [destruct] on Compound Expressions *)
 
@@ -785,7 +794,7 @@ Theorem combine_split : forall X Y (l : list (X * Y)) l1 l2,
   combine l1 l2 = l.
 Proof.
   intros. Admitted.
-
+  
 
 
 (** Sometimes, doing a [destruct] on a compound expression (a
@@ -964,15 +973,21 @@ Proof.
 (* ###################################################### *)
 (** * Additional Exercises *)
 
+Theorem XEqX : forall n, beq_nat n n = true.
+Proof.
+  intros. induction n.
+  reflexivity. simpl. rewrite -> IHn.
+  reflexivity. Qed.
+
 (** **** Exercise: 3 stars (beq_nat_sym) *)
 Theorem beq_nat_sym : forall (n m : nat),
   beq_nat n m = beq_nat m n.
 Proof.
-  intros.
-  destruct (beq_nat n m) eqn : H.
-  apply beq_nat_true in H. rewrite -> H. symmetry.
-  
-
+  intros n.
+  induction n.
+  intros. destruct m. reflexivity. simpl. reflexivity.
+  intros. destruct m. simpl. reflexivity. simpl.
+  apply IHn. Qed.
 
 (** **** Exercise: 3 stars, advanced, optional (beq_nat_sym_informal) *)
 (** Give an informal proof of this lemma that corresponds to your
@@ -990,9 +1005,11 @@ Theorem beq_nat_trans : forall n m p,
   beq_nat n m = true ->
   beq_nat m p = true ->
   beq_nat n p = true.
-Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+Proof. 
+  intros. apply beq_nat_true in H. apply beq_nat_true in H0.
+  rewrite -> H. rewrite -> H0. apply XEqX.
+  Qed.
+
 
 (** **** Exercise: 3 stars, advanced (split_combine) *)
 (** We have just proven that for all lists of pairs, [combine] is the
@@ -1007,22 +1024,22 @@ Proof.
     and [l2] for [split] [combine l1 l2 = (l1,l2)] to be true?)  *)
 
 Definition split_combine_statement : Prop :=
-(* FILL IN HERE *) admit.
+  forall (X Y : Type) (l1 : list X) (l2 : list Y) (l : list (X * Y)), 
+    combine l1 l2 = l -> split l = (l1, l2).
 
 Theorem split_combine : split_combine_statement.
 Proof.
-(* FILL IN HERE *) Admitted.
+  unfold split_combine_statement.
+  Admitted.
 
-
-(** [] *)
 
 (** **** Exercise: 3 stars (override_permute) *)
 Theorem override_permute : forall (X:Type) x1 x2 k1 k2 k3 (f : nat->X),
   beq_nat k2 k1 = false ->
   (override (override f k2 x2) k1 x1) k3 = (override (override f k1 x1) k2 x2) k3.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. unfold override.
+  rewrite -> beq_nat_sym in H. Admitted.
 
 (** **** Exercise: 3 stars, advanced (filter_exercise) *)
 (** This one is a bit challenging.  Pay attention to the form of your IH. *)
@@ -1032,8 +1049,7 @@ Theorem filter_exercise : forall (X : Type) (test : X -> bool)
      filter test l = x :: lf ->
      test x = true.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. Admitted.
 
 (** **** Exercise: 4 stars, advanced (forall_exists_challenge) *)
 (** Define two recursive [Fixpoints], [forallb] and [existsb].  The
