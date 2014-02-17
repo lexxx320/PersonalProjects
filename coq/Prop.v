@@ -540,12 +540,15 @@ Proof.
 (** Here's an exercise that just requires applying existing lemmas.  No
     induction or even case analysis is needed, but some of the rewriting
     may be tedious. *)
-
+(*Theorem ev_sum : forall n m,
+   ev n -> ev m -> ev (n+m).
+*)
 Theorem ev_plus_plus : forall n m p,
   ev (n+m) -> ev (n+p) -> ev (m+p).
-Proof.
-  intros. Admitted.
-
+Proof. intros. apply ev_ev__ev with (m := m) in H.
+       apply ev_ev__ev with (m := p) in H0.
+       apply ev_sum. apply H. apply H0.
+       Admitted.
 
 (* ####################################################### *)
 (** * Additional Exercises *)
@@ -566,9 +569,19 @@ Proof.
     - Prove that 
        forall l, pal l -> l = rev l.
 *)
-
-Inductive pal : forall (X : Type) -> List X -> Prop := 
-  |NULL : pal X -> nil.
+(*
+Inductive ev : nat -> Prop :=
+  | ev_0 : ev O
+  | ev_SS : forall n:nat, ev n -> ev (S (S n)).
+*)
+(*
+Inductive pal : list nat -> Prop := 
+  |empty : pal nil
+  |palCons : forall (x : nat) (l : list nat), pal (x :: (l ++ [x])).
+*)
+Inductive pal : (forall X : Type, list X) -> Prop :=
+  |empty : pal (@nil)
+  |palCons : forall (X : Type) (x : X) (l : list X), pal (x :: (l++[x])).
 
 (* FILL IN HERE *)
 (** [] *)
