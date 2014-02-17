@@ -579,10 +579,11 @@ Inductive pal : list nat -> Prop :=
   |empty : pal nil
   |palCons : forall (x : nat) (l : list nat), pal (x :: (l ++ [x])).
 *)
+(*
 Inductive pal : (forall X : Type, list X) -> Prop :=
   |empty : pal (@nil)
   |palCons : forall (X : Type) (x : X) (l : list X), pal (x :: (l++[x])).
-
+*)
 (* FILL IN HERE *)
 (** [] *)
 

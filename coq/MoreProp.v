@@ -45,7 +45,7 @@ Notation "m <= n" := (le m n).
     must construct their proofs explicitly -- [simpl] and
     [reflexivity] don't do the job, because the proofs aren't just a
     matter of simplifying computations.) *)
-
+ 
 Theorem test_le1 :
   3 <= 3.
 Proof.
@@ -103,64 +103,94 @@ Inductive next_even (n:nat) : nat -> Prop :=
 (** Here are a number of facts about the [<=] and [<] relations that
     we are going to need later in the course.  The proofs make good
     practice exercises. *)
+ 
+Lemma S_Le : forall n m, S n <= m -> n <= m.
+Proof.
+  intros. induction H. apply le_S. apply le_n.
+  apply le_S. apply IHle. Qed.
 
 Lemma le_trans : forall m n o, m <= n -> n <= o -> m <= o.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction H. apply H0. apply S_Le in H0. apply IHle in H0.
+  apply H0. Qed.
+
+
 
 Theorem O_le_n : forall n,
   0 <= n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction n. apply le_n. apply le_S. apply IHn. Qed.
+
 
 Theorem n_le_m__Sn_le_Sm : forall n m,
   n <= m -> S n <= S m.
 Proof. 
-  (* FILL IN HERE *) Admitted.
-
+  intros n m H. induction H. reflexivity.
+  apply le_S. apply IHle. Qed.
 
 Theorem Sn_le_Sm__n_le_m : forall n m,
   S n <= S m -> n <= m.
 Proof. 
-  (* FILL IN HERE *) Admitted.
-
+  intros. inversion H. apply le_n. apply S_Le in H1. apply H1.
+  Qed.
 
 Theorem le_plus_l : forall a b,
   a <= a + b.
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros. induction b. rewrite -> plus_0_r. apply le_n.
+  rewrite <- plus_n_Sm. apply le_S. apply IHb. Qed.
+
 
 Theorem plus_lt : forall n1 n2 m,
   n1 + n2 < m ->
   n1 < m /\ n2 < m.
 Proof. 
- unfold lt. 
- (* FILL IN HERE *) Admitted.
+ unfold lt. intros. apply conj. 
+ Case "n1 < m".
+   induction H. 
+   SCase "base case". assert(S(n1 + n2) = S n1 + n2). simpl. reflexivity. 
+   rewrite -> H. apply le_plus_l.
+   SCase "inductive case". apply le_S. apply IHle.
+ Case "n2 < m".
+   induction H.
+   SCase "base case". assert(S(n1 + n2) = n1 + S n2). rewrite <- plus_n_Sm. reflexivity.
+     rewrite -> H. assert(H1 : n1 + S n2 = S n2 + n1). apply plus_comm.
+     rewrite -> H1. apply le_plus_l.
+   SCase "inductive case". apply le_S. apply IHle.
+ Qed.
 
 Theorem lt_S : forall n m,
   n < m ->
   n < S m.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold lt. intros. apply S_Le in H. apply n_le_m__Sn_le_Sm in H.
+  apply H. Qed.
+
 
 Theorem ble_nat_true : forall n m,
   ble_nat n m = true -> n <= m.
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros n. induction n.
+  intros. destruct m. apply le_n. apply O_le_n.
+  intros. destruct m. simpl in H. inversion H.
+  simpl in H. apply IHn in H. apply n_le_m__Sn_le_Sm.
+  apply H. Qed.
 
 Theorem le_ble_nat : forall n m,
   n <= m ->
   ble_nat n m = true.
 Proof.
-  (* Hint: This may be easiest to prove by induction on [m]. *)
-  (* FILL IN HERE *) Admitted.
+  intros. generalize dependent n. induction m.
+  intros. destruct n. reflexivity. inversion H.
+  intros. destruct n. simpl. reflexivity. simpl.
+  apply IHm. apply Sn_le_Sm__n_le_m. apply H.
+  Qed.
 
 Theorem ble_nat_true_trans : forall n m o,
   ble_nat n m = true -> ble_nat m o = true -> ble_nat n o = true.                               
 Proof.
-  (* Hint: This theorem can be easily proved without using [induction]. *)
-  (* FILL IN HERE *) Admitted.
-
+  intros. apply le_ble_nat. apply ble_nat_true in H. apply ble_nat_true in H0.
+  apply le_trans with (n := m). apply H. apply H0. Qed.
 
 (** **** Exercise: 3 stars (R_provability) *)
 Module R.
@@ -176,16 +206,21 @@ Inductive R : nat -> nat -> nat -> Prop :=
    | c5 : forall m n o, R m n o -> R n m o.
 
 (** - Which of the following propositions are provable?
-      - [R 1 1 2]
-      - [R 2 2 6]
+      - [R 1 1 2]  yes
+      - [R 2 2 6]  yes
 
     - If we dropped constructor [c5] from the definition of [R],
       would the set of provable propositions change?  Briefly (1
       sentence) explain your answer.
-  
+      
+Yes, then we could not prove either of the propositions  
+
+
     - If we dropped constructor [c4] from the definition of [R],
       would the set of provable propositions change?  Briefly (1
       sentence) explain your answer.
+
+No, we could still prove both propositions
 
 (* FILL IN HERE *)
 []
@@ -336,7 +371,8 @@ Definition natural_number_induction_valid : Prop :=
     equivalent to [Peven n] otherwise. *)
 
 Definition combine_odd_even (Podd Peven : nat -> Prop) : nat -> Prop :=
-  (* FILL IN HERE *) admit.
+  (fun n => if oddb n then Podd n else Peven n).
+
 
 (** To test your definition, see whether you can prove the following
     facts: *)
@@ -347,7 +383,9 @@ Theorem combine_odd_even_intro :
     (oddb n = false -> Peven n) ->
     combine_odd_even Podd Peven n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. unfold combine_odd_even. destruct (oddb n) eqn : H1. 
+  apply H. reflexivity. apply H0. reflexivity.
+  Qed.
 
 Theorem combine_odd_even_elim_odd :
   forall (Podd Peven : nat -> Prop) (n : nat),
@@ -355,7 +393,8 @@ Theorem combine_odd_even_elim_odd :
     oddb n = true ->
     Podd n.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. unfold combine_odd_even in H. rewrite -> H0 in H. apply H.
+  Qed.
 
 Theorem combine_odd_even_elim_even :
   forall (Podd Peven : nat -> Prop) (n : nat),
@@ -363,9 +402,8 @@ Theorem combine_odd_even_elim_even :
     oddb n = false ->
     Peven n.
 Proof.
-  (* FILL IN HERE *) Admitted.
-
-(** [] *)
+  intros. unfold combine_odd_even in H. rewrite -> H0 in H.
+  apply H. Qed.
 
 (* ##################################################### *)
 (** One more quick digression, for adventurous souls: if we can define
@@ -380,15 +418,19 @@ Proof.
     [true_upto_n__true_everywhere] that makes
     [true_upto_n_example] work. *)
 
-(* 
-Fixpoint true_upto_n__true_everywhere
+
+Fixpoint true_upto_n__true_everywhere (n : nat) (p : nat -> Prop) : Prop := 
+  match n with
+      |S n' => even n -> true_upto_n__true_everywhere n' p
+      |0 => forall m : nat, even m
+  end.
 (* FILL IN HERE *)
 
 Example true_upto_n_example :
     (true_upto_n__true_everywhere 3 (fun n => even n))
   = (even 3 -> even 2 -> even 1 -> forall m : nat, even m).
 Proof. reflexivity.  Qed.
-*)
+
 (** [] *)
 
 (* $Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)

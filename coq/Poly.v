@@ -1023,7 +1023,7 @@ Theorem unfold_example : forall m n,
 Proof.
   intros m n H.
   unfold plus3.
-  rewrite -> H.
+  rewrite -> H.apply
   reflexivity.  Qed.
 
 (** Now we can prove a first property of [override]: If we
