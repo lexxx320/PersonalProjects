@@ -287,8 +287,9 @@ Proof.
 
 Lemma helper_g_times2 : forall x y z, x + (z + y) = z + x + y.
 Proof.
-  intros.
+  intros. 
   rewrite -> plus_swap. apply plus_assoc. Qed.
+
 
 Theorem g_times2: forall n, gorgeous n -> gorgeous (2*n).
 Proof.
@@ -542,13 +543,21 @@ Proof.
     may be tedious. *)
 (*Theorem ev_sum : forall n m,
    ev n -> ev m -> ev (n+m).
+
+Theorem double_even : forall n,
+  ev (double n).
 *)
-Theorem ev_plus_plus : forall n m p,
+Theorem ev_plus_plus : forall n m p, 
   ev (n+m) -> ev (n+p) -> ev (m+p).
-Proof. intros. apply ev_ev__ev with (m := m) in H.
-       apply ev_ev__ev with (m := p) in H0.
-       apply ev_sum. apply H. apply H0.
-       Admitted.
+Proof. 
+  intros. apply ev_ev__ev with (n := n+n) (m := m+p).
+  replace (n+n + (m + p)) with ((n +m) + (n+p)).
+  apply ev_sum. apply H. apply H0.
+  rewrite -> plus_swap. rewrite -> plus_assoc. rewrite -> plus_assoc.
+  rewrite -> plus_assoc. reflexivity.
+  rewrite <- double_plus.
+  apply double_even.
+  Qed.
 
 (* ####################################################### *)
 (** * Additional Exercises *)
@@ -577,21 +586,52 @@ Inductive ev : nat -> Prop :=
 (*
 Inductive pal : list nat -> Prop := 
   |empty : pal nil
-  |palCons : forall (x : nat) (l : list nat), pal (x :: (l ++ [x])).
+  |single : forall (x : nat), pal [x]
+  |palCons : forall (x : nat) (l : list nat), pal l -> pal (x :: (l ++ [x])).
 *)
-(*
-Inductive pal : (forall X : Type, list X) -> Prop :=
-  |empty : pal (@nil)
-  |palCons : forall (X : Type) (x : X) (l : list X), pal (x :: (l++[x])).
-*)
-(* FILL IN HERE *)
-(** [] *)
+
+Inductive pal : forall (X : Type) (l : list X), Prop :=
+  |empty : forall X, pal X nil
+  |single : forall X (x : X), pal X [x]
+  |palCons : forall X (x : X) (l : list X), pal X l -> 
+                                            pal X (x :: (snoc l x))
+.
 
 (** **** Exercise: 5 stars, optional (palindrome_converse) *)
 (** Using your definition of [pal] from the previous exercise, prove
     that
      forall l, l = rev l -> pal l.
 *)
+
+Theorem Pal_App_Rev : forall (X : Type) (l : list X), pal X (l ++ rev l).
+Proof.
+  intros.
+  induction l.
+  simpl. apply empty.
+  simpl. Admitted.
+
+Lemma Align : forall (X : Type) (x : X) (l l' : list X), 
+                x::l = rev l ++[x] -> x :: l' ++ [x] = x :: rev l' ++ [x].
+Proof.
+  induction l'.
+  intros. simpl. reflexivity.
+  intros. apply IHl' in H. Admitted.
+
+Theorem revPal : forall (X : Type) (l : list X), l = rev l -> pal X l.
+Proof.
+  intros.
+  induction l. apply empty.
+  simpl in H. rewrite -> SnocApp in H. Admitted.
+
+Inductive natBy2 : nat -> Prop :=
+  |natBy2_0 : natBy2 0
+  |natBy2_1 : natBy2 1
+  |natBy2_SS : forall n, natBy2 n -> natBy2 (S(S n)).
+
+Theorem palRev : forall (X : Type) (l : list X), pal X l -> l = rev l.
+Proof.
+  intros.
+  
 
 (* FILL IN HERE *)
 (** [] *)
@@ -628,9 +668,40 @@ Inductive pal : (forall X : Type, list X) -> Prop :=
       induction carefully!
 *)
 
-(* FILL IN HERE *)
-(** [] *)
+Inductive subseq : forall (l1 l2 : list nat), Prop := 
+  |subseqNil : forall (l2 : list nat), subseq [] l2
+  |subseqEq : forall (x : nat) (l1 l2 : list nat), subseq l1 l2 ->
+                                                   subseq (x::l1) (x::l2)
+  |subseqNE : forall (x : nat) (l1 l2 : list nat), subseq l1 l2 -> 
+                                                   subseq l1 (x::l2).
 
+Theorem SubseqRefl : forall (l : list nat), subseq l l.
+Proof.
+  intros. induction l.
+   apply subseqNil.
+   apply subseqEq. apply IHl. Qed.
+
+Theorem SubseqExtra : forall (l1 l2 l3 : list nat), subseq l1 l2 ->
+                                                    subseq l1 (l2 ++ l3).
+Proof. 
+  intros. induction H.
+  apply subseqNil.
+  simpl. apply subseqEq. apply IHsubseq.
+  simpl. apply subseqNE. apply IHsubseq.  
+  Qed.
+
+Theorem SubseqTrans : forall (l1 l2 l3 : list nat), subseq l1 l2 -> subseq l2 l3 ->
+                                                    subseq l1 l3.
+Proof.
+  intros. generalize dependent l1.
+  induction H0.
+  { intros. destruct l1. apply subseqNil.
+    inversion H. }
+  { intros. 
+  
+
+  induction H. intros. apply subseqNil.
+  intros. Admitted.
 
 (** **** Exercise: 2 stars, optional (R_provability) *)
 (** Suppose we give Coq the following definition:
@@ -640,11 +711,11 @@ Inductive pal : (forall X : Type, list X) -> Prop :=
       | c3 : forall n l, R (S n) l -> R n l.
     Which of the following propositions are provable?
 
-    - [R 2 [1,0]]
-    - [R 1 [1,2,1,0]]
-    - [R 6 [3,2,1,0]]
+    - [R 2 [1,0]]      yes
+    - [R 1 [1,2,1,0]]  yes
+    - [R 6 [3,2,1,0]]  yes
 *)
-
+  
 (** [] *)
 
 
