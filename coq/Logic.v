@@ -596,24 +596,39 @@ Theorem false_beq_nat : forall n m : nat,
      n <> m ->
      beq_nat n m = false.
 Proof. 
-  Admitted.
-
+  induction n. intros. unfold not in H.
+  {destruct m. 
+   {simpl. apply ex_falso_quodlibet.
+    apply H. reflexivity. }
+   {reflexivity. }
+  }
+  {intros. destruct m.
+   {reflexivity. }
+   {simpl. apply IHn. unfold not in *.
+    assert((S n = S m -> False) -> (n = m -> False)).
+    intros. apply H0. rewrite -> H1. reflexivity.
+    apply H0. apply H. }
+  }
+  Qed.
+    
 
 (** **** Exercise: 2 stars, optional (beq_nat_false) *)
 Theorem beq_nat_false : forall n m,
   beq_nat n m = false -> n <> m.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros.
+  unfold not. intros. rewrite -> H0 in H. 
+  assert(H1:beq_nat m m = true). apply XEqX.
+  rewrite -> H1 in H. inversion H.
+  Qed.
 
 (** **** Exercise: 2 stars, optional (ble_nat_false) *)
 Theorem ble_nat_false : forall n m,
   ble_nat n m = false -> ~(n <= m).
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
-
+  unfold not. intros. apply le_ble_nat in H0.
+  rewrite -> H0 in H. inversion H.
+  Qed.
 
 
 (* ############################################################ *)
@@ -705,8 +720,9 @@ Proof.
 Theorem dist_not_exists : forall (X:Type) (P : X -> Prop),
   (forall x, P x) -> ~ (exists x, ~ P x).
 Proof. 
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros.
+  unfold not. intros. inversion H0 as [m Hm].
+  apply Hm. apply H. Qed.
 
 (** **** Exercise: 3 stars, optional (not_exists_dist) *)
 (** (The other direction of this theorem requires the classical "law
@@ -717,8 +733,12 @@ Theorem not_exists_dist :
   forall (X:Type) (P : X -> Prop),
     ~ (exists x, ~ P x) -> (forall x, P x).
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  unfold excluded_middle. unfold not. intros.
+  assert(H1:P x \/ (P x -> False)). apply H.
+  inversion H1. apply H2. assert(H3 : exists x : X, P x -> False).
+  exists x. apply H2. apply H0 in H3. inversion H3.
+  Qed.
+
 
 (** **** Exercise: 2 stars (dist_exists_or) *)
 (** Prove that existential quantification distributes over
@@ -727,8 +747,12 @@ Proof.
 Theorem dist_exists_or : forall (X:Type) (P Q : X -> Prop),
   (exists x, P x \/ Q x) <-> (exists x, P x) \/ (exists x, Q x).
 Proof.
-   (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. split. intros. inversion H. inversion H0.
+  left. exists witness. apply H1. right. exists witness. apply H1.
+  intros. inversion H. inversion H0. exists witness. left. apply H1.
+  inversion H0. exists witness. right. apply H1.
+  Qed.
+
 
 (* Print dist_exists_or. *)
 
@@ -770,8 +794,8 @@ Notation "x = y" := (eq x y)
 Lemma leibniz_equality : forall (X : Type) (x y: X), 
  x = y -> forall P : X -> Prop, P x -> P y.
 Proof.
-(* FILL IN HERE *) Admitted.
-(** [] *)
+  intros X x y H P H1. inversion H. rewrite <- H2. apply H1. Qed.
+
 
 (** We can use
     [refl_equal] to construct evidence that, for example, [2 = 2].
@@ -889,8 +913,8 @@ Proof.
 Theorem override_shadow' : forall (X:Type) x1 x2 k1 k2 (f : nat->X),
   (override' (override' f k1 x2) k1 x1) k2 = (override' f k1 x1) k2.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. unfold override'.
+  destruct (eq_nat_dec k1 k2). reflexivity. reflexivity. Qed.
 
 (* ####################################################### *)
 (** ** Inversion, Again (Advanced) *)
@@ -949,10 +973,9 @@ Proof.
 Lemma dist_and_or_eq_implies_and : forall P Q R,
        P /\ (Q \/ R) /\ Q = R -> P/\Q.
 Proof.
-(* FILL IN HERE *) Admitted.
-(** [] *)
-
-
+  intros.
+  inversion H. inversion H1. split. apply H0. inversion H2.
+  apply H4. rewrite -> H3. apply H4. Qed.
 
 
 (* ####################################################### *)
@@ -964,8 +987,8 @@ Proof.
     asserts that [P] is true for every element of the list [l]. *)
 
 Inductive all (X : Type) (P : X -> Prop) : list X -> Prop :=
-  (* FILL IN HERE *)
-.
+  |allNil : all X P nil
+  |allCons : forall (x : X) (l : list X), P x -> (all X P l).
 
 (** Recall the function [forallb], from the exercise
     [forall_exists_challenge] in chapter [Poly]: *)
@@ -983,8 +1006,18 @@ Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
     Are there any important properties of the function [forallb] which
     are not captured by your specification? *)
 
-(* FILL IN HERE *)
-(** [] *)
+Theorem forallbSpec : forall (X : Type) (test:X -> bool) (l : list X),
+                        forallb test l = true -> all X (fun x => test x = true) l.
+Proof.
+  induction l.
+  {intros. apply allNil. }
+  {intros. inversion H. apply andb_prop in H1. inversion H1.
+   apply allCons with (x := x). apply andb_true_intro in H1. symmetry.
+   rewrite -> H0. rewrite -> H0 in H1. apply H1.
+  }
+  Qed.
+
+
 
 (** **** Exercise: 4 stars, advanced (filter_challenge) *)
 (** One of the main purposes of Coq is to prove that programs match
@@ -1011,8 +1044,14 @@ Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
     for one list to be a merge of two others.  Do this with an
     inductive relation, not a [Fixpoint].)  *)
 
-(* FILL IN HERE *)
-(** [] *)
+Inductive InOrderMerge : forall (X : Type) (l1 l2 l3 : list X), Prop :=
+  |mergeNil : forall (X : Type), InOrderMerge X nil nil nil
+  |mergenilL : forall(X : Type) (l1 : list X), InOrderMerge X l1 nil l1
+  |mergeNilR : forall(X : Type) (l1 : list X), InOrderMerge X l1 l1 nil
+  |mergeCons : forall(X : Type) (x y : X) (l1 l2 l3 : list X), 
+                InOrderMerge X l1 l2 l3 -> InOrderMerge X (x::y::l1) (x::l2) (y::l3).
+
+
 
 (** **** Exercise: 5 stars, advanced, optional (filter_challenge_2) *)
 (** A different way to formally characterize the behavior of [filter]
@@ -1039,13 +1078,23 @@ Inductive appears_in {X:Type} (a:X) : list X -> Prop :=
 Lemma appears_in_app : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x (xs ++ ys) -> appears_in x xs \/ appears_in x ys.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. Admitted.
+
+
+Lemma app_appears_helper : forall (X : Type) (xs ys : list X) (x : X),
+                             appears_in x (xs ++ (x::ys)).
+Proof.
+  intros.
+  induction xs.
+  {simpl. apply ai_here. }
+  {simpl. apply ai_later. apply IHxs. }
+  Qed.
 
 Lemma app_appears_in : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x xs \/ appears_in x ys -> appears_in x (xs ++ ys).
 Proof.
-  (* FILL IN HERE *) Admitted.
-
+Admitted.
+ 
 (** Now use [appears_in] to define a proposition [disjoint X l1 l2],
     which should be provable exactly when [l1] and [l2] are
     lists (with elements of type X) that have no elements in common. *)
@@ -1082,8 +1131,9 @@ Proof.
     does not stutter.) *)
 
 Inductive nostutter:  list nat -> Prop :=
- (* FILL IN HERE *)
-.
+  |nostutterNil : nostutter nil
+  |noStutterCons : forall (n : nat), nostutter (n::nil)
+  |nostutterCons2 : forall (n1 n2 : nat) (l : list nat), nostutter (n2 :: l) -> (n1 <> n2) -> nostutter(n1::n2::l).
 
 (** Make sure each of these tests succeeds, but you are free
     to change the proof if the given one doesn't work for you.
@@ -1098,33 +1148,22 @@ Inductive nostutter:  list nat -> Prop :=
     tactics.  *)
 
 Example test_nostutter_1:      nostutter [3;1;4;1;5;6].
-(* FILL IN HERE *) Admitted.
-(* 
   Proof. repeat constructor; apply beq_nat_false; auto. Qed.
-*)
+
 
 Example test_nostutter_2:  nostutter [].
-(* FILL IN HERE *) Admitted.
-(* 
   Proof. repeat constructor; apply beq_nat_false; auto. Qed.
-*)
 
 Example test_nostutter_3:  nostutter [5].
-(* FILL IN HERE *) Admitted.
-(* 
   Proof. repeat constructor; apply beq_nat_false; auto. Qed.
-*)
+
 
 Example test_nostutter_4:      not (nostutter [3;1;1;4]).
-(* FILL IN HERE *) Admitted.
-(* 
-  Proof. intro.
+ Proof. intro.
   repeat match goal with 
     h: nostutter _ |- _ => inversion h; clear h; subst 
-  end.
-  contradiction H1; auto. Qed.
-*)
-(** [] *)
+  end. unfold not in H5. apply H5. reflexivity. Qed.
+
 
 (** **** Exercise: 4 stars, advanced (pigeonhole principle) *)
 (** The "pigeonhole principle" states a basic fact about counting:
@@ -1139,13 +1178,18 @@ Example test_nostutter_4:      not (nostutter [3;1;1;4]).
 Lemma app_length : forall (X:Type) (l1 l2 : list X),
   length (l1 ++ l2) = length l1 + length l2. 
 Proof. 
-  (* FILL IN HERE *) Admitted.
+  intros. induction l1.
+  {simpl. reflexivity. }
+  {simpl. apply f_equal. apply IHl1. }
+  Qed.
+    
 
 Lemma appears_in_app_split : forall (X:Type) (x:X) (l:list X),
   appears_in x l -> 
   exists l1, exists l2, l = l1 ++ (x::l2).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  Admitted.
+  
 
 (** Now define a predicate [repeats] (analogous to [no_repeats] in the
    exercise above), such that [repeats X l] asserts that [l] contains
