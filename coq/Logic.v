@@ -1117,19 +1117,42 @@ Inductive disjoint (X : Type) : list X -> list X -> Prop :=
 Inductive no_repeats (X : Type) : list X -> Prop :=
   |no_repeats_nil : no_repeats X nil
   |no_repeats_cons : forall (x : X) (l : list X), 
-                       no_repeats X l -> appears_in x l -> no_repeats X (x::l).
+                       no_repeats X l -> not(appears_in x l) -> no_repeats X (x::l).
 
 (** Finally, state and prove one or more interesting theorems relating
     [disjoint], [no_repeats] and [++] (list append).  *)
+
+(*this is a helper lemma for AppNoRepeats*)
+Theorem NoRepeatsApp : forall (X : Type) (l1 l2 : list X), no_repeats X (l1 ++ l2) -> no_repeats X l1.
+Proof.
+  induction l1.
+  {intros. apply no_repeats_nil. }
+  {intros. simpl in *. inversion H. apply no_repeats_cons. apply IHl1 with (l2 := l2). 
+   apply H2. Admitted.
+
 
 Theorem AppNoRepeats : forall (X : Type) (l1 l2 : list X),
                          no_repeats X l1 -> no_repeats X l2 -> 
                          disjoint X l1 l2 -> no_repeats X (l1++l2).
 Proof.
-  intros.
+  intros. generalize dependent l2.
   induction H.
+  {intros. simpl. apply H0. }
+  {intros. simpl. apply no_repeats_cons. apply IHno_repeats. apply H1.
+   inversion H2. apply H5. unfold not in *. inversion H2. apply IHno_repeats in H1.
+   unfold not in *. apply ex_falso_quodlibet. apply H0. Admitted.
+
+
+
+
+Theorem disjointAI : forall (X : Type) (x : X) (l1 l2 : list X),
+                       disjoint X (x::l1) l2 -> not(appears_in x l2).
+Proof.
+  induction l1.
+  {intros. unfold not. destruct l2. inversion H. unfold not in *.
+   apply H4. inversion H. unfold not in H4. apply H4. }
   Admitted.
-   
+
 
 (** **** Exercise: 3 stars (nostutter) *)
 (** Formulating inductive definitions of predicates is an important
@@ -1203,7 +1226,7 @@ Lemma appears_in_app_split : forall (X:Type) (x:X) (l:list X),
   exists l1, exists l2, l = l1 ++ (x::l2).
 Proof.
   intros.
-  induction H.
+  induction H. Admitted.
   
   
 
@@ -1213,8 +1236,8 @@ Proof.
    at least one repeated element (of type [X]).  *)
 
 Inductive repeats {X:Type} : list X -> Prop :=
-  (* FILL IN HERE *)
-.
+ |repeatsHit : forall (x : X) (l : list X), appears_in x l -> repeats (x::l)
+ |repeatsMiss : forall (x : X) (l : list X), repeats l -> repeats (x::l).
 
 (** Now here's a way to formalize the pigeonhole principle. List [l2]
    represents a list of pigeonhole labels, and list [l1] represents an
@@ -1227,9 +1250,13 @@ Theorem pigeonhole_principle: forall (X:Type) (l1 l2:list X),
   (forall x, appears_in x l1 -> appears_in x l2) -> 
   length l2 < length l1 -> 
   repeats l1.  
-Proof.  intros X l1. induction l1.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+Proof.  
+  intros X l1. induction l1.
+  {intros. simpl in *. inversion H1. }
+  {intros. unfold excluded_middle in *. apply IHl1 with(l2 := l2) in H. apply repeatsMiss. apply H. 
+   intros. apply IHl1 with(l2 := l2) in H. Admitted.
+
+
 
 (* $Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)
 
