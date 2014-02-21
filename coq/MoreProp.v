@@ -88,16 +88,13 @@ Inductive next_even (n:nat) : nat -> Prop :=
 (** **** Exercise: 2 stars (total_relation) *)
 (** Define an inductive binary relation [total_relation] that holds
     between every pair of natural numbers. *)
-
-(* FILL IN HERE *)
-(** [] *)
+Inductive total : nat -> nat -> Prop := 
+  |total' : forall (n m : nat), total n m.
 
 (** **** Exercise: 2 stars (empty_relation) *)
 (** Define an inductive binary relation [empty_relation] (on numbers)
     that never holds. *)
-
-(* FILL IN HERE *)
-(** [] *)
+Inductive empty : nat -> nat -> Prop := .
 
 (** **** Exercise: 2 stars, optional (le_exercises) *)
 (** Here are a number of facts about the [<=] and [<] relations that
@@ -137,9 +134,10 @@ Proof.
 Theorem le_plus_l : forall a b,
   a <= a + b.
 Proof. 
-  intros. induction b. rewrite -> plus_0_r. apply le_n.
-  rewrite <- plus_n_Sm. apply le_S. apply IHb. Qed.
 
+  intros. induction a. simpl. apply O_le_n.
+  simpl. apply n_le_m__Sn_le_Sm. apply IHa.
+  Qed.
 
 Theorem plus_lt : forall n1 n2 m,
   n1 + n2 < m ->
@@ -147,15 +145,14 @@ Theorem plus_lt : forall n1 n2 m,
 Proof. 
  unfold lt. intros. apply conj. 
  Case "n1 < m".
-   induction H. 
-   SCase "base case". assert(S(n1 + n2) = S n1 + n2). simpl. reflexivity. 
-   rewrite -> H. apply le_plus_l.
+   induction H.    
+   SCase "base case". apply n_le_m__Sn_le_Sm. apply le_plus_l.
    SCase "inductive case". apply le_S. apply IHle.
  Case "n2 < m".
    induction H.
-   SCase "base case". assert(S(n1 + n2) = n1 + S n2). rewrite <- plus_n_Sm. reflexivity.
-     rewrite -> H. assert(H1 : n1 + S n2 = S n2 + n1). apply plus_comm.
-     rewrite -> H1. apply le_plus_l.
+   SCase "base case". apply n_le_m__Sn_le_Sm. 
+     assert(H:n1 + n2 = n2 + n1). apply plus_comm. rewrite -> H.
+     apply le_plus_l.
    SCase "inductive case". apply le_S. apply IHle.
  Qed.
 
@@ -232,6 +229,26 @@ No, we could still prove both propositions
     That is, if [R m n o] is true, what can we say about [m],
     [n], and [o], and vice versa?
 *)
+
+Theorem plusImpliesR : forall (m n o : nat), 
+                         R m n o -> m + n = o.
+Proof.
+  intros.
+  induction H.
+  {reflexivity. }
+  {simpl. apply f_equal. apply IHR. }
+  {rewrite <- plus_n_Sm. apply f_equal. apply IHR. }
+  {simpl in IHR. inversion IHR. rewrite <- plus_n_Sm in H1.
+   inversion H1. reflexivity. }
+  {rewrite -> plus_comm. apply IHR. }
+  Qed.
+
+Theorem RImpliesPlus : forall (m n o : nat),
+                         m + n = o -> R m n o.
+Proof.
+  intros.
+  Admitted.
+
 
 (* FILL IN HERE *)
 (** [] *)
@@ -424,7 +441,6 @@ Fixpoint true_upto_n__true_everywhere (n : nat) (p : nat -> Prop) : Prop :=
       |S n' => even n -> true_upto_n__true_everywhere n' p
       |0 => forall m : nat, even m
   end.
-(* FILL IN HERE *)
 
 Example true_upto_n_example :
     (true_upto_n__true_everywhere 3 (fun n => even n))

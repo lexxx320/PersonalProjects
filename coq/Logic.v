@@ -40,11 +40,11 @@ Inductive and (P Q : Prop) : Prop :=
 
    Since we'll be using conjunction a lot, let's introduce a more
    familiar-looking infix notation for it. *)
-
+ 
 Notation "P /\ Q" := (and P Q) : type_scope.
 
 (** (The [type_scope] annotation tells Coq that this notation
-    will be appearing in propositions, not values.) *)
+     will be appearing in propositions, not values.) *)
 
 (** Consider the "type" of the constructor [conj]: *)
 
@@ -80,7 +80,7 @@ Proof.
   split.
     Case "left". apply ev_0.
     Case "right". apply ev_SS. apply ev_SS. apply ev_0.  Qed.
-
+ 
 (** Conversely, the [inversion] tactic can be used to take a
     conjunction hypothesis in the context, calculate what evidence
     must have been used to build it, and add variables representing
@@ -470,7 +470,7 @@ Proof.
   (* WORKED IN CLASS *)
   intros P Q H. inversion H as [HP HNA]. unfold not in HNA. 
   apply HNA in HP. inversion HP.  Qed.
-
+ 
 Theorem double_neg : forall P : Prop,
   P -> ~~P.
 Proof.
@@ -1078,7 +1078,8 @@ Inductive appears_in {X:Type} (a:X) : list X -> Prop :=
 Lemma appears_in_app : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x (xs ++ ys) -> appears_in x xs \/ appears_in x ys.
 Proof.
-  intros. Admitted.
+  Admitted.
+  
 
 
 Lemma app_appears_helper : forall (X : Type) (xs ys : list X) (x : X),
@@ -1093,13 +1094,18 @@ Proof.
 Lemma app_appears_in : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x xs \/ appears_in x ys -> appears_in x (xs ++ ys).
 Proof.
-Admitted.
+  Admitted.
+
  
 (** Now use [appears_in] to define a proposition [disjoint X l1 l2],
     which should be provable exactly when [l1] and [l2] are
     lists (with elements of type X) that have no elements in common. *)
 
-(* FILL IN HERE *)
+Inductive disjoint (X : Type) : list X -> list X -> Prop :=
+  |disjointNil : forall (l : list X), disjoint X nil l
+  |disjointCons : forall (x : X) (l1 l2 : list X), 
+                    disjoint X l1 l2 -> not(appears_in x l2) -> 
+                    disjoint X (x::l1) l2.
 
 (** Next, use [appears_in] to define an inductive proposition
     [no_repeats X l], which should be provable exactly when [l] is a
@@ -1108,14 +1114,22 @@ Admitted.
     [no_repeats bool []] should be provable, while [no_repeats nat
     [1,2,1]] and [no_repeats bool [true,true]] should not be.  *)
 
-(* FILL IN HERE *)
+Inductive no_repeats (X : Type) : list X -> Prop :=
+  |no_repeats_nil : no_repeats X nil
+  |no_repeats_cons : forall (x : X) (l : list X), 
+                       no_repeats X l -> appears_in x l -> no_repeats X (x::l).
 
 (** Finally, state and prove one or more interesting theorems relating
     [disjoint], [no_repeats] and [++] (list append).  *)
 
-(* FILL IN HERE *)
-(** [] *)
-
+Theorem AppNoRepeats : forall (X : Type) (l1 l2 : list X),
+                         no_repeats X l1 -> no_repeats X l2 -> 
+                         disjoint X l1 l2 -> no_repeats X (l1++l2).
+Proof.
+  intros.
+  induction H.
+  Admitted.
+   
 
 (** **** Exercise: 3 stars (nostutter) *)
 (** Formulating inductive definitions of predicates is an important
@@ -1188,8 +1202,11 @@ Lemma appears_in_app_split : forall (X:Type) (x:X) (l:list X),
   appears_in x l -> 
   exists l1, exists l2, l = l1 ++ (x::l2).
 Proof.
-  Admitted.
+  intros.
+  induction H.
   
+  
+
 
 (** Now define a predicate [repeats] (analogous to [no_repeats] in the
    exercise above), such that [repeats X l] asserts that [l] contains
