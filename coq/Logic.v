@@ -735,7 +735,7 @@ Theorem not_exists_dist :
 Proof.
   unfold excluded_middle. unfold not. intros.
   assert(H1:P x \/ (P x -> False)). apply H.
-  inversion H1. apply H2. assert(H3 : exists x : X, P x -> False).
+  inversion H1. apply H2. assert(H3 : exists x : X, P x -> False). 
   exists x. apply H2. apply H0 in H3. inversion H3.
   Qed.
 
@@ -988,7 +988,7 @@ Proof.
 
 Inductive all (X : Type) (P : X -> Prop) : list X -> Prop :=
   |allNil : all X P nil
-  |allCons : forall (x : X) (l : list X), P x -> (all X P l).
+  |allCons : forall (x : X) (l : list X), P x -> (all X P l) -> all X P (x::l).
 
 (** Recall the function [forallb], from the exercise
     [forall_exists_challenge] in chapter [Poly]: *)
@@ -1013,11 +1013,19 @@ Proof.
   {intros. apply allNil. }
   {intros. inversion H. apply andb_prop in H1. inversion H1.
    apply allCons with (x := x). apply andb_true_intro in H1. symmetry.
-   rewrite -> H0. rewrite -> H0 in H1. apply H1.
+   rewrite -> H0. rewrite -> H0 in H1. apply H1. 
+  
+  Admitted.
+
+Theorem forallbSpec2 : forall (X : Type) (test : X -> bool) (l : list X),
+                         all X (fun x => test x = true) l -> forallb test l = true.
+Proof.
+  intros. induction H. reflexivity.
+  {simpl. apply andb_true_intro. split.
+   {apply H. }
+   {apply IHall. }
   }
   Qed.
-
-
 
 (** **** Exercise: 4 stars, advanced (filter_challenge) *)
 (** One of the main purposes of Coq is to prove that programs match
@@ -1078,7 +1086,14 @@ Inductive appears_in {X:Type} (a:X) : list X -> Prop :=
 Lemma appears_in_app : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x (xs ++ ys) -> appears_in x xs \/ appears_in x ys.
 Proof.
-  Admitted.
+  induction xs. 
+  {intros. simpl in *. inversion H.
+   {right. rewrite <- H0 in H. apply H. }
+   {rewrite <- H1 in H. right. apply H. }
+  }
+  intros. simpl in *. inversion H. left. apply ai_later. 
+  Admitted. 
+   
   
 
 
@@ -1094,7 +1109,13 @@ Proof.
 Lemma app_appears_in : forall (X:Type) (xs ys : list X) (x:X), 
      appears_in x xs \/ appears_in x ys -> appears_in x (xs ++ ys).
 Proof.
-  Admitted.
+  intros. generalize dependent ys. induction xs.
+  {intros. simpl. inversion H. inversion H0. apply H0. }
+  { intros. simpl. inversion H. inversion H0. apply ai_here.
+    apply ai_later. apply IHxs. left. apply H2. apply ai_later.
+    apply IHxs. right. apply H0. }
+Qed.
+
 
  
 (** Now use [appears_in] to define a proposition [disjoint X l1 l2],
@@ -1122,36 +1143,18 @@ Inductive no_repeats (X : Type) : list X -> Prop :=
 (** Finally, state and prove one or more interesting theorems relating
     [disjoint], [no_repeats] and [++] (list append).  *)
 
-(*this is a helper lemma for AppNoRepeats*)
-Theorem NoRepeatsApp : forall (X : Type) (l1 l2 : list X), no_repeats X (l1 ++ l2) -> no_repeats X l1.
-Proof.
-  induction l1.
-  {intros. apply no_repeats_nil. }
-  {intros. simpl in *. inversion H. apply no_repeats_cons. apply IHl1 with (l2 := l2). 
-   apply H2. Admitted.
-
-
 Theorem AppNoRepeats : forall (X : Type) (l1 l2 : list X),
                          no_repeats X l1 -> no_repeats X l2 -> 
                          disjoint X l1 l2 -> no_repeats X (l1++l2).
 Proof.
-  intros. generalize dependent l2.
-  induction H.
+  induction l1. 
   {intros. simpl. apply H0. }
-  {intros. simpl. apply no_repeats_cons. apply IHno_repeats. apply H1.
-   inversion H2. apply H5. unfold not in *. inversion H2. apply IHno_repeats in H1.
-   unfold not in *. apply ex_falso_quodlibet. apply H0. Admitted.
+  intros. simpl. apply no_repeats_cons. apply IHl1.
+   inversion H. apply H4. apply H0. inversion H1. apply H4.
+   inversion H. apply IHl1 in H4. inversion H4. inversion H1.
+   assert(H12 : l1 = []). destruct l1. reflexivity. inversion H7.
+   rewrite -> H12. simpl. apply H11. Admitted.
 
-
-
-
-Theorem disjointAI : forall (X : Type) (x : X) (l1 l2 : list X),
-                       disjoint X (x::l1) l2 -> not(appears_in x l2).
-Proof.
-  induction l1.
-  {intros. unfold not. destruct l2. inversion H. unfold not in *.
-   apply H4. inversion H. unfold not in H4. apply H4. }
-  Admitted.
 
 
 (** **** Exercise: 3 stars (nostutter) *)
@@ -1226,10 +1229,12 @@ Lemma appears_in_app_split : forall (X:Type) (x:X) (l:list X),
   exists l1, exists l2, l = l1 ++ (x::l2).
 Proof.
   intros.
-  induction H. Admitted.
-  
-  
-
+  induction H. 
+  {exists []. exists l. simpl. reflexivity. }
+  {inversion IHappears_in. inversion H0. rewrite -> H1.
+   exists (b::witness). exists witness0. simpl. reflexivity. }
+  Qed.
+ 
 
 (** Now define a predicate [repeats] (analogous to [no_repeats] in the
    exercise above), such that [repeats X l] asserts that [l] contains
@@ -1253,7 +1258,8 @@ Theorem pigeonhole_principle: forall (X:Type) (l1 l2:list X),
 Proof.  
   intros X l1. induction l1.
   {intros. simpl in *. inversion H1. }
-  {intros. unfold excluded_middle in *. apply IHl1 with(l2 := l2) in H. apply repeatsMiss. apply H. 
+  {intros. unfold excluded_middle in *. 
+   apply IHl1 with(l2 := l2) in H. apply repeatsMiss. apply H. 
    intros. apply IHl1 with(l2 := l2) in H. Admitted.
 
 
