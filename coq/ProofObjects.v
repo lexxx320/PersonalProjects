@@ -183,11 +183,10 @@ Print eight_is_beautiful'''.
 Theorem six_is_beautiful :
   beautiful 6.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply (b_sum 3 3 b_3 b_3).
 
 Definition six_is_beautiful' : beautiful 6 :=
-  (* FILL IN HERE *) admit.
-(** [] *)
+  b_sum 3 3 b_3 b_3.
 
 (** **** Exercise: 1 star (nine_is_beautiful) *)
 (** Give a tactic proof and a proof object showing that [9] is [beautiful]. *)
@@ -195,11 +194,11 @@ Definition six_is_beautiful' : beautiful 6 :=
 Theorem nine_is_beautiful :
   beautiful 9.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply (b_sum 6 3 six_is_beautiful' b_3).
+  
 
 Definition nine_is_beautiful' : beautiful 9 :=
-  (* FILL IN HERE *) admit.
-(** [] *)
+  b_sum 6 3 six_is_beautiful' b_3.
 
 
 (* ##################################################### *)
@@ -287,31 +286,27 @@ Definition beatiful_plus3'' : Prop :=
 
 (** **** Exercise: 3 stars (b_times2) *)
 (** First prove this theorem using tactics. *)
-
+Print beautiful.
 Theorem b_times2: forall n, beautiful n -> beautiful (2*n).
 Proof.
-    (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. simpl. apply b_sum. apply H. apply b_sum. apply H. apply b_0. Qed.
 
 (** Now write a corresponding proof object directly. *)
 
+
+(*Admitted
 Definition b_times2': forall n, beautiful n -> beautiful (2*n) :=
-  (* FILL IN HERE *) admit.
-(** [] *)
-
-
+  fun (n : nat) => fun (E : beautiful n) => 
+                     b_sum n n E (b_sum n 0 E b_0).
+*)
 
 
 (** **** Exercise: 2 stars, optional (gorgeous_plus13_po) *) 
 (** Give a proof object corresponding to the theorem [gorgeous_plus13] from Prop.v *)
 
 Definition gorgeous_plus13_po: forall n, gorgeous n -> gorgeous (13+n):=
-   (* FILL IN HERE *) admit.
-(** [] *)
-
-
-
-
+  fun (n : nat) => fun (E : gorgeous n) => g_plus5 (8+n) (g_plus5 (3+n) (g_plus3 n E)).
+                     
 (** It is particularly revealing to look at proof objects involving the 
 logical connectives that we defined with inductive propositions in Logic.v. *)
 
@@ -383,8 +378,11 @@ we get: *)
 (** Construct a proof object demonstrating the following proposition. *)
 
 Definition conj_fact : forall P Q R, P /\ Q -> Q /\ R -> P /\ R :=
-  (* FILL IN HERE *) admit.
-(** [] *)
+  fun (P Q R : Prop) => 
+    fun (H0 : P /\ Q) =>
+      fun (H1 : Q /\ R) => match H0, H1 with
+                               |conj P' _, conj _ R' => conj P R P' R'
+                           end.
 
 
 (** **** Exercise: 2 stars, advanced (beautiful_iff_gorgeous) *)
@@ -396,18 +394,29 @@ Definition conj_fact : forall P Q R, P /\ Q -> Q /\ R -> P /\ R :=
     using tactics. (_Hint_: if you make use of previously defined
     theorems, you should only need a single line!) *)
 
-Definition beautiful_iff_gorgeous :
-  forall n, beautiful n <-> gorgeous n :=
-  (* FILL IN HERE *) admit.
-(** [] *)
+(*
+gorgeous__beautiful: forall n : nat, gorgeous n -> beautiful n
+beautiful__gorgeous: forall n : nat, beautiful n -> gorgeous n
+*)
+
+Print conj.
+
+Definition beautiful_iff_gorgeous : forall n, beautiful n <-> gorgeous n :=
+  fun (n : nat) => 
+    conj (beautiful n -> gorgeous n) (gorgeous n -> beautiful n)
+         (beautiful__gorgeous n) (gorgeous__beautiful n).
 
 
 (** **** Exercise: 2 stars, optional (or_commut'') *)
 (** Try to write down an explicit proof object for [or_commut] (without
     using [Print] to peek at the ones we already defined!). *)
-
-(* FILL IN HERE *)
-(** [] *)
+  
+Definition or_commut : forall P Q : Prop, P \/ Q -> Q \/ P :=
+  fun (P Q : Prop) =>
+    fun(H : P \/ Q) => match H with
+                           |or_introl HP => or_intror Q P HP
+                           |or_intror HQ => or_introl Q P HQ
+                       end.
 
 (** Recall that we model an existential for a property as a pair consisting of 
 a witness value and a proof that the witness obeys that property. 
@@ -430,8 +439,7 @@ Definition snie : some_nat_is_even :=
 (** Complete the definition of the following proof object: *)
 
 Definition p : ex nat (fun n => beautiful (S n)) :=
-(* FILL IN HERE *) admit.
-(** [] *)
+  ex_intro nat (fun n => beautiful (S n)) 2 b_3.
 
 
 (* ##################################################### *)
@@ -493,15 +501,16 @@ Proof.
 (** Redo the proof of the following theorem (from MoreCoq.v) using
 an [apply] of [trans_eq] but _not_ using a [with] clause. *)
 
+Print trans_eq. 
+
 Example trans_eq_example' : forall (a b c d e f : nat),
      [a;b] = [c;d] ->
      [c;d] = [e;f] ->
      [a;b] = [e;f].
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
-
+  intros.
+  apply (trans_eq (list nat) [a;b] [c;d] [e;f] H H0).
+  Qed.
 
 (* ##################################################### *)
 (** ** Programming with Tactics *)
