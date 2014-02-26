@@ -183,7 +183,7 @@ Print eight_is_beautiful'''.
 Theorem six_is_beautiful :
   beautiful 6.
 Proof.
-  apply (b_sum 3 3 b_3 b_3).
+  apply (b_sum 3 3 b_3 b_3). Qed.
 
 Definition six_is_beautiful' : beautiful 6 :=
   b_sum 3 3 b_3 b_3.
@@ -194,7 +194,7 @@ Definition six_is_beautiful' : beautiful 6 :=
 Theorem nine_is_beautiful :
   beautiful 9.
 Proof.
-  apply (b_sum 6 3 six_is_beautiful' b_3).
+  apply (b_sum 6 3 six_is_beautiful' b_3). Qed.
   
 
 Definition nine_is_beautiful' : beautiful 9 :=
