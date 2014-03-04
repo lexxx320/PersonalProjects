@@ -294,18 +294,20 @@ Proof.
 (** Now write a corresponding proof object directly. *)
 
 
-(*Admitted
+
+
 Definition b_times2': forall n, beautiful n -> beautiful (2*n) :=
   fun (n : nat) => fun (E : beautiful n) => 
-                     b_sum n n E (b_sum n 0 E b_0).
-*)
+                     b_sum n (n+0) E (b_sum n 0 E b_0).
+
 
 
 (** **** Exercise: 2 stars, optional (gorgeous_plus13_po) *) 
 (** Give a proof object corresponding to the theorem [gorgeous_plus13] from Prop.v *)
 
 Definition gorgeous_plus13_po: forall n, gorgeous n -> gorgeous (13+n):=
-  fun (n : nat) => fun (E : gorgeous n) => g_plus5 (8+n) (g_plus5 (3+n) (g_plus3 n E)).
+  fun (n : nat) => 
+    fun (E : gorgeous n) => g_plus5 (8+n) (g_plus5 (3+n) (g_plus3 n E)).
                      
 (** It is particularly revealing to look at proof objects involving the 
 logical connectives that we defined with inductive propositions in Logic.v. *)
@@ -403,8 +405,7 @@ Print conj.
 
 Definition beautiful_iff_gorgeous : forall n, beautiful n <-> gorgeous n :=
   fun (n : nat) => 
-    conj (beautiful n -> gorgeous n) (gorgeous n -> beautiful n)
-         (beautiful__gorgeous n) (gorgeous__beautiful n).
+    conj _ _ (beautiful__gorgeous n) (gorgeous__beautiful n).
 
 
 (** **** Exercise: 2 stars, optional (or_commut'') *)
@@ -423,6 +424,8 @@ a witness value and a proof that the witness obeys that property.
 We can choose to construct the proof explicitly. 
 
 For example, consider this existentially quantified proposition: *)
+
+
 
 Definition some_nat_is_even : Prop := 
   ex nat ev.

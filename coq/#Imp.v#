@@ -1622,7 +1622,7 @@ Proof.
      contradictory (and so can be solved in one step with
      [inversion]). *)
   induction contra; inversion Heqloopdef.
-  {rewrite -> H1 in H. inversion H. }
+  {subst. inversion H. }
   {apply IHcontra2 in Heqloopdef. apply Heqloopdef. }
   Qed.
 
@@ -1662,9 +1662,8 @@ Proof.
   Case "->". intros. induction c.
   {apply no_while_skip. }
   {apply no_while_ass. }
-  {inversion H. apply no_while_seq. apply IHc1. symmetry in H1. 
-   apply andb_true_eq in H1. inversion H1. symmetry. apply H0. symmetry in H1.
-   apply andb_true_eq in H1. inversion H1. apply IHc2. symmetry. apply H2. }
+  {inversion H. apply andb_true_iff in H1 as [H1 H2].  apply no_while_seq.  
+   apply IHc1. apply H1. apply IHc2 in H2. apply H2. } 
   {inversion H. apply no_whiles_if. apply IHc1. symmetry in H1. apply andb_true_eq in H1.
    inversion H1. symmetry. apply H0. symmetry in H1. apply andb_true_eq in H1.
    inversion H1. apply IHc2. symmetry. apply H2. }
@@ -1684,7 +1683,7 @@ Print ceval.
 Print ceval.
 Theorem NoWhilesTerminate : forall p st, no_whiles p = true ->
                                              exists st', p / st || st'.
-Proof.
+Proof. 
   induction p. 
   {intros. exists st. apply E_Skip. }
   {intros. exists (update st i (aeval st a)). apply E_Ass. reflexivity. }
@@ -1828,7 +1827,9 @@ Proof. reflexivity. Qed.
     general lemma to get a usable induction hypothesis; the main
     theorem will then be a simple corollary of this lemma. *)
 
-Lemma s_compile_correct' : forall st e is, s_execute st is (s_compile e) = aeval st e :: is.
+Lemma s_compile_correct' : forall e st is prog, 
+                             s_execute st is (s_compile e ++ prog) = 
+                             s_execute st (aeval st e :: is) prog.
 Proof.
   induction e.
   {intros. simpl. destruct is. 
@@ -1839,17 +1840,24 @@ Proof.
    {reflexivity. }
    {destruct is; reflexivity. }
   }
-Admitted.
-
+  {intros. simpl. rewrite -> app_ass. rewrite -> IHe1. rewrite -> app_ass.
+   rewrite -> IHe2. simpl. reflexivity. }
+  {intros. simpl. rewrite -> app_ass. rewrite -> IHe1. rewrite -> app_ass. 
+   rewrite -> IHe2. reflexivity. }
+  {intros. simpl. rewrite -> app_ass. rewrite -> IHe1. rewrite -> app_ass. 
+   rewrite -> IHe2. reflexivity. }
+Qed.
 
 
 Theorem s_compile_correct : forall (st : state) (e : aexp),
   s_execute st [] (s_compile e) = [ aeval st e ].
 Proof.
-  induction e.
-  {simpl. reflexivity. }
-  {simpl.  reflexivity. }
-  Admitted.
+  intros. assert(H:s_compile e = s_compile e ++ []).
+  rewrite -> app_nil_r. reflexivity. rewrite -> H.
+  rewrite -> s_compile_correct'. simpl. reflexivity. 
+  Qed.
+  
+
 
 (** **** Exercise: 5 stars, advanced (break_imp) *)
 Module BreakImp.
