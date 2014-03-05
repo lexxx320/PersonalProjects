@@ -1102,11 +1102,14 @@ Theorem update_permute : forall n1 n2 x1 x2 x3 st,
   (update (update st x2 n1) x1 n2) x3 = (update (update st x1 n2) x2 n1) x3.
 Proof.
   intros. 
-  unfold update.
-  destruct (eq_id_dec x1 x3) eqn:H1.
-  destruct (eq_id_dec x2 x3) eqn:H2.
-  Admitted.
-  
+  unfold update. destruct (eq_id_dec x1 x3). 
+  {destruct (eq_id_dec x2 x3).
+   {subst. unfold not in H. apply ex_falso_quodlibet. apply H. reflexivity. }
+   {reflexivity. }
+  }
+  {reflexivity. }
+  Qed.
+
 (* ################################################### *)
 (** ** Syntax  *)
 
@@ -1505,21 +1508,7 @@ Theorem pup_to_2_ceval :
     update (update (update (update (update (update empty_state
       X 2) Y 0) Y 2) X 1) Y 3) X 0.
 Proof.
-  unfold pup_to_n.
-  apply E_Seq with (st' := update (update empty_state X 2) Y 0).
-  apply E_Ass. reflexivity. 
-  apply E_WhileLoop with (st' := update (update (update (update empty_state X 2) Y 0) Y 2) X 1).
-  reflexivity. 
-  apply E_Seq with (st' := update (update (update empty_state X 2) Y 0) Y 2).
-  apply E_Ass. reflexivity. 
-  apply E_Ass. reflexivity. 
-  apply E_WhileLoop with (st' := update (update (update (update (update (update empty_state X 2) Y 0) Y 2) X 1) Y 3) X 0).
-  reflexivity. 
-  apply E_Seq with (st' := update (update (update (update (update empty_state X 2) Y 0) Y 2) X 1) Y 3).
-  apply E_Ass. reflexivity. 
-  apply E_Ass. reflexivity. 
-  apply E_WhileLoop with (st' := update (update (update (update (update (update empty_state X 2) Y 0) Y 2) X 1) Y 3) X 0).
-  simpl. Admitted. 
+  unfold pup_to_n. repeat econstructor. Qed.
   
 
 (* ####################################################### *)
@@ -2054,25 +2043,46 @@ Proof.
   {apply E_WhileBreak. apply H. apply E_IfFalse. apply H1. apply H2. }
   Qed.
 
+(*I'm not sure this theorem is true*)
 Theorem while_break_true : forall b c st st',
   (WHILE b DO c END) / st || SContinue / st' ->
   beval st' b = true ->
   exists st'', c / st'' || SBreak / st'.
 Proof.
   intros. 
-  inversion H.
-  {rewrite -> H4 in H0. inversion H0. }
-  {exists st. apply H5. }
-  Admitted.
+  induction c.
+  Admitted. 
+
+
 
 Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
      c / st || s1 / st1  ->
      c / st || s2 / st2 ->
      st1 = st2 /\ s1 = s2.
-Proof.
-  (* FILL IN HERE *) Admitted.
+Proof. 
+  intros c st st1 st2 s1 s2 E1 E2. generalize dependent st2. generalize dependent s2. 
+  induction E1; intros; inversion E2; subst; try (split; reflexivity ).
+  {apply IHE1 in H4. assumption. }
+  {apply IHE1 in H1. inversion H1. inversion H0. }
+  {apply IHE1_1 in H4. inversion H4. inversion H0. }
+  {assert(st' = st'0 /\ SContinue = SContinue). apply IHE1_1. apply H1. 
+   inversion H. rewrite <- H0 in H5. apply IHE1_2 in H5. apply H5. }
+  {apply IHE1 in H7. apply H7. }
+  {rewrite -> H in H6. inversion H6. }
+  {rewrite -> H in H6. inversion H6. }
+  {apply IHE1 in H7. apply H7. }
+  {rewrite -> H in H2. inversion H2. }
+  {rewrite H in H2. inversion H2. }
+  {rewrite H5 in H. inversion H. }
+  {apply IHE1 in H6. inversion H6. rewrite H0. split; reflexivity. }
+  {apply IHE1 in H3. inversion H3. inversion H1. }
+  {rewrite -> H5 in H.  inversion H. }
+  {apply IHE1_1 in H6. inversion H6. inversion H1. }
+  {apply IHE1_1 in H3. inversion H3. rewrite <- H0 in H7. apply IHE1_2 in H7. 
+   inversion H7. split. assumption. reflexivity. }
+  Qed. 
 
-End BreakImp.
+
 (** [] *)
 
 (** **** Exercise: 3 stars, optional (short_circuit) *)
@@ -2087,8 +2097,25 @@ End BreakImp.
     evaluation of [BAnd] in this manner, and prove that it is
     equivalent to [beval]. *)
 
-(* FILL IN HERE *)
-(** [] *)
+Print beval. 
+
+Fixpoint bevalShortCircuit (st : state) (b : bexp) : bool :=
+  match b with
+      |BTrue => true
+      |BFalse => false
+      |BEq e1 e2 => beq_nat (aeval st e1) (aeval st e2)
+      |BLe e1 e2 => ble_nat (aeval st e1) (aeval st e2)
+      |BNot e => negb (bevalShortCircuit st e)
+      |BAnd e1 e2 => if bevalShortCircuit st e1 
+                     then bevalShortCircuit st e2
+                     else false
+  end.
+
+Theorem shortCircuitEq : forall b st, beval st b = bevalShortCircuit st b.
+Proof.
+  intros. induction b; try reflexivity. Qed. 
+
+
 
 (** **** Exercise: 4 stars, optional (add_for_loop) *)
 (** Add C-style [for] loops to the language of commands, update the
@@ -2104,6 +2131,65 @@ End BreakImp.
     about making up a concrete Notation for [for] loops, but feel free
     to play with this too if you like.) *)
 
+End BreakImp. 
+
+Module WithFor.
+Print beval. Print com.
+Inductive com : Type :=
+  |CSkip : com
+  | CBreak : com
+  | CAss : id -> aexp -> com
+  | CSeq : com -> com -> com
+  | CIf : bexp -> com -> com -> com
+  | CWhile : bexp -> com -> com
+  | CFor : com -> bexp -> com -> com -> com.
+                          
+
+Print ceval.
+
+Inductive ceval : com -> state -> state -> Prop :=
+  | E_Skip : forall st,
+      CSkip / st || st
+  | E_Ass  : forall st a1 n x,
+      aeval st a1 = n ->
+      (CAss x a1) / st || (update st x n)
+  | E_Seq : forall c1 c2 st st' st'',
+      c1 / st  || st' ->
+      c2 / st' || st'' ->
+      (CSeq c1 c2) / st || st''
+  | E_IfTrue : forall st st' b c1 c2,
+      beval st b = true ->
+      c1 / st || st' ->
+      (CIf b c1 c2) / st || st'
+  | E_IfFalse : forall st st' b c1 c2,
+      beval st b = false ->
+      c2 / st || st' ->
+      (CIf b c1 c2) / st || st'
+  | E_WhileEnd : forall b st c,
+      beval st b = false ->
+      (CWhile b c) / st || st
+  | E_WhileLoop : forall st st' st'' b c,
+      beval st b = true ->
+      c / st || st' ->
+      (CWhile b c ) / st' || st'' ->
+      (CWhile b c ) / st || st''
+  | E_ForDone : forall st st' b init body update,
+                  init / st || st' -> 
+                  beval st' b = false ->
+                  CFor init b update body / st || st'
+  | E_For : forall st st' st'' st''' st'''' b init body update,
+              init / st || st' ->
+              beval st' b = true -> 
+              body / st' || st'' ->
+              update / st'' || st''' ->
+              CFor CSkip b update body / st''' || st'''' ->
+              CFor init b update body / st || st''''
+
+  where "c1 '/' st '||' st'" := (ceval c1 st st').
+
+
+
+End WithFor. 
 (* FILL IN HERE *)
 (** [] *)
 
