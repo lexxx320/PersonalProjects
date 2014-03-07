@@ -754,16 +754,34 @@ Theorem CSeq_congruence : forall c1 c1' c2 c2',
   cequiv c1 c1' -> cequiv c2 c2' ->
   cequiv (c1;;c2) (c1';;c2').
 Proof. 
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. split; intros. 
+  {unfold cequiv in *. inversion H1. subst. 
+   apply H in H4. apply E_Seq with (st' := st'0). apply H4. 
+   apply H0 in H7. apply H7. }
+  {inversion H1. unfold cequiv in *. subst. 
+   apply H in H4. apply E_Seq with (st' := st'0). apply H4. 
+   apply H0 in H7. apply H7. }
+Qed. 
+
 
 (** **** Exercise: 3 stars (CIf_congruence) *)
 Theorem CIf_congruence : forall b b' c1 c1' c2 c2',
   bequiv b b' -> cequiv c1 c1' -> cequiv c2 c2' ->
   cequiv (IFB b THEN c1 ELSE c2 FI) (IFB b' THEN c1' ELSE c2' FI).
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. split; intros. 
+  {unfold cequiv in *. inversion H2. subst. 
+   {unfold bequiv in H. rewrite H in H8. apply E_IfTrue. 
+    apply H8. rewrite H0 in H9. apply H9. }
+   {subst. unfold bequiv in H. rewrite H in H8. apply E_IfFalse. 
+    apply H8. rewrite H1 in H9. assumption. }
+  }
+  {unfold cequiv in *. unfold bequiv in H. inversion H2. 
+   {subst. rewrite <- H in H8. apply E_IfTrue. apply H8. rewrite <- H0 in H9. 
+    assumption. }
+   {subst. rewrite <- H in H8. apply E_IfFalse. assumption. rewrite <- H1 in H9. 
+    assumption. }}
+Qed.
 
 (** For example, here are two equivalent programs and a proof of their
     equivalence... *)
@@ -1074,7 +1092,7 @@ Proof.
          aeval st a2 = aeval st (fold_constants_aexp a2),
        completing the case.  []
 *)
-
+ 
 Theorem fold_constants_bexp_sound: 
   btrans_sound fold_constants_bexp.
 Proof.
@@ -1087,7 +1105,7 @@ Proof.
        specifying variable names a chore, but Coq doesn't always
        choose nice variable names.  We can rename entries in the
        context with the [rename] tactic: [rename a into a1] will
-       change [a] to [a1] in the current goal and context. *)
+       change [a] to [a1] in the current goal and context. *) 
     rename a into a1. rename a0 into a2. simpl.
     remember (fold_constants_aexp a1) as a1' eqn:Heqa1'.
     remember (fold_constants_aexp a2) as a2' eqn:Heqa2'.
@@ -1099,8 +1117,16 @@ Proof.
       (* The only interesting case is when both a1 and a2 
          become constants after folding *)
       simpl. destruct (beq_nat n n0); reflexivity.
-  Case "BLe". 
-    (* FILL IN HERE *) admit.
+  Case "BLe".
+    simpl. assert(H: aeval st a = aeval st (fold_constants_aexp a)). 
+           {apply fold_constants_aexp_sound. }
+    assert(H1 : aeval st a0 = aeval st (fold_constants_aexp a0)). 
+           {apply fold_constants_aexp_sound. }
+    destruct (fold_constants_aexp a); destruct (fold_constants_aexp a0); 
+           try (rewrite -> H; rewrite -> H1; reflexivity). 
+    destruct (ble_nat n n0) eqn : H2. 
+    {rewrite -> H; rewrite H1. simpl. assumption. }
+    {rewrite H1. rewrite H. simpl. apply H2. }
   Case "BNot". 
     simpl. remember (fold_constants_bexp b) as b' eqn:Heqb'. 
     rewrite IHb.
@@ -1138,8 +1164,9 @@ Proof.
       apply trans_cequiv with c2; try assumption.
       apply IFB_false; assumption.
   Case "WHILE".
-    (* FILL IN HERE *) Admitted.
-(** [] *)
+    Admitted. 
+
+
 
 (* ########################################################## *)
 (** *** Soundness of (0 + n) Elimination, Redux *)
