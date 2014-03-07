@@ -1150,7 +1150,7 @@ Proof.
   Case "SKIP". apply refl_cequiv.
   Case "::=". apply CAss_congruence. apply fold_constants_aexp_sound.
   Case ";;". apply CSeq_congruence; assumption.
-  Case "IFB". 
+  Case "IFB".  
     assert (bequiv b (fold_constants_bexp b)).
       SCase "Pf of assertion". apply fold_constants_bexp_sound.
     destruct (fold_constants_bexp b) eqn:Heqb;
@@ -1164,7 +1164,9 @@ Proof.
       apply trans_cequiv with c2; try assumption.
       apply IFB_false; assumption.
   Case "WHILE".
-    Admitted. 
+    assert(H : bequiv b (fold_constants_bexp b)).
+      apply fold_constants_bexp_sound.
+      Admitted. 
 
 
 
@@ -1206,6 +1208,64 @@ Proof.
 
    - Prove that the optimizer is sound.  (This part should be _very_
      easy.)  *)
+
+Print aexp. 
+Fixpoint optimize_0plus (e : aexp) : aexp :=
+  match e with
+      |ANum n => ANum n
+      |AId i => AId i
+      |APlus e1 e2 => match optimize_0plus e1, optimize_0plus e2 with
+                          |ANum 0, e2' => e2'
+                          |e1', e2' => APlus e1' e2'
+                      end
+      |AMinus e1 e2 => AMinus (optimize_0plus e1) (optimize_0plus e2)
+      |AMult e1 e2 => AMult (optimize_0plus e1) (optimize_0plus e2)
+  end.
+
+Theorem Optimize_0Plus_AExp_Sound : 
+  forall e st, aeval st e = aeval st (optimize_0plus e). 
+Proof. 
+  intros. induction e; try (simpl; reflexivity). 
+  {simpl. destruct (optimize_0plus e1); 
+          try (rewrite IHe1; rewrite IHe2; reflexivity). 
+   {destruct n; try (rewrite IHe1; rewrite IHe2; reflexivity). }
+  }
+  {simpl. rewrite IHe1. rewrite IHe2. reflexivity. }
+  {simpl. rewrite IHe1. rewrite IHe2. reflexivity. }
+Qed.
+
+Fixpoint optimize_0plusBexp (e : bexp) : bexp :=
+  match e with
+      |BTrue => BTrue
+      |BFalse => BFalse
+      |BEq e1 e2 => BEq (optimize_0plus e1) (optimize_0plus e2)
+      |BLe e1 e2 => BLe (optimize_0plus e1) (optimize_0plus e2)
+      |BNot e => BNot (optimize_0plusBexp e)
+      |BAnd e1 e2 => BAnd (optimize_0plusBexp e1) (optimize_0plusBexp e2)
+  end.
+
+Theorem optimizeBExpSound : 
+  forall st b, beval st b = beval st (optimize_0plusBexp b).
+Proof.
+  intros. induction b; simpl; try reflexivity;  
+          try(rewrite IHb1; rewrite IHb2; reflexivity). 
+  {rewrite Optimize_0Plus_AExp_Sound. rewrite (Optimize_0Plus_AExp_Sound a0).
+   reflexivity. }
+  {rewrite Optimize_0Plus_AExp_Sound. rewrite (Optimize_0Plus_AExp_Sound a0). 
+   reflexivity. }
+  {rewrite IHb. reflexivity. }
+Qed.
+
+Fixpoint optimize_0plusCom (c : com) : com :=
+  match c with
+      |CSkip => CSkip
+      |CAss i e => CAss i (optimize_0plus e)
+      |CSeq s1 s2 => CSeq (optimize_0plusCom s1) (optimize_0plusCom s2)
+      |CIf b t f => CIf (optimize_0plusBexp b) (optimize_0plusCom t)
+                        (optimize_0plusCom f)
+      |CWhile b s => CWhile (optimize_0plusBexp b) (optimize_0plusCom s)
+  end.
+
 
 (* FILL IN HERE *)
 (** [] *)

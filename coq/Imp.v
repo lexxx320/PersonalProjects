@@ -1672,7 +1672,7 @@ Print ceval.
 Print ceval.
 Theorem NoWhilesTerminate : forall p st, no_whiles p = true ->
                                              exists st', p / st || st'.
-Proof. 
+Proof.  
   induction p. 
   {intros. exists st. apply E_Skip. }
   {intros. exists (update st i (aeval st a)). apply E_Ass. reflexivity. }
@@ -1828,7 +1828,7 @@ Proof.
   {intros. simpl. destruct is.
    {reflexivity. }
    {destruct is; reflexivity. }
-  }
+  } 
   {intros. simpl. rewrite -> app_ass. rewrite -> IHe1. rewrite -> app_ass.
    rewrite -> IHe2. simpl. reflexivity. }
   {intros. simpl. rewrite -> app_ass. rewrite -> IHe1. rewrite -> app_ass. 
@@ -1975,7 +1975,6 @@ Inductive ceval : com -> state -> status -> state -> Prop :=
   | E_Seq : forall st st' st'' s1 s2 stat, s1 / st || SContinue / st' ->
                                            s2 / st' || stat / st'' -> 
                                            CSeq s1 s2 / st || stat / st''
-
   |E_IfTrue : forall st st' b stat s1 s2 , beval st b = true ->
                                            s1 / st || stat / st' ->
                                            CIf b s1 s2 /st || stat / st'
@@ -1992,8 +1991,6 @@ Inductive ceval : com -> state -> status -> state -> Prop :=
                                           CWhile b s / st' || stat / st'' ->
                                           CWhile b s / st || SContinue / st''
                                                  
-
-
   where "c1 '/' st '||' s '/' st'" := (ceval c1 st s st').
 
 Tactic Notation "ceval_cases" tactic(first) ident(c) :=
@@ -2043,15 +2040,18 @@ Proof.
   {apply E_WhileBreak. apply H. apply E_IfFalse. apply H1. apply H2. }
   Qed.
 
-(*I'm not sure this theorem is true*)
+
 Theorem while_break_true : forall b c st st',
   (WHILE b DO c END) / st || SContinue / st' ->
   beval st' b = true ->
   exists st'', c / st'' || SBreak / st'.
 Proof.
-  intros. 
-  induction c.
-  Admitted. 
+  intros. remember (WHILE b DO c END) as loopdef eqn : HLoopDef.   
+  induction H; try inversion HLoopDef. 
+  {subst. rewrite H in H0. inversion H0. }
+  {intros. subst. exists st. apply H1. }
+  {subst. apply IHceval2. reflexivity. apply H0. }
+  Qed. 
 
 
 
@@ -2060,7 +2060,8 @@ Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
      c / st || s2 / st2 ->
      st1 = st2 /\ s1 = s2.
 Proof. 
-  intros c st st1 st2 s1 s2 E1 E2. generalize dependent st2. generalize dependent s2. 
+  intros c st st1 st2 s1 s2 E1 E2. generalize dependent st2. 
+  generalize dependent s2. 
   induction E1; intros; inversion E2; subst; try (split; reflexivity ).
   {apply IHE1 in H4. assumption. }
   {apply IHE1 in H1. inversion H1. inversion H0. }
@@ -2190,8 +2191,7 @@ Inductive ceval : com -> state -> state -> Prop :=
 
 
 End WithFor. 
-(* FILL IN HERE *)
-(** [] *)
+
 
 
 (* <$Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)
