@@ -1165,9 +1165,15 @@ Proof.
       apply IFB_false; assumption.
   Case "WHILE".
     assert(H : bequiv b (fold_constants_bexp b)).
-      apply fold_constants_bexp_sound.
-      Admitted. 
-
+    apply fold_constants_bexp_sound.
+    destruct (fold_constants_bexp b). 
+    { apply WHILE_true with (c := c) in H. apply H. }
+    {apply WHILE_false with (c:= c) in H. apply H. }
+    {apply CWhile_congruence. apply H. apply IHc. }
+    {apply CWhile_congruence. apply H. apply IHc. }
+    {apply CWhile_congruence. apply H. apply IHc. }
+    {apply CWhile_congruence. apply H. apply IHc. }
+Qed.
 
 
 (* ########################################################## *)
@@ -1222,16 +1228,15 @@ Fixpoint optimize_0plus (e : aexp) : aexp :=
       |AMult e1 e2 => AMult (optimize_0plus e1) (optimize_0plus e2)
   end.
 
-Theorem Optimize_0Plus_AExp_Sound : 
-  forall e st, aeval st e = aeval st (optimize_0plus e). 
+Theorem Optimize_0Plus_AExp_Sound :  atrans_sound(optimize_0plus). 
 Proof. 
-  intros. induction e; try (simpl; reflexivity). 
-  {simpl. destruct (optimize_0plus e1); 
-          try (rewrite IHe1; rewrite IHe2; reflexivity). 
-   {destruct n; try (rewrite IHe1; rewrite IHe2; reflexivity). }
+  intros. unfold atrans_sound.  induction a; try (simpl; unfold aequiv; reflexivity). 
+  {simpl. destruct (optimize_0plus a1); 
+          try (unfold aequiv in *; intros; simpl; rewrite IHa1; rewrite IHa2; reflexivity). 
+   {destruct n; try (unfold aequiv in *; intros; simpl; rewrite IHa1; rewrite IHa2; reflexivity). }
   }
-  {simpl. rewrite IHe1. rewrite IHe2. reflexivity. }
-  {simpl. rewrite IHe1. rewrite IHe2. reflexivity. }
+  {unfold aequiv in *. intros. simpl. rewrite IHa1. rewrite IHa2. reflexivity. }
+  {unfold aequiv in *. intros. simpl. rewrite IHa1. rewrite IHa2. reflexivity. }
 Qed.
 
 Fixpoint optimize_0plusBexp (e : bexp) : bexp :=
@@ -1244,16 +1249,15 @@ Fixpoint optimize_0plusBexp (e : bexp) : bexp :=
       |BAnd e1 e2 => BAnd (optimize_0plusBexp e1) (optimize_0plusBexp e2)
   end.
 
-Theorem optimizeBExpSound : 
-  forall st b, beval st b = beval st (optimize_0plusBexp b).
+Theorem optimizeBExpSound : btrans_sound(optimize_0plusBexp). 
 Proof.
-  intros. induction b; simpl; try reflexivity;  
-          try(rewrite IHb1; rewrite IHb2; reflexivity). 
-  {rewrite Optimize_0Plus_AExp_Sound. rewrite (Optimize_0Plus_AExp_Sound a0).
-   reflexivity. }
-  {rewrite Optimize_0Plus_AExp_Sound. rewrite (Optimize_0Plus_AExp_Sound a0). 
-   reflexivity. }
-  {rewrite IHb. reflexivity. }
+  unfold btrans_sound. intros. induction b; simpl; try (unfold bequiv;  reflexivity);  
+          try(unfold bequiv in *; intros; simpl; rewrite IHb1; rewrite IHb2; reflexivity). 
+  {unfold bequiv. intros. simpl. rewrite Optimize_0Plus_AExp_Sound.
+   rewrite (Optimize_0Plus_AExp_Sound a0). reflexivity. }
+  {unfold bequiv. intros. simpl. rewrite Optimize_0Plus_AExp_Sound.
+   rewrite (Optimize_0Plus_AExp_Sound a0). reflexivity. }
+  {unfold bequiv in *. intros. simpl. rewrite IHb. reflexivity. }
 Qed.
 
 Fixpoint optimize_0plusCom (c : com) : com :=
@@ -1266,9 +1270,19 @@ Fixpoint optimize_0plusCom (c : com) : com :=
       |CWhile b s => CWhile (optimize_0plusBexp b) (optimize_0plusCom s)
   end.
 
+Print ceval. 
 
-(* FILL IN HERE *)
-(** [] *)
+Theorem optimizeComSound : ctrans_sound(optimize_0plusCom). 
+Proof.
+  unfold ctrans_sound. 
+  induction c.
+  {simpl. apply refl_cequiv. }
+  {simpl. apply CAss_congruence. apply Optimize_0Plus_AExp_Sound. }
+  {simpl. apply CSeq_congruence. assumption. assumption. }
+  {simpl. apply CIf_congruence. apply optimizeBExpSound. apply IHc1. 
+   apply IHc2. }
+  {simpl. apply CWhile_congruence. apply optimizeBExpSound. apply IHc. }
+Qed.
 
 (* ####################################################### *)
 (** * Proving That Programs Are _Not_ Equivalent *)
@@ -1287,6 +1301,11 @@ Fixpoint optimize_0plusCom (c : com) : com :=
 (** We will see in a moment that it is not, but it is worthwhile
     to pause, now, and see if you can find a counter-example on your
     own. *)
+
+(*
+c1 = (X ::= 12 + X;; Y ::= X)
+c2 = (X ::= 12 + X;; Y ::= 12 + X)
+*)
 
 (** Here, formally, is the function that substitutes an arithmetic
     expression for each occurrence of a given variable in another
@@ -1343,7 +1362,7 @@ Definition subst_equiv_property := forall i1 i2 a1 a2,
         / empty_state || st2,
     where [st2 = { X |-> 1, Y |-> 2 }].  Note that [st1 <> st2]; this
     is a contradiction, since [ceval] is deterministic!  [] *)
-
+ 
 Theorem subst_inequiv : 
   ~ subst_equiv_property.
 Proof.
@@ -1408,10 +1427,30 @@ Lemma aeval_weakening : forall i st a ni,
   var_not_used_in_aexp i a ->
   aeval (update st i ni) a = aeval st a.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros. induction H ; try reflexivity; 
+          try(simpl; rewrite IHvar_not_used_in_aexp1; rewrite IHvar_not_used_in_aexp2; 
+              reflexivity). 
+  {simpl. apply update_neq with (n := ni) (st := st) in H. assumption. }
+Qed.
 
 (** Using [var_not_used_in_aexp], formalize and prove a correct verson
     of [subst_equiv_property]. *)
+
+Print subst_equiv_property. 
+
+Theorem subst_equiv_property' : 
+  forall i1 i2 a1 a2, var_not_used_in_aexp i1 a1 ->
+                      cequiv (i1 ::= a1;; i2 ::= a2) 
+                             (i1 ::= a1;; i2 ::= subst_aexp i1 a1 a2).
+Proof. 
+  intros. unfold cequiv. intros. split; intros. inversion H0; subst. 
+  clear H0. inversion H3; subst. inversion H6; subst. apply E_Seq with (st' := update st i1 (aeval st a1)). 
+  apply H3. apply aeval_weakening with 
+            (st := update st i1 (aeval st a1)) (ni := aeval (update st i1 (aeval st a1)) a2) in H. 
+  Admitted. 
+
+
+
 
 (* FILL IN HERE *)
 (** [] *)
@@ -1420,10 +1459,16 @@ Proof.
 (** Prove that an infinite loop is not equivalent to [SKIP] *)
 
 Theorem inequiv_exercise: 
-  ~ cequiv (WHILE BTrue DO SKIP END) SKIP.
+  ~ cequiv (WHILE BTrue DO SKIP END) SKIP. 
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  unfold not. intros. unfold cequiv in H. 
+  assert(SKIP/empty_state || empty_state). apply E_Skip. 
+  apply H in H0. assert(bequiv BTrue BTrue). 
+  unfold bequiv. intros. reflexivity. 
+  apply WHILE_true_nonterm with (c:= SKIP) (st := empty_state) (st' := empty_state) in H1. 
+  unfold not in *. apply H1 in H0. inversion H0. 
+  Qed. 
+
 
 (** * Extended exercise: Non-deterministic Imp *)
 
@@ -1522,7 +1567,8 @@ Inductive ceval : com -> state -> state -> Prop :=
                   c1 / st || st' ->
                   (WHILE b1 DO c1 END) / st' || st'' ->
                   (WHILE b1 DO c1 END) / st || st''
-(* FILL IN HERE *)
+  |E_Havoc : forall n i st st', update st i n = st' ->
+                              CHavoc i / st || st'
 
   where "c1 '/' st '||' st'" := (ceval c1 st st').
 
@@ -1531,7 +1577,7 @@ Tactic Notation "ceval_cases" tactic(first) ident(c) :=
   [ Case_aux c "E_Skip" | Case_aux c "E_Ass" | Case_aux c "E_Seq"
   | Case_aux c "E_IfTrue" | Case_aux c "E_IfFalse"
   | Case_aux c "E_WhileEnd" | Case_aux c "E_WhileLoop"
-(* FILL IN HERE *)
+  | Case_aux c "E_Havoc"
 ].
 
 (** As a sanity check, the following claims should be provable for
@@ -1539,13 +1585,14 @@ Tactic Notation "ceval_cases" tactic(first) ident(c) :=
 
 Example havoc_example1 : (HAVOC X) / empty_state || update empty_state X 0.
 Proof.
-(* FILL IN HERE *) Admitted.
+  econstructor. reflexivity. Qed. 
+  
 
 Example havoc_example2 :
   (SKIP;; HAVOC Z) / empty_state || update empty_state Z 42.
 Proof.
-(* FILL IN HERE *) Admitted.
-(** [] *)
+  repeat econstructor. Qed. 
+
 
 (** Finally, we repeat the definition of command equivalence from above: *)
 
@@ -1568,10 +1615,25 @@ Definition pYX :=
 (** If you think they are equivalent, prove it. If you think they are
     not, prove that. *)
 
+Theorem XYYXEq : ~(cequiv pXY pYX). 
+Proof.
+  unfold cequiv. unfold not. intros. 
+  unfold pXY in H. unfold pYX in H. 
+  assert((HAVOC X;; HAVOC Y) / empty_state || update (update empty_state X 1) Y 2). 
+  {repeat econstructor. }
+  assert((HAVOC Y;; HAVOC X) / empty_state || update (update empty_state Y 10) X 20). 
+  {repeat econstructor. }
+  apply H in H0. inversion H0. inversion H1. 
+
+
+
+
 
 Theorem pXY_cequiv_pYX :
   cequiv pXY pYX \/ ~cequiv pXY pYX.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. 
+  right. apply XYYXEq. Qed. 
+
 
 (** **** Exercise: 4 stars, optional (havoc_copy) *)
 (** Are the following two programs equivalent? *)
