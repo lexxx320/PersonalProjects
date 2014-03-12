@@ -1047,7 +1047,7 @@ Definition normal_form_of (t t' : tm) :=
 (** **** Exercise: 3 stars, optional (normal_forms_unique) *)
 Theorem normal_forms_unique:
   deterministic normal_form_of.
-Proof. 
+Proof.  
   unfold deterministic. unfold normal_form_of.  intros x y1 y2 P1 P2.
   inversion P1 as [P11 P12]; clear P1. inversion P2 as [P21 P22]; clear P2. 
   generalize dependent y2. unfold step_normal_form in *. unfold normal_form in *. 
@@ -1057,13 +1057,10 @@ Proof.
    {reflexivity. } 
    {assert(exists t' : tm, x ==> t'). exists y. apply H. apply P12 in H1. inversion H1. }
   }
-  {intros. inversion P21; subst.
-   apply IHP11 in P22. apply P22. apply P12.  
-   
+  {intros y2 H1. apply IHP11. apply P12. admit. }
+  Qed. 
 
 
-   {assert(exists t' : tm, y2 ==> t'). exists y. apply H. apply P22 in H0. inversion H0. }
-   {apply IHP11 in 
 
 
 
@@ -1101,8 +1098,11 @@ Lemma multistep_congr_2 : forall t1 t2 t2',
      t2 ==>* t2' ->
      P t1 t2 ==>* P t1 t2'.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. induction H0. 
+  {apply multi_refl. } 
+  {apply multi_step with (P t1 y). constructor. apply H. 
+   apply H0. apply IHmulti. }
+Qed.
 
 (** _Theorem_: The [step] function is normalizing -- i.e., for every
     [t] there exists some [t'] such that [t] steps to [t'] and [t'] is
@@ -1130,7 +1130,7 @@ Proof.
 Theorem step_normalizing :
   normalizing step.
 Proof.
-  unfold normalizing.
+  unfold normalizing. 
   tm_cases (induction t) Case.
     Case "C". 
       exists (C n). 
@@ -1149,7 +1149,7 @@ Proof.
       rewrite <- H0 in H21.
       exists (C (n1 + n2)).
       split.
-        SCase "l". 
+        SCase "l".  
           apply multi_trans with (P (C n1) t2).
           apply multistep_congr_1. apply H11.
           apply multi_trans with 
@@ -1170,7 +1170,7 @@ Proof.
 
 (** **** Exercise: 3 stars (eval__multistep) *)
 Theorem eval__multistep : forall t n,
-  t || n -> t ==>* C n.
+                            t || n -> t ==>* C n.
 
 (** The key idea behind the proof comes from the following picture:
        P t1 t2 ==>            (by ST_Plus1) 
@@ -1201,8 +1201,19 @@ Theorem eval__multistep : forall t n,
     includes [==>]. *)
 
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. induction H. 
+  {apply multi_refl. }
+  {apply multi_trans with (y := P(C n1) t2). 
+   {apply multistep_congr_1. apply IHeval1. } Print multi. 
+   {assert(value (C n1)). constructor. 
+    apply multistep_congr_2 with (t2 := t2) (t2' := C n2) in H1.  
+    {apply multi_trans with (y := P (C n1) (C n2)). assumption. 
+     apply multi_step with (y := C (n1 + n2)). constructor. 
+     apply multi_refl. }
+    {apply IHeval2. }
+   }
+  }
+Qed.
 
 (** **** Exercise: 3 stars, advanced (eval__multistep_inf) *)
 (** Write a detailed informal version of the proof of [eval__multistep].
@@ -1210,6 +1221,7 @@ Proof.
 (* FILL IN HERE *)
 []
 *)
+
 
 (** For the other direction, we need one lemma, which establishes a
     relation between single-step reduction and big-step evaluation. *)
@@ -1221,9 +1233,29 @@ Lemma step__eval : forall t t' n,
      t || n.
 Proof.
   intros t t' n Hs. generalize dependent n.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  induction Hs. 
+  {intros. inversion H. constructor. constructor. constructor. }
+  {intros. inversion H; subst. constructor. apply IHHs in H2. 
+   assumption. assumption. }
+  {intros. inversion H0; subst. inversion H; subst. constructor. 
+   assumption. apply IHHs in H5. assumption. }
+Qed. 
 
+Theorem PlusCanStep : forall x t1 t2, x = P t1 t2 ->  exists t, P t1 t2 ==> t.
+Proof.
+  induction x. 
+  {intros. inversion H. }
+  {intros. inversion H. destruct t1. 
+   {destruct t2. 
+    {exists (C (n + n0)). constructor. }
+    {apply IHx2 in H2. inversion H2. exists (P (C n) x). 
+     constructor. constructor. apply H0. }
+    }
+   {apply IHx1 in H1. inversion H1. exists (P x t2). 
+    constructor. apply H0. }
+  }
+Qed.
+  
 (** The fact that small-step reduction implies big-step is now
     straightforward to prove, once it is stated correctly. 
 
@@ -1232,13 +1264,29 @@ Proof.
 (** Make sure you understand the statement before you start to
     work on the proof.  *)
 
+(*TODO: discuss this one in class*)
 (** **** Exercise: 3 stars (multistep__eval) *)
 Theorem multistep__eval : forall t t',
   normal_form_of t t' -> exists n, t' = C n /\ t || n.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
+  intros. unfold normal_form_of in H. inversion H. 
+  induction H0.   
+  {inversion H. destruct x. 
+   {exists n. split. reflexivity. constructor. }
+   {unfold step_normal_form in *. unfold normal_form in *. 
+    unfold not in *. remember (P x1 x2). rewrite Heqt in H1.  apply PlusCanStep in Heqt. 
+    contradiction. }
+  }
+  {inversion H. destruct z. 
+   {assert(y ==>* C n /\ step_normal_form (C n)). split; assumption. 
+    apply IHmulti in H5. destruct H5. destruct H5. apply step__eval with (n := x0) in H0. 
+    exists x0. split; assumption. apply H6. apply H4. }
+   {unfold step_normal_form in *. unfold normal_form in *. unfold not in *. 
+    remember(P z1 z2). rewrite Heqt in H1. apply PlusCanStep in Heqt. 
+    apply H1 in Heqt. inversion Heqt. }
+  }
+Qed.
+    
 (* ########################################################### *)
 (** ** Additional Exercises *)
 
