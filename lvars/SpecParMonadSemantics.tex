@@ -26,6 +26,7 @@
 \newcommand{\unSpec}[1]{\mathcal{US} \llbracket #1 \rrbracket}
 \newcommand{\specActions}[1]{\mathcal{SA} \llbracket #1 \rrbracket}
 \newcommand{\commitActions}[1]{\mathcal{CA} \llbracket #1 \rrbracket}
+\newcommand{\seq}[1]{\mathcal{S}\llbracket #1 \rrbracket}
 \title{Speculative Par Monad Operational Semantics}
 \author{Matthew Le}
 \begin{document}
@@ -124,9 +125,9 @@ $\boxed{H; T \rightarrow H'; T'} $
 \inference[\text{PopSpec}]{}{\begin{array}{l} H; T \; | \; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, wait \; \Theta_1')}] \; | \; \Theta_j'[S_1' : (1, M)_s, S_2, return \; N_2]) \rightarrow \\ H; T \; | \; \Theta_{i+1}[\cdot, S_2, \eval{return(N_1, N_2)}] \; | \; \Theta_{j+1}'[S_1', (1, M)_s : S_2', return \; N_1]) \end{array}}
 \]
 
-\[%Join Speculative computations
-\infer[\text{SpecJoin}]{H; T \; | \; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, wait \; \Theta_1')}] \; | \; \Theta_j'[\cdot, S_2', return \; N_2] \rightarrow  H; T \; | \; \Theta_{i+1}[\cdot, S_2, \eval{return(N_1, N_2)}]}{}
-\]
+%\[%Join Speculative computations
+%\infer[\text{SpecJoin}]{H; T \; | \; \Theta_j'[\cdot, S_2', return \; N_2] \; | \; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, wait \; \Theta_1')}] \rightarrow  H; T \; | \; \Theta_{i+1}[\cdot, S_2, \eval{return(N_1, N_2)}]}{}
+%\]
 
 \[%Spec Rollback
 \infer[\text{SpecRB}]{H; T \; | \; \Theta_i[S_1, S_2, \eval{specReturn(raise \; M, wait \; \Theta_j')}] \; | \; \Theta_j'[S_1', S_2', M] \rightarrow H'; T' \; | \;  \Theta_{i+1}[S_1, S_2, \eval{raise \; M}])}{rollback(\Theta_i, H, T \; | \; \Theta_j'[S_1', S_2', M]) \leadsto (H', \Theta_{j'}'[\cdot : (j'', M''), S_2'', M'] \; | \; T')}
@@ -188,6 +189,8 @@ $\boxed{rollback(\Theta_i, H, T) \leadsto (H' ,T')}$
 \]
 
 \section{Proof of Determinism}
+
+
 
 \begin{figure}[H]
 \centering
@@ -417,10 +420,10 @@ $v\vec{i}.(T_1 \; | \; T_2) \specStep^* v\vec{i}.(T_1 \; | \; T_2') \specStep^* 
 %SpecRB
 \item $T_{spar} \specStep T_{spar}' \equiv $
 
-%\inference[\text{SpecRB}]{ws = \{\writes{S_1'} \; | \; \Theta_k''[S_1'', S_2'', M''] \in T \land \Theta_j' \sqsubseteq \Theta_k''\}, \;\;\; rollback(ws, [], v\vec{i}.T) \leadsto v\vec{i}.T'}{v\vec{i}.(T \; | \; \Theta_i[S_1, S_2, \mathcal{E}[specReturn(raise \; M, wait \; \Theta_j')]] \; | \; \Theta_j'[S_1', S_2', M']) \rightarrow v\vec{i}.(T' \; | \;  \Theta_{i+1}[S_1, S_2, \mathcal{E}[raise \; M]])}
+$\infer[\text{SpecRB}]{H; T \; | \; \Theta_i[S_1, S_2, \eval{specReturn(raise \; M, wait \; \Theta_j')}] \; | \; \Theta_j'[S_1', S_2', M] \rightarrow H'; T' \; | \;  \Theta_{i+1}[S_1, S_2, \eval{raise \; M}])}{rollback(\Theta_i, H, T \; | \; \Theta_j'[S_1', S_2', M]) \leadsto (H', \Theta_{j'}'[\cdot : (j'', M''), S_2'', M'] \; | \; T')}$
 
-From $\erase{T_{spar}} = v\vec{i}.(\erase{T} \; | \; \eval{raise \; M >>= \backslash i. \erase{\Theta_j'[S_1', S_2', M']} >>= \backslash j. return(i, j)})$, we can use the Raise rule to construct the derivation for:
-$v\vec{i}.(\erase{T} \; | \; \eval{raise \; M >>= \backslash i. M >>= \backslash j. return(i, j)}) \parStep v\vec{i}.(\erase{T} \; | \; \eval{raise \; M})$ In order to show that $\erase{T_{spar}'} = T_{par}'$, we must show that $\erase{T} = \erase{T'}$, which follows from Lemma \ref{eraseRollbackIdempotence}
+From $\erase{T_{spar}} = \erase{H}; \erase{T} \; | \; \eval{raise \; M >>= \backslash i. M \backslash j. return(i, j)}$, we can use the Raise rule to construct the derivation for:
+$\erase{H}; \erase{T} \; | \; \eval{raise \; M >>= \backslash i. M >>= \backslash j. return(i, j)}) \parStep \erase{H}; \erase{T} \; | \; \eval{raise \; M})$ In order to show that $\erase{T_{spar}'} = T_{par}'$, we must show that $\erase{T} = \erase{T'}$, which follows from Lemma \ref{eraseRollbackIdempotence}
 
 
 Applying Lemma \ref{wellFormedRollback} to $WF(T)$ and $rollback(ws, [], T) \leadsto T'$, we get $WF(T')$.  From $WF(T')$, we have $\unSpec{T'} \specStep^* T'$
@@ -450,7 +453,9 @@ $ \infer[]{rollback(\Theta_i, H, \Theta_j'[(j', M')_r^x : S, M] \; | \; T) \lead
 
 From $WF(H; \Theta_j'[(j', M')_r^x : S, M] \; | \; T)$, we have 
 
-$\unSpec{H; \Theta_j'[ (j', M')_r^x : S, M] \; | \; T} \specStep^* H^*; \Theta_{j'}'[S, M'] \; | \; T^* \specStep H^*; \Theta_{j''}'[ (j', M')_r^x : S, M''] \; | \; T^* \specStep^* H; \Theta_j'[(j', M')_r^x : S, M] \; | \; T$.  Applying Lemma \ref{independence} to 
+$\unSpec{H; \Theta_j'[ (j', M')_r^x : S, M] \; | \; T} \specStep^* H^*; \Theta_{j'}'[S, M'] \; | \; T^* \specStep H^*; \Theta_{j''}'[ (j', M')_r^x : S, M''] \; | \; T^* \specStep^* H; \Theta_j'[(j', M')_r^x : S, M] \; | \; T$.  
+
+Applying Lemma \ref{independence} to 
 
 $H^*; T^* \; | \; \Theta_{j''}'[(j', M')_r^x : S, M'']  \specStep^* H; T \; | \; \Theta_j'[(j', M')_r^x : S, M] $, we get
 
@@ -475,7 +480,11 @@ $\unSpec{H; T \; | \; \Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M]} \specSte
 %Rollback Write
 \item $rollback(\Theta_i, H, T) \leadsto (H', T') \equiv $
 
-$\infer[\text{RBWrite}]{rollback(\Theta_i, H, \Theta_j'[\cdot : (j', M')_w^x : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}{H(x) = \langle [], s, t, M\rangle_x, \;\;\; H' = H[x \mapsto \langle\rangle_x] \;\;\; rollback(\Theta_i, H', \Theta_{j'}'[\cdot : S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}$
+$\infer[\text{RBWrite}]{rollback(\Theta_i, H, \Theta_j'[\cdot : (j', M')_w^x : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}{H(x) = \langle [], s, t, N\rangle_x^c, \;\;\; H' = H[x \mapsto \langle\rangle_x^c] \;\;\; rollback(\Theta_i, H', \Theta_{j'}'[\cdot : S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}$
+
+Applying Lemma \ref{rollbackWrite} to $WF(H; \Theta_j'[(j', M')_w^x : S_1, S_2, M] \; | \; T)$ and $H(x) = \langle [], s, t, N\rangle_x^c$, we get 
+
+$WF(H[x \mapsto \langle\rangle_x^c]; \Theta_j'[(j', M')_w^x : S_1, S_2, M] \; | \; T)$.
 
 \end{itemize}
 
@@ -484,7 +493,7 @@ $\infer[\text{RBWrite}]{rollback(\Theta_i, H, \Theta_j'[\cdot : (j', M')_w^x : S
 %Reorder Read Lemma
 \begin{lemma}
 \label{reorderRead}
-For all $H, T_1, \Theta_i$, if $H(x) = \langle ds, s, tid, M\rangle_x^c$ and 
+For all $H, T_1, \Theta_i$, if 
 
 $H; T_1 \; | \; \Theta_i[S, M] \specStep H; T_1 \; | \; \Theta_{i+1}[S : (i, M)_r^x, M'] \specStep^* H'; T_1' \; | \; \Theta_{i+1}[S : (i, M)_r^x, M']$, then 
 
@@ -525,6 +534,10 @@ From this and $H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2$, we get $H; 
 \item $H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2' \equiv H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2^* \specStep^m H'; T_1' \; | \; T_2'$. We can apply the IH to $H; T_1 \; | \; T_2^* \specStep^m H'; T_1' \; | \; T_2'$ to get $H; T_1 \; | \; T_2^* \specStep^{m_1} H^*; T_1' \; | \; T_2^* \specStep^{m_2} H'; T_1' \; | \; T_2'$
 Applying Lemma \ref{reorderLemma} to $H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2^* \specStep^{m_1} H^*; T_1' \; | \; T_2^*$, we get: $H; T_1 \; | \; T_2 \specStep^{m_1} H^*; T_1' \; | \; T_2 \specStep H^*; T_1' \; | \; T_2^*$, putting it all together, we have: $H; T_1 \; | \; T_2 \specStep^{m_1} H^*; T_1' \; | \; T_2 \specStep^{m_2+1} H'; T_1' \; | \; T_2'$
 
+\item $H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2' \equiv H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2^* \specStep^m H'; T_1' \; | \; T_2'$.  
+
+$H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2^*$ could correspond to only 3 rules: PopSpec, SpecRB, and PopFork.  In all three cases, we violate our assumption that $\specActions{T_2} = \specActions{T_2'}$ and $\commitActions{T_2} = \commitActions{T_2'}$ making this case vacuous. 
+
 \end{itemize}
 
 \end{itemize}
@@ -535,9 +548,7 @@ Applying Lemma \ref{reorderLemma} to $H; T_1 \; | \; T_2 \specStep H; T_1 \; | \
 %Reorder lemma
 \begin{lemma}[Reorder]
 \label{reorderLemma}
-For all $H, T_1, T_2$, if $H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2' \specStep^n H'; T_1' \; | \; T_2'$, then 
-
-$H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2 \specStep H'; T_1' \; | \; T_2'$
+For all $H, T_1, T_2$, if $H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2' \specStep^n H'; T_1' \; | \; T_2', \specActions{T_2} = \specActions{T_2'}$, and $\commitActions{T_2} = \commitActions{T_2'}$, then $H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2 \specStep H'; T_1' \; | \; T_2'$
 
 \end{lemma}
 
@@ -549,7 +560,7 @@ By induction on $n$
 \begin{itemize}
 \item $n = 0$, In this case we can trivially construct the derivation $H; T_1 \; | \; T_2 \specStep^0 H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2'$
 
-\item $n = m+1$, In this case we have $H; T_1 \; | \; T_2 \specStep H; T_1 \; | T_2' \specStep H^*; T_1^* \; | \; T_2' \specStep^m H'; T_1' \; | \; T_2'$.  The only rules that $H; T_1 \; | \; T_2' \specStep H^*; T_1^* \; | \; T_2'$ could correspond to are: SEval, SBind, Raise, Handle, SGCEmpty, and SGCFull.  In all cases, The step can be taken regardless of any effects from other threads in the thread pool, so it must be the case that we can construct the derivation for:
+\item $n = m+1$, In this case we have $H; T_1 \; | \; T_2 \specStep H; T_1 \; | T_2' \specStep H^*; T_1^* \; | \; T_2' \specStep^m H'; T_1' \; | \; T_2'$.  The only rules that $H; T_1 \; | \; T_2' \specStep H^*; T_1^* \; | \; T_2'$ could correspond to are: SEval, SBind, SpecRaise, Raise, and Handle.  In all cases, The step can be taken regardless of any effects from other threads in the thread pool, so it must be the case that we can construct the derivation for:
 
 $H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2' \specStep^m H'; T_1' \; | \; T_2'$.  Applying the induction hypothesis to: $H^*; T_1^* \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2' \specStep^m H'; T_1' \; | \; T_2'$, we get: $H^*; T_1^* \; | \; T_2 \specStep^m H^*; T_1' \; | \; T_2 \specStep H'; T_1' \; | \; T_2'$.  From 
 $H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2$ and $H^*; T_1^* \; | \; T_2 \specStep^m H^*; T_1' \; | \; T_2 \specStep H'; T_1' \; | \; T_2'$, we get
@@ -561,6 +572,7 @@ $H; T_1\; | \; T_2 \specStep H^*; T_1^* \; | \; T_2 \specStep^m H^*; T_1' \; | \
 
 %Rollback Write Lemma
 \begin{lemma}[Rollback Write]
+\label{rollbackWrite}
 For all $H, T, x$, if $H(x) = \langle [], s, tid, M\rangle_x^c$ and $WF(H; T)$, then $WF(H[x \mapsto \langle\rangle_x^c]; T)$
 \end{lemma}
 
