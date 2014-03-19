@@ -1117,7 +1117,7 @@ Proof.
       (* The only interesting case is when both a1 and a2 
          become constants after folding *)
       simpl. destruct (beq_nat n n0); reflexivity.
-  Case "BLe".
+  Case "BLe". 
     simpl. assert(H: aeval st a = aeval st (fold_constants_aexp a)). 
            {apply fold_constants_aexp_sound. }
     assert(H1 : aeval st a0 = aeval st (fold_constants_aexp a0)). 
@@ -1157,13 +1157,13 @@ Proof.
       (* If the optimization doesn't eliminate the if, then the result
          is easy to prove from the IH and fold_constants_bexp_sound *)
       try (apply CIf_congruence; assumption).
-    SCase "b always true".
+    SCase "b always true".   
       apply trans_cequiv with c1; try assumption.
       apply IFB_true; assumption.
     SCase "b always false".
       apply trans_cequiv with c2; try assumption.
       apply IFB_false; assumption.
-  Case "WHILE".
+  Case "WHILE". Print aexp.  
     assert(H : bequiv b (fold_constants_bexp b)).
     apply fold_constants_bexp_sound.
     destruct (fold_constants_bexp b). 
@@ -1428,7 +1428,8 @@ Lemma aeval_weakening : forall i st a ni,
   aeval (update st i ni) a = aeval st a.
 Proof.
   intros. induction H ; try reflexivity; 
-          try(simpl; rewrite IHvar_not_used_in_aexp1; rewrite IHvar_not_used_in_aexp2; 
+          try(simpl; rewrite IHvar_not_used_in_aexp1; 
+              rewrite IHvar_not_used_in_aexp2; 
               reflexivity). 
   {simpl. apply update_neq with (n := ni) (st := st) in H. assumption. }
 Qed.
@@ -1444,9 +1445,11 @@ Theorem subst_equiv_property' :
                              (i1 ::= a1;; i2 ::= subst_aexp i1 a1 a2).
 Proof. 
   intros. unfold cequiv. intros. split; intros. inversion H0; subst. 
-  clear H0. inversion H3; subst. inversion H6; subst. apply E_Seq with (st' := update st i1 (aeval st a1)). 
+  clear H0. inversion H3; subst. inversion H6; subst. 
+  apply E_Seq with (st' := update st i1 (aeval st a1)). 
   apply H3. apply aeval_weakening with 
-            (st := update st i1 (aeval st a1)) (ni := aeval (update st i1 (aeval st a1)) a2) in H. 
+            (st := update st i1 (aeval st a1)) 
+              (ni := aeval (update st i1 (aeval st a1)) a2) in H. 
   Admitted. 
 
 

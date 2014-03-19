@@ -244,7 +244,7 @@ Theorem step_deterministic:
   deterministic step.
 Proof with eauto.
   unfold deterministic. 
-  intros. generalize dependent y2. induction H.
+  intros. generalize dependent y2. induction H. 
   {intros. inversion H0; subst. reflexivity. inversion H4. }
   {intros. inversion H0; subst. reflexivity. inversion H4. }
   {intros. inversion H0; subst. inversion H. inversion H. 

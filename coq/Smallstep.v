@@ -991,7 +991,7 @@ Proof.
   eapply multi_step. apply ST_Plus2. apply v_const. 
   apply ST_PlusConstConst.
   eapply multi_step. apply ST_PlusConstConst.
-  apply multi_refl.  Qed.
+  apply multi_refl. Qed.
 
 (** **** Exercise: 1 star, optional (test_multistep_2) *)
 Lemma test_multistep_2:
@@ -1003,7 +1003,7 @@ Proof.
 (** **** Exercise: 1 star, optional (test_multistep_3) *)
 Lemma test_multistep_3:
       P (C 0) (C 3)
-   ==>*
+   ==>*   
       P (C 0) (C 3).
 Proof. apply multi_refl. Qed.
   
@@ -1018,7 +1018,7 @@ Lemma test_multistep_4:
   ==>*
       P
         (C 0)
-        (C (2 + (0 + 3))).
+        (C (2 + (0 + 3))). 
 Proof. Print multi.  
   apply multi_step with (P (C 0) (P (C 2) (C(0 + 3)))).
   repeat constructor. apply multi_step with (P (C 0) (C (2 + (0 + 3)))). 
@@ -1050,18 +1050,22 @@ Theorem normal_forms_unique:
 Proof.  
   unfold deterministic. unfold normal_form_of.  intros x y1 y2 P1 P2.
   inversion P1 as [P11 P12]; clear P1. inversion P2 as [P21 P22]; clear P2. 
-  generalize dependent y2. unfold step_normal_form in *. unfold normal_form in *. 
-  unfold not in *. 
-  induction P11;  subst.
-  {intros. inversion P21; subst. 
-   {reflexivity. } 
-   {assert(exists t' : tm, x ==> t'). exists y. apply H. apply P12 in H1. inversion H1. }
+  generalize dependent y2. unfold step_normal_form in *. 
+  unfold normal_form in *. 
+  induction P11. 
+  {intros. inversion P21. 
+   {reflexivity. }
+   {subst. assert(exists t' : tm, x ==> t'). exists y. apply H. 
+    contradiction. }
   }
-  {intros y2 H1. apply IHP11. apply P12. admit. }
-  Qed. 
-
-
-
+  {intros. inversion P21. 
+   {subst. assert(exists t' : tm, y2 ==> t'). exists y. assumption. 
+    contradiction. }
+   {subst. eapply IHP11. apply P12. assert(y = y0). 
+    eapply step_deterministic. apply H. apply H0. subst y.  
+    apply H1. apply P22. }
+  }
+Qed.
 
 
 (** Indeed, something stronger is true for this language (though not
@@ -1268,19 +1272,21 @@ Qed.
 (** **** Exercise: 3 stars (multistep__eval) *)
 Theorem multistep__eval : forall t t',
   normal_form_of t t' -> exists n, t' = C n /\ t || n.
-Proof.
+Proof. 
   intros. unfold normal_form_of in H. inversion H. 
   induction H0.   
   {inversion H. destruct x. 
    {exists n. split. reflexivity. constructor. }
    {unfold step_normal_form in *. unfold normal_form in *. 
-    unfold not in *. remember (P x1 x2). rewrite Heqt in H1.  apply PlusCanStep in Heqt. 
+    unfold not in *. remember (P x1 x2). rewrite Heqt in H1.  
+    apply PlusCanStep in Heqt. 
     contradiction. }
   }
   {inversion H. destruct z. 
    {assert(y ==>* C n /\ step_normal_form (C n)). split; assumption. 
-    apply IHmulti in H5. destruct H5. destruct H5. apply step__eval with (n := x0) in H0. 
-    exists x0. split; assumption. apply H6. apply H4. }
+    apply IHmulti in H5. destruct H5. destruct H5. 
+    apply step__eval with (n := x0) in H0. exists x0. split; assumption. 
+    apply H6. apply H4. }
    {unfold step_normal_form in *. unfold normal_form in *. unfold not in *. 
     remember(P z1 z2). rewrite Heqt in H1. apply PlusCanStep in Heqt. 
     apply H1 in Heqt. inversion Heqt. }
@@ -1293,17 +1299,23 @@ Qed.
 (** **** Exercise: 3 stars, optional (interp_tm) *)
 (** Remember that we also defined big-step evaluation of [tm]s as a
     function [evalF].  Prove that it is equivalent to the existing
-    semantics.
- 
-    Hint: we just proved that [eval] and [multistep] are
-    equivalent, so logically it doesn't matter which you choose.
-    One will be easier than the other, though!  *)
+    semantics. *)
 
 Theorem evalF_eval : forall t n,
   evalF t = n <-> t || n.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. split.  
+  {Case "->". intros. generalize dependent n. induction t. 
+   {intros. simpl in *. subst. constructor. }
+   {intros. simpl in *. subst. apply E_Plus. 
+    apply IHt1. reflexivity. apply IHt2. reflexivity. }
+  }
+  {intros. induction H. 
+   {reflexivity. }
+   {simpl. subst. reflexivity. }
+  }
+Qed.
+  
 
 (** **** Exercise: 4 stars (combined_properties) *)
 (** We've considered the arithmetic and conditional expressions
@@ -1365,8 +1377,40 @@ Tactic Notation "step_cases" tactic(first) ident(c) :=
 
     Prove or disprove these two properties for the combined language. *)
 
-(* FILL IN HERE *)
-(** [] *)
+Theorem MixedTermDeterministic : deterministic step. 
+Proof.
+  unfold deterministic. intros.
+  generalize dependent y2. 
+  induction H. 
+  {intros. inversion H0; subst. reflexivity. inversion H3. 
+   inversion H4. }
+  {intros. inversion H0; subst. 
+   {inversion H. }
+   {apply IHstep in H4. subst. reflexivity. }
+   {inversion H3; subst; inversion H. }
+  }
+  {intros. inversion H1; subst. 
+   {inversion H0. }
+   {inversion H; subst; inversion H5. }
+   {apply IHstep in H6; subst. reflexivity. }
+  }
+  {intros. inversion H0; subst. reflexivity. inversion H4. }
+  {intros. inversion H0; subst. reflexivity. inversion H4. }
+  {intros. inversion H0; subst. 
+   {inversion H. }
+   {inversion H. }
+   {apply IHstep in H5; subst. reflexivity. }
+  }
+Qed.
+
+Theorem MixedTermNoStrongProgress : ~(forall t, value t \/ (exists t', t ==> t')).
+Proof. 
+  intros. unfold not. intros. 
+  assert(~(value (P (C 1) ttrue) \/ exists t', (P (C 1) ttrue) ==> t')).
+  unfold not. intros. inversion H0. inversion H1. inversion H1. 
+  inversion H2; subst. inversion H6. inversion H7. unfold not in H0. 
+  apply H0 in H. apply H. 
+Qed. 
 
 End Combined.
 
@@ -1390,7 +1434,7 @@ Inductive aval : aexp -> Prop :=
     values, since they aren't needed in the definition of [==>b]
     below (why?), though they might be if our language were a bit
     larger (why?). *)
-
+ 
 Reserved Notation " t '/' st '==>a' t' " (at level 40, st at level 39).
 
 Inductive astep : state -> aexp -> aexp -> Prop :=
@@ -1692,8 +1736,21 @@ Lemma par_body_n__Sn : forall n st,
   st X = n /\ st Y = 0 ->
   par_loop / st ==>* par_loop / (update st X (S n)).
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
+  intros. inversion H. unfold par_loop.   
+  eapply multi_step. apply CS_Par2. apply CS_While.
+  eapply multi_step. apply CS_Par2. apply CS_IfStep. 
+    apply BS_Eq1. apply AS_Id.
+  eapply multi_step. apply CS_Par2. apply CS_IfStep. 
+    rewrite H1. apply BS_Eq. simpl. 
+  eapply multi_step. apply CS_Par2. apply CS_IfTrue. 
+  eapply multi_step. apply CS_Par2. apply CS_SeqStep.
+    apply CS_AssStep. apply AS_Plus1. apply AS_Id.
+  eapply multi_step. apply CS_Par2. apply CS_SeqStep.
+    apply CS_AssStep. apply AS_Plus.  
+  eapply multi_step. apply CS_Par2. apply CS_SeqStep.
+    apply CS_Ass. rewrite H0. rewrite plus_comm. simpl. 
+  eapply multi_step. apply CS_Par2. apply CS_SeqFinish. 
+  apply multi_refl. Qed. 
 
 (** **** Exercise: 3 stars, optional *)
 Lemma par_body_n : forall n st,
@@ -1701,12 +1758,17 @@ Lemma par_body_n : forall n st,
   exists st',
     par_loop / st ==>*  par_loop / st' /\ st' X = n /\ st' Y = 0.
 Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
-(** ... the above loop can exit with [X] having any value
-    whatsoever. *)
-
+  intros. inversion H. 
+  induction n. 
+  {exists st. split. apply multi_refl. split; assumption. }
+  {inversion IHn. inversion H2. inversion H4.  apply par_body_n__Sn in H4.
+   exists (update x X (S n)). split. Print multi_trans. 
+   apply multi_trans with (x := (par_loop, st)) (y := (par_loop, x))
+     (z := (par_loop, update x X (S n))) in H3. assumption. 
+   assumption. split. apply update_eq. rewrite <- H6. apply update_neq.
+   unfold not. intros. inversion H7. }
+Qed.
+   
 Theorem par_loop_any_X:
   forall n, exists st',
     par_loop / empty_state ==>*  SKIP / st'
@@ -1773,14 +1835,55 @@ Definition stack_multistep st := multi (stack_step st).
     State what it means for the compiler to be correct according to 
     the stack machine small step semantics and then prove it. *)
 
-Definition compiler_is_correct_statement : Prop := 
-(* FILL IN HERE *) admit.
+Fixpoint s_compile (e : aexp) : prog :=
+  match e with
+      |ANum n => [SPush n]
+      |AId x => [SLoad x]
+      |APlus e1 e2 => s_compile e1 ++ s_compile e2 ++ [SPlus]
+      |AMinus e1 e2 => s_compile e1 ++ s_compile e2 ++ [SMinus]
+      |AMult e1 e2 => s_compile e1 ++ s_compile e2 ++ [SMult]
+  end.
 
+Definition compiler_is_correct_statement : Prop := 
+  forall e st , stack_multistep st (s_compile e, []) ([], [aeval st e]).
+                     
+Theorem compiler_correct' : 
+   forall e st p is , stack_multistep st (s_compile e ++ is, p) 
+                                      (is, aeval st e :: p).
+Proof.
+  induction e. 
+  {intros. simpl. eapply multi_step. constructor. constructor. }
+  {intros. simpl. eapply multi_step. constructor. constructor. }
+  {intros. simpl. rewrite -> app_ass. Check multi_trans. 
+   apply multi_trans with  (y := (s_compile e2 ++ [SPlus] ++ is, aeval st e1 ::  p)).
+   rewrite app_ass. apply IHe1. 
+   apply multi_trans with (y := ([SPlus] ++ is, aeval st e2 :: aeval st e1 ::  p)).
+   apply IHe2. simpl. 
+   apply multi_step with (y := (is, aeval st e1 + aeval st e2 :: p)). 
+   constructor. apply multi_refl. }
+  {intros. simpl. rewrite -> app_ass. Check multi_trans. 
+   apply multi_trans with (y := (s_compile e2 ++ [SMinus] ++ is, aeval st e1 ::  p)).
+   rewrite app_ass. apply IHe1. 
+   apply multi_trans with (y := ([SMinus] ++ is, aeval st e2 :: aeval st e1 ::  p)).
+   apply IHe2. simpl. 
+   apply multi_step with (y := (is, aeval st e1 - aeval st e2 :: p)). 
+   constructor. apply multi_refl. }
+  {intros. simpl. rewrite -> app_ass. Check multi_trans. 
+   apply multi_trans with  (y := (s_compile e2 ++ [SMult] ++ is, aeval st e1 ::  p)).
+   rewrite app_ass. apply IHe1. 
+   apply multi_trans with (y := ([SMult] ++ is, aeval st e2 :: aeval st e1 ::  p)).
+   apply IHe2. simpl. 
+   apply multi_step with (y := (is, aeval st e1 * aeval st e2 :: p)). 
+   constructor. apply multi_refl. }
+Qed. 
 
 Theorem compiler_is_correct : compiler_is_correct_statement.
 Proof.
-(* FILL IN HERE *) Admitted.
-(** [] *)
+  unfold compiler_is_correct_statement. intros. 
+  replace (s_compile e) with (s_compile e ++ []). 
+  apply compiler_correct'. apply app_nil_r. Qed. 
+
+
 
 (* $Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)
 
