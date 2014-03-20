@@ -456,25 +456,23 @@ $WF(\Theta_{i'}[\cdot : (i'', M')_s, M] \; | \; T)$ is immediate from the assump
 %Rollback Read Case
 \item $rollback(\Theta_i, H, T ) \leadsto (H', T') \equiv$
 
-$ \infer[]{rollback(\Theta_i, H, \Theta_j'[(j', M')_r^x : S, M] \; | \; T) \leadsto (H'', T')}{H(x) = \langle  \Theta_{j'}' \uplus ds, s, t, M\rangle, \;\;\; H' = H[x \mapsto \langle  ds, s, t, M\rangle] \;\;\; rollback(\Theta_i, H', \Theta_{j'}'[S, M'] \; | \; T) \leadsto (H'', T')}$
+$ \infer[]{rollback(\Theta_i, H, \Theta_j'[(j', M')_r^x : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}{H(x) = \langle  \Theta_{j'}' \uplus ds, s, t, M\rangle, \;\;\; H' = H[x \mapsto \langle  ds, s, t, M\rangle] \;\;\; rollback(\Theta_i, H', \Theta_{j'}'[S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}$
 
-From $WF(H; \Theta_j'[(j', M')_r^x : S, M] \; | \; T)$, we have 
+From $WF(H; \Theta_j'[(j', M')_r^x : S_1, S_2, M] \; | \; T)$, we have 
 
-$\unSpec{H; \Theta_j'[ (j', M')_r^x : S, M] \; | \; T} \specStep^* H^*; \Theta_{j'}'[S, M'] \; | \; T^* \specStep H^*; \Theta_{j''}'[ (j', M')_r^x : S, M''] \; | \; T^* \specStep^* H; \Theta_j'[(j', M')_r^x : S, M] \; | \; T$.  
+$\unSpec{H; \Theta_j'[ (j', M')_r^x : S_1, S_2, M] \; | \; T} \specStep^* H^*; \Theta_{j'}'[S_1, S_2, M'] \; | \; T^* \specStep H^*; \Theta_{j''}'[ (j', M')_r^x : S_1, S_2, M''] \; | \; T^* \specStep^* H; \Theta_j'[(j', M')_r^x : S_1, S_2, M] \; | \; T$.  
 
-Applying Lemma \ref{independence} to 
+Applying Lemma \ref{independence} to $(j', M')_r^x : S_1 = (j', M')_r^x : S_1, S_2 = S_2$, and 
 
-$H^*; T^* \; | \; \Theta_{j''}'[(j', M')_r^x : S, M'']  \specStep^* H; T \; | \; \Theta_j'[(j', M')_r^x : S, M] $, we get
+$H^*; T^* \; | \; \Theta_{j''}'[(j', M')_r^x : S_1, S_2, M'']  \specStep^* H; T \; | \; \Theta_j'[(j', M')_r^x : S_1, S_2, M] $, we get
 
-$H^*; T^* \; | \; \Theta_{j''}'[(j', M')_r^x : S, M'']  \specStep^* H; T \; | \; \Theta_{j''}[ (j', M')_r^x : S, M'']  $
+$H^*; T^* \; | \; \Theta_{j''}'[(j', M')_r^x : S_1, S_2, M'']  \specStep^* H; T \; | \; \Theta_{j''}[ (j', M')_r^x : S_1, S_2, M''] \specStep^*H; T \; | \; \Theta_j'[(j', M')_r^x : S_1, S_2, M]$
 
 Applying Lemma \ref{readIndependence} to $H(x) = \langle \Theta_j' \uplus ds, s, t, N\rangle_x^c$ and 
 
-$H^*; \Theta_{j'}'[S, M'] \; | \; T^* \specStep H^*; \Theta_{j''}'[(j', M')_r^x : S, M''] \; | \; T^* \specStep^*  H; T \; | \; \Theta_{j''}[ (j', M')_r^x : S, M'']$, we get:
+$H^*; \Theta_{j'}'[S_1, S_2, M'] \; | \; T^* \specStep H^*; \Theta_{j''}'[(j', M')_r^x : S_1, S_2, M''] \; | \; T^* \specStep^*  H; T \; | \; \Theta_{j''}[ (j', M')_r^x : S_1, S_2, M'']$, we get: $H^*; \Theta_{j'}'[S_1, S_2, M'] \; | \; T^* \specStep^* H[x\mapsto \langle ds, s, t, N\rangle_x^c]; \Theta_{j'}'[S_1, S_2, M'] \; | \; T $, finally yielding:
 
-$H^*; \Theta_{j'}'[S, M'] \; | \; T^* \specStep^* H[x\mapsto \langle ds, s, t, N\rangle_x^c]; \Theta_{j'}'[S, M'] \; | \; T $, finally yielding:
-
-$\unSpec{H; \Theta_j'[(j', M')_r^x : S, M] \; | \; T} \specStep^* H^*; \Theta_{j'}'[S, M'] \; | \; T^* \specStep^* H[x\mapsto \langle ds, s, t, N\rangle_x^c]; \Theta_{j'}'[S, M'] \; | \; T$, which allows us to apply the induction hypothesis, and proves $WF(H''; T')$.
+$\unSpec{H; \Theta_j'[(j', M')_r^x : S_1, S_2, M] \; | \; T} \specStep^* H^*; \Theta_{j'}'[S_1, S_2, M'] \; | \; T^* \specStep^* H[x\mapsto \langle ds, s, t, N\rangle_x^c]; \Theta_{j'}'[S_1, S_2, M'] \; | \; T$, which allows us to apply the induction hypothesis, and proves $WF(H''; T')$.
 
 
 %Rollback Fork
