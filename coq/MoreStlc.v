@@ -1023,38 +1023,6 @@ Inductive value : tm -> Prop :=
 Hint Constructors value.
 
 Reserved Notation "t1 '==>' t2" (at level 40).
-(*Inductive tm : Type :=
-  (* pure STLC *)
-  | tvar : id -> tm
-  | tapp : tm -> tm -> tm
-  | tabs : id -> ty -> tm -> tm
-  (* numbers *)
-  | tnat : nat -> tm
-  | tsucc : tm -> tm
-  | tpred : tm -> tm
-  | tmult : tm -> tm -> tm
-  | tif0  : tm -> tm -> tm -> tm
-  (* pairs *)
-  | tpair : tm -> tm -> tm
-  | tfst : tm -> tm
-  | tsnd : tm -> tm
-  (* units *)
-  | tunit : tm
-  (* let *)
-  | tlet : id -> tm -> tm -> tm 
-          (* i.e., [let x = t1 in t2] *)
-  (* sums *)
-  | tinl : ty -> tm -> tm
-  | tinr : ty -> tm -> tm
-  | tcase : tm -> id -> tm -> id -> tm -> tm  
-          (* i.e., [case t0 of inl x1 => t1 | inr x2 => t2] *)
-  (* lists *)
-  | tnil : ty -> tm
-  | tcons : tm -> tm -> tm
-  | tlcase : tm -> tm -> id -> id -> tm -> tm 
-          (* i.e., [lcase t1 of | nil -> t2 | x::y -> t3] *)
-  (* fix *)
-  | tfix  : tm -> tm.*) 
 
 Inductive step : tm -> tm -> Prop :=
   | ST_AppAbs : forall x T11 t12 v2,
@@ -1067,37 +1035,64 @@ Inductive step : tm -> tm -> Prop :=
          value v1 ->
          t2 ==> t2' ->
          (tapp v1 t2) ==> (tapp v1 t2')
-  | ST_Succ : forall n, tsucc (tnat n) ==> tnat (S n)
-  | ST_Pred : forall n, tpred (tnat n) ==> tnat (pred n)
-  | ST_Mult : forall n m, tmult (tnat n) (tnat m) ==> tnat (n * m)
-  | ST_If1 : forall e1 e1' e2 e3, e1 ==> e1'-> tif0 e1 e2 e3 ==> tif0 e1' e2 e3
+  | ST_Succ1 : forall n, tsucc (tnat n) ==> tnat (S n)
+  | ST_Succ2 : forall n n', n ==> n' -> tsucc n ==> tsucc n'
+  | ST_Pred1 : forall n, tpred (tnat n) ==> tnat (pred n)
+  | ST_Pred2 : forall n n', n ==> n' -> tpred n ==> tpred n'
+  | ST_Mult1 : forall n m, tmult (tnat n) (tnat m) ==> tnat (n * m)
+  | ST_Mult2 :forall n n' m, n ==> n' -> tmult n m ==> tmult n' m
+  | ST_Mult3 : forall n m m', m ==> m' -> tmult (tnat n) m  ==> tmult (tnat n) m'
   | ST_If2 : forall n e1 e2, tif0 (tnat n) e1 e2 ==> if beq_nat n 0 then e1 else e2
+  | ST_If1 : forall e1 e1' e2 e3, e1 ==> e1'-> tif0 e1 e2 e3 ==> tif0 e1' e2 e3   
+
   | ST_Pair1 : forall e1 e1' e2, e1 ==> e1' -> tpair e1 e2 ==> tpair e1' e2
   | ST_Pair2 : forall v e2 e2', value v -> e2 ==> e2' -> tpair v e2 ==> tpair v e2'
+ 
   | ST_Fst1 : forall e e', e ==> e' -> tfst e ==> tfst e'
   | ST_Fst2 : forall v1 v2, value v1 -> value v2 -> tfst (tpair v1 v2) ==> v1
+ 
   | ST_Snd1 : forall e e', e ==> e' -> tsnd e ==> tsnd e'
   | ST_Snd2 : forall v1 v2, value v1 -> value v2 -> tsnd (tpair v1 v2) ==> v2
-  | ST_Let1 : forall x e1 e1' e2, e1 ==> e1' -> tlet x e1 e2 ==> tlet x e1' e2 
-  | ST_Let2 : forall x v e2, value v -> tlet x v e2 ==> [x := v]e2
+  
+
+
+
+  | ST_Let1 : forall x v e2, value v -> tlet x v e2 ==> [x := v]e2
+  | ST_Let2 : forall x e1 e1' e2, e1 ==> e1' -> tlet x e1 e2 ==> tlet x e1' e2 
   | ST_Inl : forall e e' T, e ==> e' -> tinl T e ==> tinl T e'
   | ST_Inr : forall e e' T, e ==> e' -> tinr T e ==> tinr T e'
-  | ST_Case : forall e1 e1' x1 e2 x2 e3, 
-                e1 ==> e1' -> tcase e1 x1 e2 x2 e3 ==> tcase e1' x1 e2 x2 e3
-  | ST_CaseL : forall T v x1 e1 x2 e2, 
+  | ST_CaseL : forall T v x1 e1 x2 e2, value v ->
                  tcase (tinl T v) x1 e1 x2 e2 ==> [x1 := v] e1
-  | ST_CaseR : forall T v x1 e1 x2 e2,
+  | ST_CaseR : forall T v x1 e1 x2 e2, value v ->
                  tcase (tinr T v) x1 e1 x2 e2 ==> [x2 := v] e2
+  | ST_Case : forall e1 e1' x1 e2 x2 e3, 
+              e1 ==> e1' -> tcase e1 x1 e2 x2 e3 ==> tcase e1' x1 e2 x2 e3
   | ST_ConsH : forall e1 e1' e2, e1 ==> e1' -> tcons e1 e2 ==> tcons e1' e2
-  | ST_ConsT : forall e1 e2 e2', value e1 -> e2 ==> e2'
-
+  | ST_ConsT : forall e1 e2 e2', value e1 -> e2 ==> e2' -> tcons e1 e2 ==> tcons e1 e2'
+  | ST_LCase : forall t1 t1' t2 x1 x2 t3, t1 ==> t1' -> 
+                                          tlcase t1 t2 x1 x2 t3 ==> tlcase t1' t2 x1 x2 t3
+  | ST_LCaseNil : forall T t2 x1 x2 t3, 
+                    tlcase (tnil T) t2 x1 x2 t3 ==> t2
+  | ST_LCaseCons : forall hd tl t2 x1 x2 t3, 
+                     tlcase (tcons hd tl) t2 x1 x2 t3 ==> [x1 := hd]([x2 := tl]t3)
+  | ST_Fix : forall f f', f ==> f' -> tfix f ==> tfix f'
+  | SF_Fix2 : forall f T e, tfix(tabs f T e) ==> [f := (tfix (tabs f T e))]e
 where "t1 '==>' t2" := (step t1 t2).
+
 
 
 Tactic Notation "step_cases" tactic(first) ident(c) :=
   first;
-  [ Case_aux c "ST_AppAbs" | Case_aux c "ST_App1" | Case_aux c "ST_App2"
-    (* FILL IN HERE *)
+  [ Case_aux c "ST_AppAbs" | Case_aux c "ST_App1" | Case_aux c "ST_App2" |
+    Case_aux c "ST_Succ1" | Case_aux c "ST_Succ2" | Case_aux c "ST_Pred1" |
+    Case_aux c "ST_Pred2" | Case_aux c "ST_Mult1" | Case_aux c "ST_Mult2" |                                              
+    Case_aux c "ST_Mult1" | Case_aux c "ST_If2" | Case_aux c "ST_If1" |
+    Case_aux c "ST_Pair1" | Case_aux c "ST_Pair2" | Case_aux c "ST_Fst1" |
+    Case_aux c "ST_Fst2" | Case_aux c "ST_Snd1" | Case_aux c "ST_Snd2" |
+    Case_aux c "ST_Let1" | Case_aux c "ST_Let2" | Case_aux c "ST_Inl" | 
+    Case_aux c "ST_Inr" | Case_aux c "ST_CaseL" | Case_aux c "ST_CaseR" |
+    Case_aux c "ST_Case" | Case_aux c "ST_LCase" | Case_aux c "ST_LCaseNil" |
+    Case_aux c "ST_CaseCons" | Case_aux c "ST_Fix" | Case_aux c "ST_Fix2"
   ].
 
 Notation multistep := (multi step).
@@ -1127,7 +1122,41 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       Gamma |- t1 \in (TArrow T1 T2) -> 
       Gamma |- t2 \in T1 -> 
       Gamma |- (tapp t1 t2) \in T2
-  (* FILL IN HERE *)
+  | T_Nat : forall Gamma n, Gamma |- tnat n \in TNat
+  | T_Succ : forall Gamma n, Gamma |- n \in TNat -> Gamma |- tsucc n \in TNat
+  | T_Pred : forall Gamma n, Gamma |- n \in TNat -> Gamma |- tpred n \in TNat
+  | T_Mult : forall Gamma n m, Gamma |- n \in TNat -> Gamma |- m \in TNat ->
+                    Gamma |- tmult n m \in TNat
+
+
+  | T_Tif0 : forall e1 e2 e3 Gamma T, Gamma |- e1 \in TNat -> Gamma |- e2 \in T ->
+                        Gamma |- e3 \in T -> Gamma |- tif0 e1 e2 e3 \in T                 
+  | T_Pair : forall e1 e2 T1 T2 Gamma, Gamma |- e1 \in T1 -> Gamma |- e2 \in T2 ->
+                                       Gamma |- tpair e1 e2 \in TProd T1 T2
+  | T_Fst : forall e T1 T2 Gamma, Gamma |- e \in TProd T1 T2 -> 
+                                  Gamma |- tfst e \in T1
+  | T_Snd : forall e T1 T2 Gamma, Gamma |- e \in TProd T1 T2 -> 
+                                  Gamma |- tsnd e \in T2
+
+  | T_Unit : forall Gamma, Gamma |- tunit \in TUnit
+  | T_Let : forall x e1 e2 Gamma T1 T2, 
+             Gamma |- e1 \in T1 -> extend Gamma x T1 |- e2 \in T2 ->
+             Gamma |- tlet x e1 e2 \in T2
+  | T_Inl : forall e T1 T2 Gamma, Gamma |- e \in T1  -> 
+                                  Gamma |- tinl T2 e \in TSum T1 T2
+  | T_Inr : forall e T1 T2 Gamma, Gamma |- e \in T1 -> Gamma |- tinr T2 e \in TSum T2 T1
+  | T_Case : forall e1 x2 e2 x3 e3 Gamma T1 T2 T3, 
+               Gamma |- e1 \in TSum T1 T2 -> extend Gamma x2 T1 |- e2 \in T3 ->
+               extend Gamma x3 T2 |- e3 \in T3 -> Gamma |- tcase e1 x2 e2 x3 e3 \in T3
+
+  | T_Nil : forall Gamma T, Gamma |- tnil T \in TList T                              
+  | T_Cons : forall Gamma e1 e2 T, Gamma |- e1 \in T -> Gamma |- e2 \in TList T ->
+                                   Gamma |- tcons e1 e2 \in TList T
+  | T_LCase : forall Gamma e1 e2 x1 x2 e3 T1 T2, Gamma |- e1 \in TList T1 ->
+                     Gamma |- e2 \in T2 ->
+                     extend (extend Gamma x1 T1) x2 (TList T1) |- e3 \in T2 -> 
+                     Gamma |- tlcase e1 e2 x1 x2 e3 \in T2
+  | T_Fix : forall Gamma T f, Gamma |- f \in TArrow T T -> Gamma |- tfix f \in T
 
 where "Gamma '|-' t '\in' T" := (has_type Gamma t T).
 
@@ -1135,8 +1164,13 @@ Hint Constructors has_type.
 
 Tactic Notation "has_type_cases" tactic(first) ident(c) :=
   first;
-  [ Case_aux c "T_Var" | Case_aux c "T_Abs" | Case_aux c "T_App" 
-    (* FILL IN HERE *)
+  [ Case_aux c "T_Var" | Case_aux c "T_Abs" | Case_aux c "T_App" |
+    Case_aux c "T_Nat" | Case_aux c "T_Succ" | Case_aux c "T_Pred" |
+    Case_aux c "T_Mult" | Case_aux c "T_Tif0" | Case_aux c "T_Pair" |
+    Case_aux c "T_Fst" | Case_aux c "T_Snd" | Case_aux c "T_Unit" | 
+    Case_aux c " T_Let" | Case_aux c "T_Inl" | Case_aux c "T_Inr" |
+    Case_aux c "T_Case" | Case_aux c "T_Nil" | Case_aux c "T_Cons" |
+    Case_aux c "T_LCase" | Case_aux c "T_Fix"
 ].
 
 (* ###################################################################### *)
@@ -1195,10 +1229,11 @@ Hint Extern 2 (has_type _ (tapp _ _) _) =>
 (* You'll want to uncomment the following line once 
    you've defined the [T_Lcase] constructor for the typing
    relation: *)
-(* 
+
+
 Hint Extern 2 (has_type _ (tlcase _ _ _ _ _) _) => 
-  eapply T_Lcase; auto.
-*)
+  eapply T_LCase; auto.
+
 Hint Extern 2 (_ = _) => compute; reflexivity.
 
 (** *** Numbers *)
@@ -1220,7 +1255,7 @@ Definition test :=
 (** Remove the comment braces once you've implemented enough of the
     definitions that you think this should work. *)
 
-(* 
+
 Example typechecks :
   (@empty ty) |- test \in TNat.
 Proof.
@@ -1230,12 +1265,10 @@ Proof.
   auto 10. 
 Qed.
 
-Example numtest_reduces :
+Example numtest_reduces : 
   test ==>* tnat 5.
 Proof.
-  unfold test. normalize.
-Qed.
-*)
+  unfold test. repeat econstructor. Qed.
 
 End Numtest.
 
@@ -1253,15 +1286,17 @@ Definition test :=
           (tnat 6))
         (tnat 7))).
 
-(* 
+
 Example typechecks :
   (@empty ty) |- test \in TNat.
 Proof. unfold test. eauto 15. Qed.
 
 Example reduces :
-  test ==>* tnat 6.
-Proof. unfold test. normalize. Qed.
-*)
+  test ==>* tnat 6.   
+Proof. unfold test. econstructor. constructor. Print step. 
+       apply ST_Fst2. constructor. constructor. constructor. 
+       constructor. econstructor. apply ST_Snd2. constructor. 
+       constructor. constructor. Qed.
 
 End Prodtest.
 
@@ -1276,15 +1311,16 @@ Definition test :=
     (tpred (tnat 6))
     (tsucc (tvar x)).
 
-(* 
+
 Example typechecks :
   (@empty ty) |- test \in TNat.
 Proof. unfold test. eauto 15. Qed.
 
 Example reduces :
   test ==>* tnat 6.
-Proof. unfold test. normalize. Qed.
-*)
+Proof. unfold test. econstructor. apply ST_Let2. constructor. 
+       econstructor. repeat constructor. simpl. econstructor. 
+       constructor. constructor. Qed.
 
 End LetTest.
 
@@ -1301,15 +1337,15 @@ Definition test :=
     x (tvar x)
     y (tvar y).
 
-(* 
+
 Example typechecks :
   (@empty ty) |- test \in TNat.
-Proof. unfold test. eauto 15. Qed.
+Proof. unfold test. eauto 15. Qed. 
+
 
 Example reduces :
   test ==>* (tnat 5).
-Proof. unfold test. normalize. Qed.
-*)
+Proof. unfold test. repeat econstructor. Qed. 
 
 End Sumtest1.
 
@@ -1333,15 +1369,24 @@ Definition test :=
       (tapp (tvar processSum) (tinl TNat (tnat 5)))
       (tapp (tvar processSum) (tinr TNat (tnat 5)))).
 
-(* 
+ 
 Example typechecks :
   (@empty ty) |- test \in (TProd TNat TNat).
 Proof. unfold test. eauto 15. Qed.
 
-Example reduces :
-  test ==>* (tpair (tnat 5) (tnat 0)).
-Proof. unfold test. normalize. Qed.
-*)
+Print step. 
+
+Example reduces : 
+  test ==>* (tpair (tnat 5) (tnat 0)). 
+Proof. unfold test. econstructor. apply ST_Let1. constructor. 
+       simpl. econstructor. apply ST_Pair1. constructor. 
+       constructor. constructor. simpl. econstructor. apply ST_Pair1.
+       constructor. constructor. simpl. econstructor. apply ST_Pair2. 
+       constructor. constructor. constructor. constructor. simpl. 
+       econstructor. apply ST_Pair2. constructor. constructor. constructor. 
+       simpl. econstructor. apply ST_Pair2. constructor. constructor. 
+       simpl. econstructor. Qed. 
+
 
 End Sumtest2.
 
@@ -1361,15 +1406,16 @@ Definition test :=
        (tnat 0)
        x y (tmult (tvar x) (tvar x))).
 
-(* 
+
 Example typechecks :
   (@empty ty) |- test \in TNat.
 Proof. unfold test. eauto 20. Qed.
 
 Example reduces :
   test ==>* (tnat 25).
-Proof. unfold test. normalize. Qed.
-*)
+Proof. unfold test. econstructor. apply ST_Let1. repeat constructor. 
+       simpl. econstructor. apply ST_LCaseCons. simpl. econstructor. 
+       constructor. simpl. econstructor. Qed. 
 
 End ListTest.
 
@@ -1395,18 +1441,16 @@ Definition fact :=
 (** (Warning: you may be able to typecheck [fact] but still have some
     rules wrong!) *)
 
-(* 
+
 Example fact_typechecks :
   (@empty ty) |- fact \in (TArrow TNat TNat).
 Proof. unfold fact. auto 10. 
 Qed.
-*)
 
-(* 
+ 
 Example fact_example: 
   (tapp fact (tnat 4)) ==>* (tnat 24).
 Proof. unfold fact. normalize. Qed.
-*)
 
 End FixTest1.
 
@@ -1430,7 +1474,7 @@ Definition map :=
             a l (tcons (tapp (tvar g) (tvar a)) 
                          (tapp (tvar f) (tvar l))))))).
 
-(* 
+ 
 (* Make sure you've uncommented the last [Hint Extern] above... *)
 Example map_typechecks :
   empty |- map \in 
@@ -1444,7 +1488,6 @@ Example map_example :
          (tcons (tnat 1) (tcons (tnat 2) (tnil TNat)))
   ==>* (tcons (tnat 2) (tcons (tnat 3) (tnil TNat))).
 Proof. unfold map. normalize. Qed.
-*)
 
 End FixTest2.
 
@@ -1471,24 +1514,19 @@ Definition equal :=
                               (tpred (tvar m)))
                       (tpred (tvar n)))))))).
 
-(* 
+ 
 Example equal_typechecks :
   (@empty ty) |- equal \in (TArrow TNat (TArrow TNat TNat)).
 Proof. unfold equal. auto 10. 
 Qed.
-*)
-
-(* 
+ 
 Example equal_example1: 
   (tapp (tapp equal (tnat 4)) (tnat 4)) ==>* (tnat 1).
 Proof. unfold equal. normalize. Qed.
-*)
-
-(* 
+ 
 Example equal_example2: 
   (tapp (tapp equal (tnat 4)) (tnat 5)) ==>* (tnat 0).
 Proof. unfold equal. normalize. Qed.
-*)
 
 End FixTest3.
 
@@ -1523,19 +1561,15 @@ Definition eotest :=
   (tpair 
     (tapp (tvar even) (tnat 3))
     (tapp (tvar even) (tnat 4))))).
-
-(* 
+ 
 Example eotest_typechecks :
   (@empty ty) |- eotest \in (TProd TNat TNat).
 Proof. unfold eotest. eauto 30. 
 Qed.
-*)
 
-(* 
 Example eotest_example1: 
   eotest ==>* (tpair (tnat 0) (tnat 1)).
 Proof. unfold eotest. normalize. Qed.
-*)
 
 End FixTest4.
 
@@ -1550,7 +1584,7 @@ End Examples.
 
 (* ###################################################################### *)
 (** *** Progress *)
-
+ 
 Theorem progress : forall t T, 
      empty |- t \in T ->
      value t \/ exists t', t ==> t'. 
@@ -1572,14 +1606,14 @@ Proof with eauto.
     (* If the [T_Abs] rule was the last used, then [t = tabs x T11 t12],
        which is a value. *)
     left...
-  Case "T_App".
+  Case "T_App". 
     (* If the last rule applied was T_App, then [t = t1 t2], and we know 
        from the form of the rule that
          [empty |- t1 : T1 -> T2]
          [empty |- t2 : T1]
        By the induction hypothesis, each of t1 and t2 either is a value 
        or can take a step. *)
-    right.
+    right. 
     destruct IHHt1; subst...
     SCase "t1 is a value".
       destruct IHHt2; subst...
@@ -1597,11 +1631,110 @@ Proof with eauto.
     SCase "t1 steps".
       (* Finally, If [t1 ==> t1'], then [t1 t2 ==> t1' t2] by [ST_App1]. *)
       inversion H as [t1' Hstp]. exists (tapp t1' t2)...
-  (* FILL IN HERE *)
+  Case "T_Nat". { left. constructor. }
+  Case "T_Succ". { 
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt in H. inversion H. 
+    {right. inversion H0; subst; try inversion Ht. exists (tnat (S n0)). constructor. }
+    {right. inversion H0. exists (tsucc x). constructor. assumption. }
+  }
+  Case "T_Pred". { 
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt in H. inversion H. 
+    {right. inversion H0; subst; try inversion Ht. exists (tnat (pred n0)). constructor. }
+    {right. inversion H0. exists (tpred x). constructor. assumption. }
+  }
+  Case "T_Mult". { 
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt1 in H. assert(@empty ty = @empty ty). 
+    reflexivity. apply IHHt2 in H0.  inversion H. 
+    {inversion H1; subst;  try inversion Ht1. inversion H0; subst. 
+     {inversion H3; subst; try inversion Ht2. right; econstructor; constructor. }
+     {right. inversion H3. exists (tmult (tnat n0) x). constructor. assumption. }
+    }
+    {right. inversion H1. exists (tmult x m). constructor. assumption. } 
+  }
+  Case "T_Tif0". {
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt1 in H.  
+    inversion H. 
+    {inversion H0; subst; inversion Ht1. right. destruct n.
+      {exists e2. constructor. }
+      {exists e3. constructor. }
+    }
+    {right. inversion H0. exists (tif0 x e2 e3). constructor. assumption. }
+  }  
+  Case "T_Pair". {
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt1 in H. 
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt2 in H0.    
+    inversion H. 
+    {inversion H0. 
+     {left. constructor. assumption. assumption. }
+     {right. inversion H2. exists (tpair e1 x). constructor. assumption. assumption. }
+    }
+    {right. inversion H1. exists(tpair x e2). constructor. assumption. }
+  }
+  Case "T_Fst". {
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt in H. inversion H. 
+    {right. inversion H0; subst; inversion Ht; subst. exists v1. constructor. 
+     assumption. assumption. }
+    {right. inversion H0. exists (tfst x). constructor. assumption. }   
+  }
+  Case "T_Snd". {
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt in H. inversion H. 
+    {right. inversion H0; subst; inversion Ht; subst. exists v2. constructor. 
+     assumption. assumption. }
+    {right. inversion H0. exists (tsnd x). constructor. assumption. }   
+  }
+  Case "T_Unit". {left. constructor. }
+  Case " T_Let". assert(@empty ty = @empty ty). reflexivity. apply IHHt1 in H. inversion H. 
+    {right. exists([x := e1] e2). constructor. assumption. }
+    {right. inversion H0. exists (tlet x x0 e2). constructor. assumption. }
+  Case "T_Inl". {
+      assert(@empty ty = @empty ty). reflexivity. apply IHHt in H. inversion H. 
+      {left. constructor. assumption. }
+      {right. inversion H0. exists (tinl T2 x). constructor. assumption. }
+    }
+  Case "T_Inr". {
+      assert(@empty ty = @empty ty). reflexivity. apply IHHt in H. inversion H. 
+      {left. constructor. assumption. }
+      {right. inversion H0. exists (tinr T2 x). constructor. assumption. }
+    }
+  Case "T_Case". {
+      assert(@empty ty = @empty ty). reflexivity. apply IHHt1 in H. 
+      inversion H. 
+      {inversion H0; subst; inversion Ht1; subst. 
+       {right. exists ([x2 := v]e2). constructor. assumption. }
+       {right. exists ([x3 := v]e3). constructor. assumption. }
+      }
+      {right. inversion H0. exists (tcase x x2 e2 x3 e3). constructor. assumption. }
+    }
+  Case "T_Nil". left. constructor. 
+  Case "T_Cons". {
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt1 in H. 
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt2 in H0. 
+    inversion H. inversion H0. 
+    {left. constructor. assumption. assumption. }
+    {right. inversion H2. exists (tcons e1 x). Print step. constructor. assumption. 
+     assumption. }
+    {right. inversion H1. exists (tcons x e2). constructor. assumption. }
+  }
+  Case "T_LCase". {
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt1 in H. inversion H. 
+    {inversion H0; subst; inversion Ht1; subst. 
+     {right. exists ([x1 := v1]([x2 := v2]e3)). constructor. }
+     {right. exists (e2). constructor. }
+    }
+    {inversion H0. right. exists (tlcase x e2 x1 x2 e3). constructor. assumption. }
+  }
+  Case "T_Fix". {
+    assert(@empty ty = @empty ty). reflexivity. apply IHHt in H. inversion H. 
+    {inversion H0; subst; inversion Ht; subst. right. 
+     exists ([x := (tfix (tabs x T t12))]t12). constructor. }
+    {right. inversion H0. exists (tfix x). constructor. assumption. }
+     
+  }
 Qed.
-
+ 
 (* ###################################################################### *)
 (** *** Context Invariance *)
+Print has_type. 
 
 Inductive appears_free_in : id -> tm -> Prop :=
   | afi_var : forall x,
@@ -1614,8 +1747,38 @@ Inductive appears_free_in : id -> tm -> Prop :=
         y <> x  ->
         appears_free_in x t12 ->
         appears_free_in x (tabs y T11 t12)
-  (* FILL IN HERE *)
-  .
+  | afi_succ : forall x e, appears_free_in x e -> appears_free_in x (tsucc e)
+  | afi_pred : forall x e, appears_free_in x e -> appears_free_in x (tpred e)
+  | afi_mult1 : forall x e1 e2, appears_free_in x e1 -> appears_free_in x (tmult e1 e2)
+  | afi_mult2 : forall x e1 e2, appears_free_in x e2 -> appears_free_in x (tmult e1 e2)
+  | afi_tif1 : forall x e1 e2 e3, appears_free_in x e1 -> appears_free_in x (tif0 e1 e2 e3)
+  | afi_tif2 : forall x e1 e2 e3, appears_free_in x e2 -> appears_free_in x (tif0 e1 e2 e3)
+  | afi_tif3 : forall x e1 e2 e3, appears_free_in x e3 -> appears_free_in x (tif0 e1 e2 e3)
+  | afi_pair1 : forall x e1 e2, appears_free_in x e1 -> appears_free_in x (tpair e1 e2)
+  | afi_pair2 : forall x e1 e2, appears_free_in x e2 -> appears_free_in x (tpair e1 e2)
+  | afi_fst : forall x e, appears_free_in x e -> appears_free_in x (tfst e)
+  | afi_snd : forall x e, appears_free_in x e -> appears_free_in x (tsnd e)
+  | afi_let1 : forall x y e1 e2, appears_free_in x e1 -> appears_free_in x (tlet y e1 e2)
+  | afi_let2 : forall x y e1 e2, y <> x -> appears_free_in x e2 ->
+                                 appears_free_in x (tlet y e1 e2)
+  | afi_inl : forall x e T, appears_free_in x e -> appears_free_in x (tinl T e)
+  | afi_inr : forall x e T, appears_free_in x e -> appears_free_in x (tinr T e)
+  | afi_case1 : forall x e1 x2 e2 x3 e3, 
+                  appears_free_in x e1 -> appears_free_in x (tcase e1 x2 e2 x3 e3)
+  | afi_case2 : forall x e1 x2 e2 x3 e3, x2 <> x -> appears_free_in x e2 ->
+                                         appears_free_in x (tcase e1 x2 e2 x3 e3)
+  | afi_case3 : forall x e1 x2 e2 x3 e3, x3 <> x -> appears_free_in x e3 ->
+                                         appears_free_in x (tcase e1 x2 e2 x3 e3)
+  | afi_cons1 : forall x e1 e2, appears_free_in x e1 -> appears_free_in x (tcons e1 e2)
+  | afi_cons2 : forall x e1 e2, appears_free_in x e2 -> appears_free_in x (tcons e1 e2)
+  | afi_lcase1 : forall x e1 e2 x1 x2 e3, appears_free_in x e1 -> 
+                                          appears_free_in x (tlcase e1 e2 x1 x2 e3)
+  | afi_lcase2 : forall x e1 e2 x1 x2 e3, appears_free_in x e2 ->
+                                          appears_free_in x (tlcase e1 e2 x1 x2 e3)
+  | afi_lcase3 : forall x e1 e2 x1 x2 e3, x1 <> x -> x2 <> x -> appears_free_in x e3 ->
+                                          appears_free_in x (tlcase e1 e2 x1 x2 e3)
+  | afi_fix : forall x e, appears_free_in x e -> appears_free_in x (tfix e)
+.
 
 Hint Constructors appears_free_in.
 
@@ -1633,7 +1796,83 @@ Proof with eauto.
     apply T_Abs... apply IHhas_type. intros y Hafi.
     unfold extend. 
     destruct (eq_id_dec x y)...
-  (* FILL IN HERE *)
+  Case "T_Mult". {
+    constructor. 
+    {apply IHhas_type1. intros. assert(appears_free_in x (tmult n m)).
+     constructor. assumption. apply Heqv in H2. assumption. }
+    {apply IHhas_type2. intros. assert(appears_free_in x (tmult n m)). 
+     apply afi_mult2. assumption. apply Heqv in H2. assumption. }
+  }
+  Case "T_Tif0". {
+    constructor. 
+    {apply IHhas_type1. intros. assert(appears_free_in x (tif0 e1 e2 e3)). 
+     constructor. assumption. apply Heqv in H3. assumption. }
+    {apply IHhas_type2. intros. assert(appears_free_in x (tif0 e1 e2 e3)). 
+     apply afi_tif2. assumption. apply Heqv in H3. assumption. }
+    {apply IHhas_type3. intros. assert(appears_free_in x (tif0 e1 e2 e3)). 
+     apply afi_tif3. assumption. apply Heqv in H3. assumption. }
+  }
+  Case "T_Pair". {
+    constructor. 
+    {apply IHhas_type1. intros. assert(appears_free_in x (tpair e1 e2)). 
+     constructor. assumption. apply Heqv in H2. assumption. }
+    {apply IHhas_type2. intros. assert(appears_free_in x (tpair e1 e2)). 
+     apply afi_pair2. assumption. apply Heqv in H2. assumption. }
+  }
+  Case " T_Let". {
+    apply T_Let with (T1 := T1). 
+    {apply IHhas_type1. intros. assert(appears_free_in x0 (tlet x e1 e2)).
+     apply afi_let1. assumption. apply Heqv in H2. assumption. }
+    {apply IHhas_type2. intros. destruct (eq_id_dec x x0). 
+     {subst. rewrite extend_eq. rewrite extend_eq. reflexivity. }
+     {assert(appears_free_in x0 (tlet x e1 e2)). apply afi_let2. 
+      assumption. assumption. apply Heqv in H2. rewrite extend_neq. 
+      rewrite extend_neq. assumption. assumption. assumption. }
+    }
+  }
+  Case "T_Case". {
+    apply T_Case with (T1 := T1) (T2 := T2). 
+    {apply IHhas_type1. intros. assert(appears_free_in x (tcase e1 x2 e2 x3 e3)). 
+     constructor. assumption. apply Heqv in H3. assumption. }
+    {apply IHhas_type2. intros. destruct(eq_id_dec x2 x). 
+     {subst. repeat (rewrite extend_eq). reflexivity. }
+     {assert(appears_free_in x (tcase e1 x2 e2 x3 e3)). apply afi_case2. 
+      assumption. assumption. apply Heqv in H3. repeat(rewrite extend_neq). 
+      assumption. assumption. assumption. }
+    }
+    {apply IHhas_type3. intros. destruct(eq_id_dec x3 x). 
+     {subst. repeat (rewrite extend_eq). reflexivity. }
+     {assert(appears_free_in x (tcase e1 x2 e2 x3 e3)). apply afi_case3. 
+      assumption. assumption. apply Heqv in H3. repeat(rewrite extend_neq). 
+      assumption. assumption. assumption. }
+    }
+  }
+  Case "T_Cons". {
+    constructor. 
+    {apply IHhas_type1. intros. assert(appears_free_in x (tcons e1 e2)). constructor. 
+     assumption. apply Heqv in H2. assumption. }
+    {apply IHhas_type2. intros. assert(appears_free_in x (tcons e1 e2)). 
+     apply afi_cons2. assumption. apply Heqv in H2. assumption. }
+  }
+  Case "T_LCase". {
+    econstructor. 
+    {apply IHhas_type1. intros. assert(appears_free_in x (tlcase e1 e2 x1 x2 e3)). 
+     constructor. assumption. apply Heqv in H3. assumption. }
+    {apply IHhas_type2. intros. assert(appears_free_in x (tlcase e1 e2 x1 x2 e3)). 
+     apply afi_lcase2. assumption. apply Heqv in H3. assumption. }
+    {apply IHhas_type3. intros. destruct(eq_id_dec x1 x). 
+     {destruct (eq_id_dec x2 x). 
+      {subst x1. subst x2. repeat(rewrite extend_eq). reflexivity. }
+      {subst x1. rewrite extend_neq. rewrite extend_eq. rewrite extend_neq. 
+       rewrite extend_eq. reflexivity. assumption. assumption. }
+     }{destruct (eq_id_dec x2 x). 
+       {subst. repeat(rewrite extend_eq). reflexivity. }
+       {repeat (rewrite extend_neq). assert(appears_free_in x (tlcase e1 e2 x1 x2 e3)). 
+        apply afi_lcase3. assumption. assumption. assumption. apply Heqv in H3. 
+        assumption. assumption. assumption. assumption. assumption. }
+      }
+    }
+  }
 Qed.
 
 Lemma free_in_context : forall x t T Gamma,
@@ -1647,11 +1886,47 @@ Proof with eauto.
     destruct IHHtyp as [T' Hctx]... exists T'.
     unfold extend in Hctx. 
     rewrite neq_id in Hctx...
-  (* FILL IN HERE *)
-Qed.
+  Case " T_Let". apply IHHtyp2 in H4. inversion H4. Print extend_neq. 
+    apply extend_neq with (A := ty) (ctxt := Gamma) (T := T1) in H2. 
+    rewrite H2 in H. exists x1. assumption.
+  Case "T_Case". apply IHHtyp2 in H6. 
+  {inversion H6. rewrite extend_neq in H. 
+   exists x0. assumption. assumption. }
+  {apply IHHtyp3 in H6. inversion H6. rewrite extend_neq in H. 
+   exists x0. assumption. assumption. }
+  Case "T_LCase". 
+  { apply IHHtyp3 in H7. inversion H7. rewrite extend_neq in H. 
+    rewrite extend_neq in H. exists x0. assumption. assumption. assumption. 
+  }
+Qed. 
 
 (* ###################################################################### *)
 (** *** Substitution *)
+
+Theorem NeqRefl : forall (T : Type) (x y : T), ~(x = y) -> ~(y = x).
+Proof.
+  intros. 
+  unfold not. intros. symmetry in H0. contradiction. Qed. 
+
+Theorem CtxtEq : forall Gamma x U i (T1 : ty) x0, 
+                   x <>i -> extend(extend Gamma x U) i T1 x0 = extend(extend Gamma i T1) x U x0.
+Proof.
+  intros. 
+  destruct (eq_id_dec x0 i). 
+  {destruct (eq_id_dec x0 x). 
+   {subst. symmetry in e0. contradiction. }
+   {subst. rewrite extend_eq. rewrite extend_neq. rewrite extend_eq. reflexivity. 
+    assumption. }
+  }
+  {destruct (eq_id_dec x0 x). 
+   {subst. rewrite extend_neq. rewrite extend_eq. rewrite extend_eq. reflexivity. 
+    unfold not in *. intros. symmetry in H0. apply n in H0. assumption. }
+   {rewrite extend_neq. rewrite extend_neq. rewrite extend_neq. rewrite extend_neq. 
+    reflexivity. apply NeqRefl. assumption. apply NeqRefl. assumption. 
+    apply NeqRefl. assumption. apply NeqRefl. assumption. }
+  }
+Qed. 
+
 
 Lemma substitution_preserves_typing : forall Gamma x U v t S,
      (extend Gamma x U) |- t \in S  ->
@@ -1687,7 +1962,7 @@ Proof with eauto.
       unfold extend in H1. rewrite eq_id in H1. 
       inversion H1; subst. clear H1.
       eapply context_invariance...
-      intros x Hcontra.
+      intros x Hcontra. 
       destruct (free_in_context _ _ S empty Hcontra) as [T' HT']...
       inversion HT'.
     SCase "x<>y".
@@ -1709,7 +1984,7 @@ Proof with eauto.
        we will do so using [T_Abs], so it remains to be shown that:
          [Gamma,y:T11 |- if beq_id x y then t0 else [x:=v]t0 : T12]
        We consider two cases: [x = y] and [x <> y].
-    *)
+    *) 
     apply T_Abs...
     destruct (eq_id_dec x y).
     SCase "x=y".
@@ -1729,9 +2004,75 @@ Proof with eauto.
       apply IHt. eapply context_invariance...
       intros z Hafi. unfold extend.
       destruct (eq_id_dec y z)...
-      subst. rewrite neq_id...
-  (* FILL IN HERE *)
+      subst. rewrite neq_id... 
+  Case "tlet". 
+    apply T_Let with (T1 := T1). 
+    {apply IHt1 in H4. assumption. } 
+    {destruct (eq_id_dec x i).  
+     {subst. apply context_invariance with (Gamma' := extend Gamma i T1) in H5. 
+      assumption. intros. rewrite extend_shadow. reflexivity. }
+     {apply IHt2. apply context_invariance with (Gamma := extend (extend Gamma x U) i T1).
+      assumption. intros. destruct(eq_id_dec x0 i). 
+      apply CtxtEq. assumption. apply CtxtEq. assumption. 
+     }
+    }
+  Case "tcase". apply T_Case with (T1 := T1) (T2 := T2). 
+    {apply IHt1 in H6. assumption. }
+    {destruct (eq_id_dec x i). 
+     {apply context_invariance with (Gamma' := extend Gamma i T1) in H7. 
+      assumption. intros. subst. rewrite extend_shadow. reflexivity. }
+     {apply context_invariance with (Gamma := extend Gamma i T1).
+      apply IHt2. apply context_invariance with (Gamma := extend (extend Gamma x U) i T1).
+      assumption. intros. apply CtxtEq. assumption. intros. reflexivity. }
+    }
+    {destruct (eq_id_dec x i0).  
+     {apply context_invariance with (Gamma' := extend Gamma i0 T2) in H8. 
+      assumption. intros. subst. rewrite extend_shadow. reflexivity. }
+     {apply context_invariance with (Gamma := extend Gamma i0 T2).
+      apply IHt3. apply context_invariance with (Gamma := extend (extend Gamma x U) i0 T2).
+      assumption. intros. apply CtxtEq. assumption. intros. reflexivity. }
+    }
+  Case "tlcase". econstructor. 
+    {apply IHt1 in H6. eassumption. }
+    {apply IHt2 in H7. assumption. }
+    {destruct (eq_id_dec x i).  
+     {apply context_invariance with (Gamma' := extend (extend Gamma i T1) i0 (TList T1)) in H8. 
+      assumption. intros. subst. Check CtxtEq. destruct (eq_id_dec i0 x0); subst. 
+      {repeat(rewrite extend_eq). reflexivity. }
+      {rewrite extend_neq. 
+       replace (extend (extend Gamma i T1) i0 (TList T1) x0) with (extend Gamma i T1 x0). 
+       rewrite extend_shadow. reflexivity. symmetry. rewrite extend_neq. reflexivity. 
+       assumption. assumption. }
+     }
+     {destruct (eq_id_dec x i0); subst. 
+      {apply context_invariance with (Gamma' := extend(extend Gamma i T1) i0 (TList T1)) in H8. 
+       assumption. intros. destruct (eq_id_dec i0 x); subst. 
+       {repeat(rewrite extend_eq). reflexivity. }
+       {rewrite extend_neq. symmetry. rewrite extend_neq. symmetry. destruct (eq_id_dec i x). 
+        {subst. repeat (rewrite extend_eq). reflexivity. }
+        {repeat(rewrite extend_neq). reflexivity. assumption. assumption. assumption. }
+       assumption. assumption. }
+      }
+      {apply IHt3. 
+       apply context_invariance with (Gamma' := extend(extend(extend Gamma i T1) i0 (TList T1)) x U) in H8. 
+       assumption. intros. destruct (eq_id_dec i0 x0). subst x0. 
+       {rewrite extend_eq. rewrite extend_neq. rewrite extend_eq. reflexivity. assumption. }
+       {destruct (eq_id_dec i x0). subst x0. 
+        {rewrite extend_neq. rewrite extend_eq. rewrite extend_neq. rewrite extend_neq. 
+         rewrite extend_eq. reflexivity. assumption. assumption. assumption. }
+        {destruct (eq_id_dec x x0). 
+         {subst x0. rewrite extend_eq. rewrite extend_neq. 
+         rewrite extend_neq. rewrite extend_eq. reflexivity. assumption. assumption. }
+         {repeat (rewrite extend_neq). reflexivity. assumption. assumption. 
+          assumption. assumption. assumption. assumption. }
+        }
+       }
+      }
+     }
+    }
 Qed.
+
+
 
 (* ###################################################################### *)
 (** *** Preservation *)
@@ -1770,9 +2111,24 @@ Proof with eauto.
          by assumption, so we are done. *)
       apply substitution_preserves_typing with T1...
       inversion HT1...
-  (* FILL IN HERE *)
-Qed.
-(** [] *)
+  Case "T_Tif0". destruct (beq_nat n 0); assumption. 
+  Case "T_Fst". inversion HE; subst. 
+   {inversion HT; subst. assumption. }{inversion HT; subst. assumption. }
+  Case "T_Snd". inversion HE; subst; inversion HT; subst; assumption. 
+  Case " T_Let". 
+    apply substitution_preserves_typing with (v := e1)in HT2. assumption. 
+    assumption. 
+  Case "T_Case".
+  {apply substitution_preserves_typing with (v := v)in HT2. assumption. 
+   inversion HT1; subst. assumption. }
+  {apply substitution_preserves_typing with (v := v)in HT3. assumption. 
+   inversion HT1. assumption. } 
+  Case "T_LCase". Check substitution_preserves_typing. 
+  {eapply substitution_preserves_typing. eapply substitution_preserves_typing. 
+   eassumption. inversion HT1. assumption. inversion HT1. assumption. }
+  Case "T_Fix". {eapply substitution_preserves_typing. inversion HT. eassumption. 
+                 constructor. assumption. }
+Qed. 
 
 End STLCExtended.
 
