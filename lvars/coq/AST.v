@@ -1,12 +1,11 @@
-(*id*)
+(*id*) 
 Definition id := nat.
 
-Inductive tid : Type :=
-  |tidNil : tid
-  |tidCons : tid -> nat -> nat -> tid.
+Definition tid := list (nat * nat). 
 
 (*Syntax*)
 Inductive term : Type := 
+  |threadId : tid -> term
   |ivar : id -> term
   |unit : term
   |pair : term -> term -> term
@@ -23,7 +22,7 @@ Inductive term : Type :=
   |handle : term -> term -> term
   |done : term -> term
   |spec : term -> term -> term
-  |specReturn : term -> term -> tid -> term
+  |specReturn : term -> term -> term
 .
 
 Inductive action : Type :=

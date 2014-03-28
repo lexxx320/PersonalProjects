@@ -1,6 +1,7 @@
 
 Require Export SfLib. 
 
+
 Definition id := SfLib.id.
 
 (*Syntax*)
@@ -50,10 +51,11 @@ Inductive step : heap -> pool -> heap -> pool -> Prop :=
                         step h (thread new) h' (thread (ret (var i)))
 .
 
-Inductive finished : pool -> Prop :=
-  |DoneT1 : forall T1 T2, finished T1 -> finished (parComp T1 T2)
-  |DoneT2 : forall T1 T2, finished T2 -> finished (parComp T1 T2)
-  |DoneT : forall M : term, finished (thread (done M)). 
+
+
+
+
+
 
 
 

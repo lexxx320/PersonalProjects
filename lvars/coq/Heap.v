@@ -15,8 +15,8 @@ Fixpoint heap_lookup (i : id) (h : heap) :=
 
 Fixpoint extend v (heap : heap) := 
   match heap with
-    |(n, v') :: h' => (S n, v) :: (n, v') :: h'
-    |nil => (1, v) :: nil
+    |(n, v') :: h' => (S n, (S n, v) :: (n, v') :: h')
+    |nil => (1, (1, v) :: nil)
   end.
 
 Fixpoint replace i v (h : heap) :=
