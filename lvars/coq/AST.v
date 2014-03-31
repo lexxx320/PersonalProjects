@@ -3,7 +3,7 @@ Definition id := nat.
 
 Definition tid := list (nat * nat). 
 
-(*Syntax*)
+(*Syntax for speculative semantics*)
 Inductive term : Type := 
   |threadId : tid -> term
   |ivar : id -> term
@@ -25,6 +25,24 @@ Inductive term : Type :=
   |specReturn : term -> term -> term
 .
 
+(*Syntax for non-speculative Par Monad semantics*)
+Inductive pterm : Type :=
+|pivar : id -> pterm
+|punit : pterm
+|ppair : pterm -> pterm -> pterm
+|pvar : id -> pterm
+|plambda : id -> pterm -> pterm
+|papp : pterm -> pterm -> pterm
+|pret : pterm -> pterm
+|pbind : pterm -> pterm -> pterm
+|pfork : pterm -> pterm
+|pnew : pterm
+|pput : id -> pterm -> pterm
+|pget : id -> pterm
+|praise : pterm -> pterm
+|phandle : pterm -> pterm -> pterm
+|pdone : pterm -> pterm.
+
 Inductive action : Type :=
   |rAct : id -> tid -> term -> action
   |wAct : id -> tid -> term -> action
@@ -36,9 +54,12 @@ Inductive action : Type :=
 
 Definition specStack := list action. 
 
+Inductive pivar_state : Type :=
+|pempty : pivar_state
+|pfull : pterm -> pivar_state.
 
 Inductive ivar_state : Type :=
   |empty : specStack -> ivar_state
-  |none : ivar_state
   |full : specStack -> list tid -> specStack -> tid -> term -> ivar_state. 
 (*first spec is who created, second is who wrote*)
+

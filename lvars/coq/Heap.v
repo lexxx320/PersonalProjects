@@ -5,27 +5,29 @@ Require Export AST.
 
 
 Open Scope type_scope. 
-Definition heap : Type :=  list (id * ivar_state). 
+Definition heap (T : Type) :=  list (id * T). 
 
-Fixpoint heap_lookup (i : id) (h : heap) := 
+Fixpoint heap_lookup {T : Type} (i : id) (h : heap T) := 
   match h with
-    |(n, v)::h' => if beq_nat i n then v else heap_lookup i h'
-    |nil => none
+    |(n, v)::h' => if beq_nat i n then Some v else heap_lookup i h'
+    |nil => None
   end.
 
-Fixpoint extend v (heap : heap) := 
+Fixpoint extend {T : Type} v (heap : heap T) := 
   match heap with
     |(n, v') :: h' => (S n, (S n, v) :: (n, v') :: h')
     |nil => (1, (1, v) :: nil)
   end.
 
-Fixpoint replace i v (h : heap) :=
+Fixpoint replace {T:Type} i v (h : heap T) :=
   match h with
-      |(i', v') :: h' => if beq_nat i i' then (i, v) :: h' else (i', v') :: replace i v h'
+      |(i', v') :: h' => if beq_nat i i' 
+                         then (i, v) :: h' 
+                         else (i', v') :: replace i v h'
       |nil => nil
   end.
 
-Fixpoint remove (h : heap) x :=
+Fixpoint remove {T:Type} (h : heap T) x :=
   match h with
       |(x', v')::h' => if beq_nat x x' then h' else (x', v')::remove h' x
       |nil => nil

@@ -1,60 +1,49 @@
+Require Import AST. 
+Require Import Heap.
 
-Require Export SfLib. 
+Definition pHeap := heap pivar_state. 
 
+Inductive ppool : Type :=
+  |pthread : pterm -> ppool
+  |pdot : ppool
+  |ppar : ppool -> ppool -> ppool.
 
-Definition id := SfLib.id.
-
-(*Syntax*)
-Inductive term : Type := 
-  |ivar : id -> term
-  |unit : term
-  |var : id -> term
-  |lambda : id -> term -> term
-  |app : term -> term -> term
-  |ret : term -> term
-  |bind : term -> term -> term
-  |fork : term -> term
-  |new : term
-  |put : id -> term -> term
-  |get : id -> term
-  |done : term -> term.
-
-
-Inductive ivar_state : Type :=
-  |empty : ivar_state
-  |full : term -> ivar_state.
-
-
-Definition heap := partial_map ivar_state.
-
-Inductive pool : Type :=
-  |thread : term -> pool
-  |parComp : pool -> pool -> pool.
-
-Inductive step : heap -> pool -> heap -> pool -> Prop :=
-  |ParStep1 : forall t1 t1' t2 h h', step h t1 h' t1' -> 
-                                     step h (parComp t1 t2) h' (parComp t1' t2)
-  |ParStep2 : forall t1 t2 t2' h h', step h t2 h' t2' -> 
-                                     step h (parComp t1 t2) h' (parComp t1 t2')
-  |BindStep : forall t1 t1' t2 h h', step h (thread t1) h' (thread t1') ->
-                                     step h (thread (bind t1 t2)) h' 
-                                          (thread (bind t1' t2))
-  |Bind : forall t1 t2 h, step h (thread(bind (ret t1) t2)) h (thread (app t2 t1))
-  |Fork : forall t1 h, step h (thread (fork t1)) h 
-                            (parComp (thread (ret unit)) (thread t1))
-  |Get : forall  h i M,  h i = Some(full M) -> 
-                         step h (thread (get i)) h (thread (ret M))
-  |Put : forall h h' i M, h i = Some empty ->
-                       h' = extend h i (full M) ->
-                       step h (thread (put i M)) h' (thread (ret unit))
-  |New : forall h h' i, h i = None -> h' = extend h i empty ->
-                        step h (thread new) h' (thread (ret (var i)))
+Inductive pctxt : (pterm -> pterm) -> Prop :=
+|pBindCtxt : forall c N, pctxt c -> pctxt (fun M => pbind M N)
+|pHandleCtxt : forall c N, pctxt c -> pctxt (fun M => phandle M N)
 .
 
-
-
-
-
+Print pterm. 
+Inductive pstep : pHeap -> ppool -> pHeap -> ppool -> Prop :=
+|PBind : forall E t M N h T,
+              pctxt E -> t = E (pbind (pret M) N) ->
+              pstep h (ppar (pthread t) T) h (ppar (pthread (E (papp N M))) T)
+|PBindRaise : forall E t M N h T,
+                   pctxt E -> t = E (pbind (praise M) N) ->
+                   pstep h (ppar (pthread t) T) h (ppar (pthread (E(praise M))) T)
+|PHandle : forall E t M N h T,
+             pctxt E -> t = E(phandle (praise M) N) ->
+             pstep h (ppar (pthread t) T) h (ppar (pthread (E (papp N M))) T)
+|PHandleRet : forall E t M N h T,
+                pctxt E -> t = E(phandle (pret M) N) ->
+                pstep h (ppar (pthread t) T) h (ppar (pthread (E (pret M))) T)
+|PFork : forall E t M T h,
+              pctxt E -> t = E (pfork M) ->
+              pstep h (ppar (pthread t) T) h (ppar (ppar (pthread (E (pret punit)))
+                                                         (pthread M)) T)
+|PGet : forall E M t h T x,
+             pctxt E -> t = E(pget x) -> heap_lookup x h = Some(pfull M) ->
+             pstep h (ppar (pthread t) T) h (ppar (pthread (E (pret M))) T)
+|PPut : forall E t M h h' T x,
+             pctxt E -> t = E(pput x M) -> heap_lookup x h = Some pempty ->
+             h' = replace x (pfull M) h ->
+             pstep h (ppar (pthread t ) T) h' (ppar (pthread (E (pret punit))) T)
+|PNew : forall E t h h' T x,
+             pctxt E -> t = E pnew -> (x, h') = extend pempty h ->
+             pstep h (ppar (pthread t) T) h' (ppar (pthread (E(pret (pvar x)))) T)
+|PTerminate : forall h T M,
+                pstep h (ppar (pthread (pret M)) T) h (ppar pdot T)
+.
 
 
 
