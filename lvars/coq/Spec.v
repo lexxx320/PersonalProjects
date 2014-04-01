@@ -65,21 +65,25 @@ Inductive rollback : tid -> sHeap -> pool -> sHeap -> pool -> Prop :=
             rollback tid h (par (thread tid'' s1' s2 M') T) h' T' ->
             rollback tid h (par (par (thread tid' s1 s2 M) 
                                              (thread tid''' [sAct tid2 N'; specAct] s2' N)) T) h' T'
-(*
-|RBComm : forall tid h h' T1 T2 T',
-            rollback tid h (par T2 T1) h' T' ->
-            rollback tid h (par T1 T2) h' T'
-.*)
 |RBCongr : forall tid h h' T T' T'' T''', 
              congr T T' -> congr T'' T''' -> rollback tid h T' h' T'' ->
              rollback tid h T h' T'''
 .
+
+Fixpoint largeStep (t:term) : term :=
+  match t with
+    |pair e1 e2 => pair (largeStep e1) (largeStep e2)
+    |t => t
+  end. 
 
 Hint Constructors rollback. 
 Inductive step : sHeap -> pool -> sHeap -> pool -> Prop :=
 |Bind : forall t1 t2 h s1 s2 tid E T M,
            ctxt E -> M = E (bind (ret t1) t2) ->
            step h (par (thread tid s1 s2 M) T) h (par (thread (bump tid) s1 s2 (E (app t2 t1))) T)
+|Eval : forall h s1 s2 tid E T M M' v,
+          ctxt E -> M = E M' -> v = largeStep M' -> v <> M' ->
+          step h (par (thread tid s1 s2 M) T) h (par (thread (bump tid) s1 s2 (E v)) T)
 |BindRaise : forall E M M' N tid s1 s2 T h,
                ctxt E -> M = E (bind (raise M') N) ->
                step h (par (thread tid s1 s2 M) T) h (par (thread (bump tid) s1 s2 (E (raise M'))) T)

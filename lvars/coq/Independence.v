@@ -53,12 +53,18 @@ Theorem Reorder1Step3 : forall H T1 T2 H' T1' T2' sa ca,
                           step H (par T1 T2') H' (par T1' T2'). 
 Proof.   
   intros. dependent induction H5.
-  {dependent induction H4; try(solve[eauto]). 
+  {dependent induction H4; eauto. 
    {constructor. constructor. assumption. reflexivity. eapply SpecRB with (E := E0). 
     assumption. reflexivity. 
     apply RBUntouched with (T2' := (thread (bump tid) s1 s2 (E(AST.app t2 t1)))) in H5. 
     apply H5. }
    {inversion H; subst; admit. }
+  }  
+  {dependent induction H4; eauto. 
+   {constructor. econstructor. assumption. reflexivity. reflexivity. 
+    assumption. econstructor. assumption. reflexivity. eapply RBUntouched. 
+    eassumption. }
+   {admit. }
   }
   {dependent induction H4; try(solve[eauto]). 
    {constructor. econstructor. assumption. reflexivity. 
