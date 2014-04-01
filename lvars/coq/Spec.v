@@ -311,7 +311,6 @@ Inductive appears_free_in : id -> term -> Prop :=
 .
 
 Hint Constructors appears_free_in. 
-
 Inductive eraseTerm : term -> pool -> pterm -> Prop :=
 |eraseIVar : forall i T, eraseTerm (ivar i) T (pivar i)
 |eraseUnit : forall T, eraseTerm unit T punit
@@ -403,6 +402,7 @@ Inductive Erase : sHeap -> pool -> pHeap -> ppool -> Prop :=
 
 Hint Constructors Erase. 
 
+(*Erasure is idempotent with respect to unspeculate*)
 Theorem eraseUnspecHeapIdem : 
   forall H H' H'', unspecHeap H H' -> eraseHeap H' H'' -> eraseHeap H H''. 
 Proof. 
@@ -416,7 +416,7 @@ Proof.
   }
 Qed. 
 
-Theorem Helper4 : 
+Theorem UnspecThreadLookupNone : 
   forall P P', unspecT P P' -> 
                forall tid, thread_lookup P' tid None ->
                            thread_lookup P tid None.
@@ -428,47 +428,51 @@ Proof.
    assumption. }
 Qed. 
 
-Theorem Helper3 : 
-  forall P P',
-    unspecT P P' -> forall tid T',
-    thread_lookup P' tid (Some T') -> 
-    exists T,thread_lookup P tid (Some T). 
-Proof. 
-  intros P P' H. induction H; intros. 
-  {inversion H. }
-  {inversion H1; subst. apply IHunspecT1 in H5. inversion H5. 
-   econstructor. constructor. eassumption. econstructor. 
-   apply IHunspecT2 in H7. inversion H7. eapply lookupPar2. 
-   eapply Helper4 in H. eassumption. assumption. eapply H2. 
-
-Theorem Helper3 : 
-  forall P P',
-    unspecT P P' -> forall tid T T',
-    thread_lookup P' tid (Some T') -> 
-    thread_lookup P tid (Some T). 
-Proof. 
-  intros P P' H. induction H; intros. 
-  {inversion H. }
-  {inversion H1; subst. eapply IHunspecT1 in H5. constructor. 
-   eassumption. eapply IHunspecT2 in H7. apply lookupPar2. 
-   eapply Helper4 in H. eassumption. eassumption. eassumption. }
-  {inversion H; subst. apply hit. 
-
-
-
+Theorem LookupHit :
+  forall P P', unspecT P P' ->
+               forall tid T, thread_lookup P' tid (Some T) ->
+                             exists T', thread_lookup P tid (Some T') /\ unspecT T' T.
+Proof.
+  intros. dependent induction H. 
+  {inversion H0. }
+  {inversion H1; subst.
+   {eapply IHunspecT1 in H5. inversion H5. inversion H2. exists x. split. 
+    constructor. assumption. assumption. }
+   {eapply IHunspecT2 in H7. inversion H7. inversion H2. exists x. 
+    split. apply lookupPar2. eapply UnspecThreadLookupNone in H. eassumption. 
+    assumption. assumption. assumption. }
+  }
+  {inversion H0; subst. exists (thread ((maj, min)::tid1) [] s2 M). split. 
+   constructor. constructor. }
+  {inversion H0; subst. exists (thread ((maj, min)::tid) (s1' ++ [rAct i ((maj, min')::tid) M']) s2 M). 
+   split. constructor. econstructor. reflexivity. }
+  {inversion H0; subst. exists (thread ((maj, min) :: tid) (s1' ++ [wAct i ((maj, min') :: tid) M']) s2 M). 
+   split. constructor. eapply unSpecWrite. reflexivity. }
+  {inversion H0; subst. exists (thread ((maj, min) :: tid) (s1' ++ [cAct i ((maj, min') :: tid) M']) s2 M). 
+   split. constructor. eapply unSpecCreate. reflexivity. }
+  {inversion H0; subst. exists (thread ((maj, min) :: tid) (s1' ++ [sAct ((maj, min') :: tid) M']) s2 M). 
+   split. constructor. eapply unSpecSpec. reflexivity. }
+  {inversion H0; subst. exists (thread ((maj, min) :: tid) (s1' ++ [fAct tid' ((maj, min') :: tid) M']) s2 M). 
+   split. constructor. eapply unSpecFork. reflexivity. }
+Qed. 
+ 
 Theorem eraseHelper : 
   forall M M' P P', unspecT P P' -> eraseTerm M P' M' -> eraseTerm M P M'.
 Proof.
-  intros. induction H0; try(solve[eauto]). 
-  {econstructor. apply IHeraseTerm1 in H. assumption. 
-   reflexivity. apply IHeraseTerm2 in H. eassumption. 
-   assumption. subst. 
-   eapply Helper3 with (tid := tid) 
-                         (T := (thread tid' (s1' ++ [sAct tid'' M']) s2 M)) 
-     in H. eassumption. eassumption. } 
+  intros. dependent induction H0; try(solve[eauto]).  
+  {assert(unspecT P T). assumption. eapply LookupHit with(tid := tid) (T := thread tid' s1 s2 M) in H. 
+   inversion H. inversion H4. inversion H6; subst; try(solve[destruct s1'; inversion H10]). 
+   {inversion H6; subst; try(solve[destruct s1'; inversion H15]). 
+    destruct s1'; inversion H13. destruct s1'. 
+    {inversion H15. subst. 
+     eapply eraseSpecReturn with (tid' := (maj, min)::tid0) (s1 := (s1'0 ++ [sAct ((maj, min') :: tid0) M'])). 
+     apply IHeraseTerm1 in H3. assumption. 
+     reflexivity. apply IHeraseTerm2 in H3. eassumption. assumption. eassumption. }
+    {inversion H15. destruct s1'; inversion H9. }
+   }
+   {assumption. }
+  }
 Qed. 
-
-
 
 Theorem eraseUnspecPoolIdem :
   forall T T' T'' P P', unspecT P P' -> unspecT T T' -> erasePool T' P' T'' ->
@@ -479,23 +483,26 @@ Proof.
   {intros. inversion H1. constructor. }
   {intros. inversion H1; subst. eapply IHunspecT1 in H3. 
    eapply IHunspecT2 in H6. constructor; eassumption. assumption. assumption. }
-  {intros. inversion H1; subst. constructor. 
-
-
-
-Admitted. (*
-  {intros. admit. (* inversion H0; subst; try(destruct s1'0; inversion H7). 
-   econstructor. reflexivity. assumption.*) }
-  {intros. inversion H0; subst; try(destruct s1'0; inversion H7). 
-   eapply eraseThreadSW. reflexivity. assumption. }
-  {intros. inversion H0; subst; try(destruct s1'0; inversion H7). 
-   eapply eraseThreadSC. reflexivity. assumption. }
-  {intros. inversion H0; subst; destruct s1'0; inversion H7
-   ; try(destruct s1'0; inversion H2). subst. econstructor. 
-   reflexivity. }
-  {intros. inversion H0; subst; try(destruct s1'0; inversion H7). 
-   eapply eraseThreadSF. reflexivity. assumption. }
-Qed. *)
+  {intros. inversion H1; subst. 
+   {constructor. eapply eraseHelper in H. eassumption. assumption. }
+   {destruct s1'; inversion H7. } {destruct s1'; inversion H7. }
+   {destruct s1'; inversion H7. }{destruct s1'; inversion H7. }{destruct s1'; inversion H7. }
+   {destruct s1'; inversion H7. } {destruct s1'; inversion H7. }
+  }
+  {intros. subst. inversion H1; subst; try(solve[destruct s1'0; inversion H7]). 
+   econstructor. reflexivity. eapply eraseHelper in H0. eassumption. eassumption. }
+  {intros. inversion H1; subst; try(solve[destruct s1'0; inversion H8]). 
+   eapply eraseThreadSW. reflexivity. eapply eraseHelper in H0. eassumption. 
+   assumption. }
+  {intros. inversion H1; subst; try(solve[destruct s1'0; inversion H8]). 
+   eapply eraseThreadSC. reflexivity. eapply eraseHelper in H0. eassumption. 
+   assumption. }
+  {intros. inversion H1; subst; try(solve[destruct s1'0; inversion H8; destruct s1'0; inversion H3]). 
+   eapply eraseThreadSS. reflexivity. }
+  {intros. inversion H1; subst; try(solve[destruct s1'0; inversion H8]). 
+   eapply eraseThreadSF. reflexivity. eapply eraseHelper in H0. 
+   eassumption. assumption. }
+Qed. 
 
 Theorem ErasureUSIdempotence : 
   forall H T H' T' H'' T'', unspec H T H' T' -> Erase H' T' H'' T'' ->
@@ -503,6 +510,6 @@ Theorem ErasureUSIdempotence :
 Proof.
   intros. inversion H0; subst. inversion H1; subst. 
   constructor. eapply eraseUnspecPoolIdem in H3. 
-  eassumption. eassumption. eapply eraseUnspecHeapIdem in H2. 
-  eassumption. assumption. Qed. 
+  eassumption. eassumption. assumption.  eapply eraseUnspecHeapIdem in H2. 
+  eassumption. eassumption. Qed. 
   

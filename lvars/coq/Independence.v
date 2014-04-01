@@ -2,6 +2,9 @@ Require Import Spec.
 Require Import Coq.Program.Equality. 
 Require Import SfLib. 
 
+
+(*These are used in the reorder lemma (after we switch from using lists to MSets for 
+ * the speculative and commit actions, they shouldn't be needed)*)
 Theorem listNeq : forall (T:Type) (h:T) l, l = h::l -> False. 
 Proof.
   intros. induction l. 
@@ -24,24 +27,20 @@ Proof.
   {inversion H. }
   {inversion H. apply IHl in H1. assumption. }
 Qed. 
-
-
-(*
-IHrollback : forall T T', congr (par T1 T2') T -> congr T' (par T1' T2') ->
-                          rollback h T h' T'
-*)
+ 
 
 Theorem RBUntouched : forall tid H H' T1 T2 T1', 
-                        rollback tid H (par T1 T2) H' (par T1' T2) ->
+                        rollback tid H (par T1 T2) H' (par T1' T2) -> 
                         forall T2',rollback tid H (par T1 T2') H' (par T1' T2').
-Proof. intros. dependent induction H0; eauto.  
-  {inversion H; subst. 
+Proof. intros tid H H' T1 T2 T1' step. dependent induction step; try(solve[eauto]).
+   (*
+  {intros. inversion H; subst. 
    {inversion H0; subst. 
+    {(*this induction hypothesis seems weird to me*)admit. }
     {admit. }
-    {admit. }
-    {
-  }
-Qed. 
+
+  }*)
+Admitted. 
 
 Theorem Reorder1Step3 : forall H T1 T2 H' T1' T2' sa ca,
                          specActions T2 sa -> 
@@ -57,7 +56,7 @@ Proof.
   {dependent induction H4; try(solve[eauto]). 
    {constructor. constructor. assumption. reflexivity. eapply SpecRB with (E := E0). 
     assumption. reflexivity. 
-    apply RBUntouched with (T2' := (thread (bump tid) s1 s2 (E(app t2 t1)))) in H5. 
+    apply RBUntouched with (T2' := (thread (bump tid) s1 s2 (E(AST.app t2 t1)))) in H5. 
     apply H5. }
    {inversion H; subst; admit. }
   }
