@@ -23,6 +23,8 @@ Inductive term : Type :=
   |done : term -> term
   |spec : term -> term -> term
   |specReturn : term -> term -> term
+  |fst : term -> term
+  |snd : term -> term
 .
 
 (*Syntax for non-speculative Par Monad semantics*)
@@ -41,7 +43,10 @@ Inductive pterm : Type :=
 |pget : id -> pterm
 |praise : pterm -> pterm
 |phandle : pterm -> pterm -> pterm
-|pdone : pterm -> pterm.
+|pdone : pterm -> pterm
+|pfst : pterm -> pterm
+|psnd : pterm -> pterm
+.
 
 Inductive action : Type :=
   |rAct : id -> tid -> term -> action

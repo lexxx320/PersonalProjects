@@ -1,8 +1,7 @@
 Require Import Spec. 
 Require Import Coq.Program.Equality. 
 Require Import SfLib. 
-
-
+ 
 (*These are used in the reorder lemma (after we switch from using lists to MSets for 
  * the speculative and commit actions, they shouldn't be needed)*)
 Theorem listNeq : forall (T:Type) (h:T) l, l = h::l -> False. 
@@ -28,155 +27,174 @@ Proof.
   {inversion H. apply IHl in H1. assumption. }
 Qed. 
  
+Theorem NEQRecPar : forall T1 T2, par T1 T2 <> T2. 
+Proof.
+  intros. unfold not. intros. induction T2. 
+  {inversion H. }
+  {inversion H. }
+  {inversion H. subst T1. apply IHT2_2 in H2.  assumption. }
+Qed. 
 
 Theorem RBUntouched : forall tid H H' T1 T2 T1', 
                         rollback tid H (par T1 T2) H' (par T1' T2) -> 
+                        forall T2', rollback tid H (par T1 T2') H' (par T1' T2').
+Proof.
+  intros. remember (par T1 T2). remember (par T1' T2). 
+  generalize dependent T1'. induction H0. 
+  {intros. inversion Heqp; inversion Heqp0; subst. constructor. }
+  {intros. inversion Heqp; inversion Heqp0; subst. 
+
+
+
+  remember (par T1 T2). 
+  
+
+
+
+remember (par T1 T2). remember (par T1' T2). generalize dependent T1.
+  generalize dependent T2. generalize dependent T1'. induction H0. 
+  {intros. inversion Heqp0. inversion Heqp; subst. constructor. }
+  {intros. inversion Heqp0; inversion Heqp; subst. eauto. }
+  {intros. inversion Heqp0; inversion Heqp; subst. eauto. }
+  {intros. inversion Heqp0; inversion Heqp; subst. eauto. }
+  {intros. inversion Heqp0; inversion Heqp; subst. eauto. }
+  {intros. inversion Heqp0; inversion Heqp; subst. eauto. }
+  {simplify_dep_elim. inversion H; inversion H0; subst. 
+
+
+
+ admit. }
+Qed. 
+
+
+
+Theorem RBUntouched2 : forall tid H H' T1 T2 T1', 
+                        rollback tid H (par T1 T2) H' (par T1' T2) -> 
                         forall T2',rollback tid H (par T1 T2') H' (par T1' T2').
-Proof. intros tid H H' T1 T2 T1' step. dependent induction step; try(solve[eauto]).
-   (*
-  {intros. inversion H; subst. 
-   {inversion H0; subst. 
-    {(*this induction hypothesis seems weird to me*)admit. }
-    {admit. }
+Proof.
+  intros. generalize_eqs_vars H0. induction H0. simplify_dep_elim. 
+  {constructor. }
+  {simplify_dep_elim; eauto. }
+  {simplify_dep_elim; eauto. }
+  {simplify_dep_elim; eauto. }
+  {simplify_dep_elim; eauto. }
+  {simplify_dep_elim; eauto. }
+  {simplify_dep_elim. 
 
-  }*)
-Admitted. 
 
-Theorem Reorder1Step3 : forall H T1 T2 H' T1' T2' sa ca,
+inversion H; subst. inversion H0; subst. 
+
+
+
+Theorem NeqRecPar : forall T1 T2, par T1 T2 = T2-> False.
+Proof.
+  intros. induction T2. 
+  {inversion H. }
+  {inversion H. }
+  {inversion H. subst T1. apply IHT2_2 in H2. assumption. }
+Qed. 
+
+Theorem Reorder1Step' : forall H T1 T2 H' T1' T2' T sa ca,
                          specActions T2 sa -> 
                          specActions T2' sa -> 
                          commitActions T2 ca ->
                          commitActions T2' ca -> 
-                         step H (par T1 T2) H' (par T1' T2) ->
-                         step H' (par T2 T1') H' (par T2' T1') -> 
-                         step H (par T2 T1) H (par T2' T1) /\ 
-                          step H (par T1 T2') H' (par T1' T2'). 
-Proof.   
-  intros. dependent induction H5.
-  {dependent induction H4; eauto. 
-   {constructor. constructor. assumption. reflexivity. eapply SpecRB with (E := E0). 
-    assumption. reflexivity. 
-    apply RBUntouched with (T2' := (thread (bump tid) s1 s2 (E(AST.app t2 t1)))) in H5. 
-    apply H5. }
-   {inversion H; subst; admit. }
-  }  
-  {dependent induction H4; eauto. 
-   {constructor. econstructor. assumption. reflexivity. reflexivity. 
-    assumption. econstructor. assumption. reflexivity. eapply RBUntouched. 
-    eassumption. }
-   {admit. }
+                         step H (par T1 (par T2 T)) H' (par T1' (par T2 T)) ->
+                         step H' (par T2 (par T1' T)) H' (par T2' (par T1' T)) -> 
+                         step H (par T2 (par T1 T)) H (par T2' (par T1 T)) /\ 
+                         step H (par T1 (par T2' T)) H' (par T1' (par T2' T)). 
+Proof.  
+  intros. inversion H5. 
+  {inversion H4; eauto. subst. 
+   {constructor. constructor. assumption. reflexivity. econstructor. 
+    assumption. reflexivity. eapply RBUntouched in H21. eassumption. }
+   {split. constructor. assumption. assumption. subst. inversion H13. subst. 
+    constructor. constructor. apply NeqRecPar in H12. inversion H12. 
+    symmetry in H12. apply NeqRecPar in H12. inversion H12. subst. econstructor. 
+    constructor. }
   }
-  {dependent induction H4; try(solve[eauto]). 
-   {constructor. econstructor. assumption. reflexivity. 
-    eapply SpecRB with (E := E0). assumption. reflexivity. 
-    apply RBUntouched with (T2' := (thread (bump tid)s1 s2) (E(raise M'))) in H5. 
-    eassumption. }
-   {admit. }
+  {inversion H4; eauto. subst. 
+   {constructor. eapply Eval.  assumption. reflexivity. reflexivity. assumption. 
+    econstructor. assumption. reflexivity. eapply RBUntouched in H23. eassumption. }
+   {split. subst. eapply Eval. assumption. reflexivity. reflexivity. assumption. 
+    subst. inversion H15. subst. constructor. constructor. apply NeqRecPar in H11. 
+    inversion H11. symmetry in H11. apply NeqRecPar in H11. inversion H11. subst.
+    econstructor. constructor. }
   }
-  {dependent induction H4; try(solve[eauto]). 
-   {constructor. econstructor. eassumption. reflexivity. 
-    econstructor. assumption. reflexivity. eapply RBUntouched. eassumption. }
-   {admit. }
-  } 
-  {inversion H0. inversion H1. rewrite <- H12 in H5. inversion H5.
-   apply listNeq in H20. inversion H20. }
-  {inversion H0. inversion H1. subst sa. inversion H12. 
-   symmetry in H19. apply listNeq in H19. inversion H19. }
-  {inversion H0. inversion H1. inversion H13. inversion H15. 
-   subst. inversion H14. }
-  {inversion H0. inversion H1. inversion H13. inversion H15. 
-   inversion H8. inversion H10. subst. inversion H14. 
-   assert(joinAct <> sAct tid'' M). unfold not; intros. 
-   inversion H5. apply listNeq2 with (l := s1') in H5. 
-   inversion H5. assumption. }
-  {inversion H0. inversion H1. inversion H8. inversion H10. 
-   subst. inversion H9. }
-  {inversion H0. inversion H1. inversion H9. inversion H11. 
-   subst. inversion H10. }
-  {inversion H0. inversion H1. inversion H8. inversion H10. 
-   subst. inversion H9. }
-  {inversion H0. inversion H1. subst. inversion H12. 
+  {inversion H4; eauto. subst. 
+   {constructor. eapply BindRaise. constructor. assumption. reflexivity. econstructor. 
+    assumption. reflexivity. eapply RBUntouched in H21. eassumption. }
+   {split. subst. eapply BindRaise. assumption. reflexivity. subst. inversion H13. 
+     subst. constructor. constructor. apply NeqRecPar in H12. inversion H12. 
+    symmetry in H12. apply NeqRecPar in H12. inversion H12. subst. econstructor. 
+    constructor. }
+  }
+   {subst. inversion H0. inversion H1. inversion H15. inversion H17. subst. 
+   inversion H16. }
+  {clear H14. subst. inversion H0. inversion H1. subst. inversion H12. 
    symmetry in H10. apply listNeq in H10. inversion H10. }
-  {dependent induction H4; try(solve[eauto]). 
-   {constructor. eapply Handle. apply H6. reflexivity. 
-    econstructor. assumption. reflexivity. eapply RBUntouched. 
-    eassumption. }
-   {admit. }
+  {clear H14. subst. inversion H0. inversion H1. subst. inversion H12. 
+   symmetry in H10. apply listNeq in H10. inversion H10. }
+  {subst. inversion H0. inversion H1. inversion H15. inversion H17. subst. 
+   inversion H16. }
+  {subst. inversion H0. inversion H1. subst. inversion H8. inversion H12. 
+   inversion H15. inversion H17. subst. inversion H16. 
+   assert(AST.joinAct <> AST.sAct tid'' M). unfold not. intros. inversion H6. 
+   eapply listNeq2 in H6. inversion H6. eassumption. }
+  {subst. inversion H0. inversion H1. subst. inversion H8. inversion H12. 
+   subst. inversion H13. }
+  {subst. inversion H0. inversion H1. subst. inversion H8. inversion H10. 
+   subst. inversion H11. }
+  {subst. inversion H0. inversion H1. subst. inversion H8. inversion H12. 
+   subst. inversion H13. }
+  {subst. inversion H0. inversion H1. subst. inversion H12. symmetry in H9. 
+   apply listNeq in H9. inversion H9. }
+  {inversion H4; eauto; subst. 
+   {split. eapply Handle. assumption. reflexivity. econstructor. assumption. 
+    reflexivity. eapply RBUntouched in H21. eassumption. }
+   {split. eapply Handle. assumption. reflexivity. inversion H13. subst. 
+    constructor. constructor. apply NeqRecPar in H12. inversion H12. 
+    symmetry in H12. apply NeqRecPar in H12. inversion H12. subst. econstructor. 
+    constructor. }
   }
-  {inversion H0. inversion H1. subst sa. inversion H11. 
-   apply listNeq3 in H18. inversion H18. }
-  {inversion H0. inversion H1. subst sa. inversion H11. 
-   apply listNeq3 in H18. inversion H18. }
-  {inversion H0. inversion H1. inversion H7. inversion H9.
-   inversion H12. inversion H14. subst. inversion H8. 
-   symmetry in H16. apply listNeq3 in H16. inversion H16. }
-  {inversion H0. inversion H1. subst sa. inversion H11. }
-  {admit. }
+  {inversion H4; eauto; subst. 
+   {split. eapply HandleRet; auto. econstructor. assumption. 
+    reflexivity. eapply RBUntouched in H21. eassumption. }
+   {split. eapply HandleRet. assumption. reflexivity. inversion H13. 
+    subst. constructor. constructor.  apply NeqRecPar in H12. inversion H12. 
+    symmetry in H12. apply NeqRecPar in H12. inversion H12. subst. econstructor. 
+    constructor. }
+  }
+  {clear H13. subst. inversion H0. inversion H1. subst. inversion H11. 
+   apply listNeq3 in H9. inversion H9. }
+  {clear H13. subst. inversion H0. inversion H1. subst. inversion H11. 
+   apply listNeq3 in H9. inversion H9. }
+  {subst. inversion H0. inversion H1. subst. inversion H8. inversion H11. 
+   inversion H14. inversion H16. subst. inversion H15. apply listNeq3 in H18. 
+   inversion H18. }
+  {subst. inversion H0. inversion H1. subst. inversion H13. }
+  {subst. inversion H6.
+   {subst. split. constructor. constructor. assumption. }
+   {eapply NeqRecPar in H13. inversion H13. }
+   {symmetry in H13. eapply NeqRecPar in H13. inversion H13. }
+   {subst. split; repeat constructor. assumption. }
+  }
+
 Qed. 
 
 
 
 
-Theorem Reorder1Step2 : forall H T1 T2 H' T1' T2' sa ca,
-                         specActions T2 sa -> 
-                         specActions T2' sa -> 
-                         commitActions T2 ca ->
-                         commitActions T2' ca -> 
-                         step H (par T1 T2) H' (par T1' T2) ->
-                         step H' (par T2 T1') H' (par T2' T1') -> 
-                         step H (par T2 T1) H (par T2' T1) /\ step H (par T1 T2') H' (par T1' T2'). 
-Proof.  
-  intros. dependent induction H5. 
-  {inversion H4; try(solve[try(repeat constructor; try(assumption; assumption); try subst);
-   try (solve[econstructor; try eassumption; try reflexivity])]). 
-   {constructor. econstructor. assumption. reflexivity. econstructor. assumption. 
-    eassumption. subst. 
-    apply RBUntouched with (T2' := (thread (bump tid) s1 s2 (E (app t2 t1)) )) in H14. 
-    eapply H14. }
-   {constructor. constructor. assumption. reflexivity. eapply SpecRaise. 
-    assumption. eassumption. }
-   {split. subst. constructor. assumption. reflexivity. apply Handle. 
-    assumption. assumption. }
-   {split. constructor. assumption. reflexivity. eapply PopNewEmpty. 
-    assumption. eassumption. eassumption. } 
-   {split. subst. 
-    {constructor. assumption. reflexivity. }
-    {subst. admit. }
-Admitted. 
-
-Theorem Reorder1Step : forall H T1 T2 H' T1' T2' sa ca,
-                         specActions T2 sa -> 
-                         specActions T2' sa -> 
-                         commitActions T2 ca ->
-                         commitActions T2' ca -> 
-                         step H (par T1 T2) H' (par T1' T2) ->
-                         step H' (par T2 T1') H' (par T2' T1') -> 
-                         step H (par T2 T1) H (par T2' T1) /\ step H (par T1 T2') H' (par T1' T2'). 
-Proof.  
-  intros. dependent induction H4. 
-  {inversion H5; try(solve[try(repeat constructor; try(assumption; assumption); try subst);
-   try (solve[econstructor; try eassumption; try reflexivity])]). 
-   {constructor. econstructor. assumption. eassumption. subst. 
-    apply RBUntouched with (T2' := (thread tid s1 s2 (E (bind (ret t1) t2)))) in H13. 
-    apply H13. constructor. assumption. reflexivity. }
-   {constructor. eapply SpecRaise. assumption. eassumption. constructor. eassumption. 
-    reflexivity. }
-   {split. subst. apply Handle. assumption. reflexivity. subst. apply Bind. 
-    assumption. reflexivity. }
-   {split. eapply PopNewEmpty. assumption. eassumption. eassumption. 
-    constructor. assumption. reflexivity. }
-   {split. subst. inversion H4; subst. 
-    {inversion H6; subst. 
-
-
-Theorem Reorder : forall H T1 T2 H' T1' T2' sa ca,
+Theorem Reorder : forall H T1 T2 H' T1' T2' T sa ca,
                     specActions T2 sa -> 
                     specActions T2' sa -> 
                     commitActions T2 ca ->
                     commitActions T2' ca -> 
-                    step H (par T2 T1) H (par T2' T1) ->
-                    multistep H (par T1 T2') H' (par T1' T2') ->
-                    multistep H (par T1 T2 ) H' (par T1' T2) /\
-                    step H' (par T2 T1') H' (par T2' T1').
+                    step H (par T2 (par T1 T)) H (par T2' (par T1 T)) ->
+                    multistep H (par T1 (par T2' T)) H' (par T1' (par T2' T)) ->
+                    multistep H (par T1 (par T2 T)) H' (par T1' (par T2 T)) /\
+                    step H' (par T2 (par T1' T)) H' (par T2' (par T1' T)).
 Proof.
-  intros. dependent destruct H5. 
+  intros. generalize_eqs_vars H5.  induction H5. 
+  {simplify_dep_elim. split. constructor. assumption. }
+  {simplify_dep_elim. split. 

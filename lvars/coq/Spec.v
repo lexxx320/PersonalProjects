@@ -21,7 +21,8 @@ Fixpoint bump (t : tid) : tid :=
  
 Inductive congr : pool -> pool -> Prop :=
   |comm : forall t1 t2, congr (par t1 t2) (par t2 t1)
-  |assoc : forall t1 t2 t3, congr (par (par t1 t2) t3) (par t1 (par t2 t3))
+  |assocL : forall t1 t2 t3, congr (par (par t1 t2) t3) (par t1 (par t2 t3))
+  |assocR : forall t1 t2 t3, congr (par t1 (par t2 t3)) (par (par t1 t2) t3)
   |refl : forall t1, congr t1 t1
 .
 
@@ -65,14 +66,51 @@ Inductive rollback : tid -> sHeap -> pool -> sHeap -> pool -> Prop :=
             rollback tid h (par (thread tid'' s1' s2 M') T) h' T' ->
             rollback tid h (par (par (thread tid' s1 s2 M) 
                                              (thread tid''' [sAct tid2 N'; specAct] s2' N)) T) h' T'
-|RBCongr : forall tid h h' T T' T'' T''', 
-             congr T T' -> congr T'' T''' -> rollback tid h T' h' T'' ->
+|RBCongr : forall tid h T T' h' T'' T''' , 
+             (congr T T' /\ congr T'' T''' /\ rollback tid h T' h' T'') ->
              rollback tid h T h' T'''
 .
+
+(*substitute e for x in t ([x := e]t)*)
+Fixpoint subst (e:term) (x:id) (t:term) : term :=
+  match t with
+      |threadId tid => threadId tid
+      |ivar y => ivar y (*not sure if this is right*)
+      |unit => unit
+      |pair e1 e2 => pair (subst e x e1) (subst e x e2)
+      |var y => if beq_nat x y then e else t
+      |lambda y eb => if beq_nat x y then t else lambda y (subst e x eb)
+      |app ef ea => app (subst e x ef) (subst e x ea)
+      |ret M => ret (subst e x M)
+      |bind M N => bind (subst e x M) (subst e x N)
+      |fork M => fork (subst e x M)
+      |new => new
+      |put x M => put x (subst e x M)
+      |get i => get i
+      |raise M => raise (subst e x M)
+      |handle M N => handle (subst e x M) (subst e x N)
+      |done M => done (subst e x M)
+      |fst M => fst (subst e x M)
+      |snd M => snd (subst e x M)
+      |spec M N => spec (subst e x M) (subst e x N)
+      |specReturn M N => specReturn (subst e x M) (subst e x N)
+  end. 
 
 Fixpoint largeStep (t:term) : term :=
   match t with
     |pair e1 e2 => pair (largeStep e1) (largeStep e2)
+    |app e1 e2 => match largeStep e1, largeStep e2 with
+                      |lambda x b, arg => subst arg x b
+                      |e1', e2' => app e1' e2'
+                  end
+    |fst M => match largeStep M with
+                  |pair v1 v2 => v1
+                  |e' => e'
+              end
+    |snd M => match largeStep M with
+                  |pair v1 v2 => v2
+                  |e' => e'
+              end
     |t => t
   end. 
 
@@ -163,9 +201,8 @@ Inductive step : sHeap -> pool -> sHeap -> pool -> Prop :=
                               (thread (bump tid') s1''' (specAct :: s2') N)) T)
 |Terminate : forall h tid s M T, step h (par (thread tid nil s (ret M)) T) h 
                                         (par dot T)
-|CongrStep : forall t1 t1' t2 t2' h h', 
-               step h t1' h' t2' -> congr t1 t1' -> congr t2 t2' ->
-               step h t1 h' t2
+|CongrStep : forall h t t', 
+               congr t t' -> step h t h t'
 .
 
 Hint Constructors step. 
@@ -196,6 +233,7 @@ Inductive unspecHeap : sHeap -> sHeap -> Prop :=
                   unspecHeap h h' ->
                   unspecHeap ((i, full nil d nil t M)::h) 
                              ((i, full nil d nil t M)::h')
+  |unspecNil : unspecHeap nil nil
 .
 
 Hint Constructors unspecHeap. 
@@ -206,7 +244,8 @@ Inductive unspecT : pool -> pool -> Prop :=
                  unspecT t1 t1' -> unspecT t2 t2' -> unspecT (par t1 t2) (par t1' t2')
   |unSpecCThread : forall tid s2 M,
                     unspecT (thread tid nil s2 M) (thread tid nil s2 M)
-  |unSpecRead : forall tid s1 s1' s2 M i M' maj min min',
+  |unSpecRead : forall tid s1 s1' s2 M i M' maj min min' c,
+                  ctxt c -> M'  = c (get i) ->
                   s1 = s1' ++ [rAct i ((maj, min')::tid) M'] -> 
                   unspecT (thread ((maj, min)::tid) s1 s2 M) 
                           (thread ((maj, min')::tid) nil s2 M')
@@ -236,7 +275,7 @@ Hint Constructors unspec.
 
 Inductive multistep : sHeap -> pool -> sHeap -> pool -> Prop :=
 |reflStep : forall h p, multistep h p h p
-|multiStep : forall h h' h'' p p' p'', step h p h' p' -> multistep h' p' h'' p'' ->
+|multiStep : forall h h' h'' p p' p'', multistep h p h' p' -> step h' p' h'' p'' ->
                                multistep h p h'' p''
 .
 
@@ -448,8 +487,8 @@ Proof.
   }
   {inversion H0; subst. exists (thread ((maj, min)::tid1) [] s2 M). split. 
    constructor. constructor. }
-  {inversion H0; subst. exists (thread ((maj, min)::tid) (s1' ++ [rAct i ((maj, min')::tid) M']) s2 M). 
-   split. constructor. econstructor. reflexivity. }
+  {inversion H2; subst. exists (thread ((maj, min)::tid) (s1' ++ [rAct i ((maj, min')::tid) (c (get i))]) s2 M). 
+   split. constructor. econstructor. eassumption. reflexivity. reflexivity. }
   {inversion H0; subst. exists (thread ((maj, min) :: tid) (s1' ++ [wAct i ((maj, min') :: tid) M']) s2 M). 
    split. constructor. eapply unSpecWrite. reflexivity. }
   {inversion H0; subst. exists (thread ((maj, min) :: tid) (s1' ++ [cAct i ((maj, min') :: tid) M']) s2 M). 
@@ -466,13 +505,12 @@ Proof.
   intros. dependent induction H0; try(solve[eauto]).  
   {assert(unspecT P T). assumption. eapply LookupHit with(tid := tid) (T := thread tid' s1 s2 M) in H. 
    inversion H. inversion H4. inversion H6; subst; try(solve[destruct s1'; inversion H10]). 
-   {inversion H6; subst; try(solve[destruct s1'; inversion H15]). 
-    destruct s1'; inversion H13. destruct s1'. 
-    {inversion H15. subst. 
-     eapply eraseSpecReturn with (tid' := (maj, min)::tid0) (s1 := (s1'0 ++ [sAct ((maj, min') :: tid0) M'])). 
-     apply IHeraseTerm1 in H3. assumption. 
-     reflexivity. apply IHeraseTerm2 in H3. eassumption. assumption. eassumption. }
-    {inversion H15. destruct s1'; inversion H9. }
+   {destruct s1'; inversion H8. }
+   {inversion H10. destruct s1'. simpl in *. inversion H7. subst. 
+    {eapply eraseSpecReturn with (tid' := (maj, min)::tid0) (s1 := (s1'0 ++ [sAct ((maj, min') :: tid0) M'])). 
+     eapply IHeraseTerm1. assumption. reflexivity. eapply IHeraseTerm2. assumption. assumption. 
+     eassumption. }
+    {inversion H10. destruct s1'; inversion H9. }
    }
    {assumption. }
   }
@@ -493,8 +531,8 @@ Proof.
    {destruct s1'; inversion H7. }{destruct s1'; inversion H7. }{destruct s1'; inversion H7. }
    {destruct s1'; inversion H7. } {destruct s1'; inversion H7. }
   }
-  {intros. subst. inversion H1; subst; try(solve[destruct s1'0; inversion H7]). 
-   econstructor. reflexivity. eapply eraseHelper in H0. eassumption. eassumption. }
+  {intros; subst. inversion H2; subst; try(solve[destruct s1'0; inversion H8]). 
+   econstructor. reflexivity. eapply eraseHelper in H3. eassumption. eassumption. }
   {intros. inversion H1; subst; try(solve[destruct s1'0; inversion H8]). 
    eapply eraseThreadSW. reflexivity. eapply eraseHelper in H0. eassumption. 
    assumption. }
@@ -517,3 +555,37 @@ Proof.
   eassumption. eassumption. assumption.  eapply eraseUnspecHeapIdem in H2. 
   eassumption. eassumption. Qed. 
   
+
+Theorem UnspeculatedHeap : forall H H', unspecHeap H H' -> unspecHeap H' H'. 
+Proof.
+  intros. 
+  induction H0; eauto. Qed. 
+
+Theorem UnspeculatedPool : forall T T', unspecT T T' -> unspecT T' T'. 
+  intros. induction H; eauto. apply unSpecSpec with (s1' := nil). 
+  simpl. reflexivity. Qed. 
+
+Theorem snocDestruct : forall (T:Type) (l : list T), 
+                         l = nil \/ (exists l' e, l = l' ++ [e]). 
+Proof.
+  intros. 
+  induction l. 
+  {constructor. reflexivity. }
+  {inversion IHl. apply or_intror. exists nil. exists a. subst. simpl. 
+   reflexivity. inversion H. inversion H0. apply or_intror. 
+   exists (a::x). subst. exists x0. simpl. reflexivity. }
+Qed. 
+
+(*
+
+Theorem WFIntermediate : forall H H' H'' T T' T'', 
+                           unspecHeap H H' -> unspecT T T' ->
+                           multistep H' T' H'' T'' -> multistep H'' T'' H T ->
+                           (unspecHeap H'' H') /\ exists T''',unspecT T'' T''' /\ congr T''' T'. 
+Proof.
+  intros. induction H2. 
+  {split. apply UnspeculatedHeap in H0. assumption. apply UnspeculatedPool in H1. 
+   exists p. split. assumption. constructor. }
+  {apply IHmultistep in H0; try assumption. 
+   {inversion H4; subst. split. inversion H0. assumption. 
+    inversion H0. inversion H7. inversion H8. inversion H9. subst. *)
