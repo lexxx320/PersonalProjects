@@ -65,7 +65,7 @@ Inductive pivar_state : Type :=
 |pfull : pterm -> pivar_state.
 
 Inductive ivar_state : Type :=
-  |empty : specStack -> ivar_state
-  |full : specStack -> list tid -> specStack -> tid -> term -> ivar_state. 
+  |sempty : specStack -> ivar_state
+  |sfull : specStack -> list tid -> specStack -> tid -> term -> ivar_state. 
 (*first spec is who created, second is who wrote*)
 
