@@ -1,4 +1,4 @@
-Require Import Spec. 
+Require Import Spec.
 Require Import Coq.Sets.Ensembles. 
 Require Import Heap. 
 
@@ -47,6 +47,11 @@ Proof.
   {inversion H. apply IHt in H2. assumption. }
 Qed. 
 
+Ltac neqInContra :=
+  match goal with
+      | _ : ~(tIn(tAdd ?T ?t) ?t) |- _ => assert(tIn(tAdd T t) t); auto; contradiction
+  end.
+
 Theorem Reorder : forall T t1 t2 t1' t2' h h',
                     step h (tAdd T t2) (Some t1) h' (tAdd T t2) (Some t1') ->
                     step h' (tAdd T t1') (Some t2) h' (tAdd T t1') (Some t2') ->
@@ -58,58 +63,59 @@ Proof.
   {inversion H0;try(repeat constructor; apply AddEq in H3; contradiction). }
   {inversion H0; eauto. 
    {subst. apply AddEq in H3. contradiction. intros. contradiction. }
-   {assert(tIn (tAdd (tAdd T (bump tid, s1, s2, E (app N M))) (tid', [], [], M0)) (tid', [], [], M0)). 
-    auto. contradiction. }
+   {neqInContra. }
   }
   {inversion H0; eauto. 
    {subst. apply AddEq in H3. contradiction. intros. contradiction. }
-   {assert(tIn (tAdd (tAdd T (bump tid, s1, s2, E (raise M))) (tid', [], [], M0)) (tid', [], [], M0)).
-    auto. contradiction. }
+   {neqInContra. }
   }
   {inversion H0; eauto. 
    {subst. apply AddEq in H3. contradiction. intros. contradiction. }
-   {assert(tIn(tAdd (tAdd T (bump tid, s1, s2, E (app N M))) (tid', [], [], M0)) (tid', [], [], M0)).
-    auto. contradiction. }
+   {neqInContra. }
   }
   {inversion H0; eauto.
    {subst. apply AddEq in H3. contradiction. intros. contradiction. }
-   {assert(tIn (tAdd (tAdd T (bump tid, s1, s2, E (ret M))) (tid', [], [], M0)) (tid', [], [], M0)). 
-    auto. contradiction. }
+   {neqInContra. }
   }
-  {assert(tIn (tAdd (tAdd T t2) ((1, 1) :: tid, [], [], M)) ((1, 1) :: tid, [], [], M)).
-   auto. contradiction. }
+  {neqInContra. }
   {inversion H0; eauto. 
    {subst. apply AddEq in H4. contradiction. intros. contradiction. }
-   {assert(tIn
-          (tAdd
-             (tAdd T (bump tid, rAct x tid (E (get x)) :: s1, s2, E (ret N)))
-             (tid', [], [], M)) (tid', [], [], M)). auto. contradiction. }
-   {subst. 
-                                                                                      
-Qed. 
-
-Theorem Reorder : forall T t1 t2 t1' t2' h h' sa ca,
-                    specActions t2 sa -> specActions t2' sa ->
-                    commitActions t2 ca -> commitActions t2' ca ->
-                    step h (tAdd T t2) (Some t1) h' (tAdd T t2) (Some t1') ->
-                    step h' (tAdd T t1') (Some t2) h' (tAdd T t1') (Some t2') ->
-                    step h (tAdd T t1) (Some t2) h (tAdd T t1) (Some t2') /\
-                    step h (tAdd T t2') (Some t1) h' (tAdd T t2') (Some t1'). 
-Proof.
-  intros. 
-  inversion H; subst. 
-  {inversion H0;try(repeat constructor; apply AddEq in H3; contradiction). }
-  {inversion H0; auto. 
-   {subst. apply AddEq in H3. contradiction. intros. contradiction. }
-   {subst. 
+   {neqInContra. }
+   {subst. eapply heapUpdateNeq in H8. unfold not in H8. apply H8 in H10. 
+    inversion H10. intros contra. inversion contra. apply listNeq in H2. 
+    assumption. }
+   {eapply heapUpdateNeq in H8. unfold not in H8. apply H8 in H10. 
+    inversion H10. intros contra. inversion contra. }
+   {subst. unfold extend in *. 
+    destruct (replace x (sfull sc (tid :: ds) s writer N) h). 
+    {inversion H9. }
+    {destruct p. inversion H9. apply listNeq in H8. inversion H8. }
    }
-  {inversion H0; subst; auto. 
-   {apply AddEq in H3. contradiction. intros. contradiction. }
   }
-  {inversion H0; subst; auto. 
-   {apply AddEq in H3. contradiction. intros. contradiction. }
+  {inversion H0; eauto. 
+   {subst. apply AddEq in H4. contradiction. intros. contradiction. }
+   {neqInContra. }
+   {eapply heapUpdateNeq in H8. unfold not in H8. apply H8 in H10. 
+    inversion H10. intros contra. inversion contra. apply listNeq in H12. 
+    assumption. }
+   {eapply heapUpdateNeq in H8. unfold not in H8. apply H8 in H10. 
+    inversion H10. intros contra. inversion contra. }
+   {destruct(replace x (sfull sc [] s1 tid N) h). 
+    {inversion H9. }
+    {destruct p. inversion H9. apply listNeq in H14. inversion H14. }
+   }
   }
-  {inversion H0; subst; auto.
-   {apply AddEq in H3. contradiction. intros. contradiction. }
+  {inversion H0; eauto. 
+   {subst. apply AddEq in H3. contradiction. intros. contradiction. }
+   {neqInContra. }
+   {eapply heapUpdateNeq in H8. unfold not in *. apply H8 in H10. 
+    inversion H10. intros contra. inversion contra. apply listNeq in H12. 
+    assumption. }
+   {eapply heapUpdateNeq in H8. unfold not in H8. apply H8 in H10. 
+    inversion H10. intros contra. inversion contra. }
+   {destruct h'. 
+    {inversion H9. }
+    {destruct p. inversion H9. apply listNeq in H14. inversion H14. }
+   }
   }
 Qed. 

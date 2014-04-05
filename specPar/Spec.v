@@ -104,7 +104,7 @@ Inductive step : sHeap -> pool -> option thread -> sHeap -> pool -> option threa
               (Some (bump tid, wAct x tid (E(put x N))::s1, s2, E(ret unit)))
 |New : forall E h h' i tid s1 s2 T,
          ctxt E -> (i, h') = extend (sempty s1) h -> 
-         step h T (Some (tid, s1, s2, E new)) h T
+         step h T (Some (tid, s1, s2, E new)) h' T
               (Some (bump tid, cAct i tid new::s1, s2, E(ret(var i))))
 .
 

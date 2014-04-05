@@ -13,7 +13,7 @@ Fixpoint heap_lookup {T : Type} (i : id) (h : heap T) :=
     |nil => None
   end.
 
-Fixpoint extend {T : Type} v (heap : heap T) := 
+Definition extend {T : Type} v (heap : heap T) := 
   match heap with
     |(n, v') :: h' => (S n, (S n, v) :: (n, v') :: h')
     |nil => (1, (1, v) :: nil)
