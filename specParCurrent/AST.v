@@ -2,7 +2,8 @@
 Require Import Coq.Init.Datatypes. 
 Definition id := nat.
 
-Definition tid := list (nat * nat). 
+Inductive tid : Type :=
+|Tid : nat * nat -> list (nat * nat) -> tid. 
 
 (*Syntax for speculative semantics*)
 Inductive term : Type := 

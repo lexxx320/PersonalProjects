@@ -9,8 +9,7 @@ Require Import sets.
 
 Fixpoint bump (t : tid) : tid := 
   match t with
-    |(maj, min) :: t' => (maj, S min) :: t'
-    |nil => nil
+    |Tid (maj, min)  t' => Tid (maj, S min) t'
   end.
  
 Definition sHeap := heap (ivar_state). 
@@ -38,8 +37,8 @@ Definition tEmptySet := Empty_set thread.
 
 Inductive rollback : tid -> sHeap -> pool -> sHeap -> pool -> Prop :=
 |RBDone : forall T maj min h min' M' tid' M tid s2 t1, 
-            ~(tIn T t1) -> t1 = ((maj, min')::tid, [sAct tid' M'], s2, M) ->
-            rollback ((maj, min)::tid) h (tAdd T t1) h T
+            ~(tIn T t1) -> t1 = (Tid (maj, min')tid, [sAct tid' M'], s2, M) ->
+            rollback (Tid (maj, min)tid) h (tAdd T t1) h T
 |RBRead : forall s1 s1' s2 x tid tid' tid'' M M' N h h' h'' T T' sc t A S ds t1, 
             s1 = s1' ++ [rAct x tid'' M'] -> heap_lookup x h = Some (sfull sc (tid''::ds) (S::A) t N) ->
             h' = replace x (sfull sc ds (S::A) t N) h -> 
@@ -70,7 +69,10 @@ Inductive rollback : tid -> sHeap -> pool -> sHeap -> pool -> Prop :=
 
 Hint Constructors rollback. 
 
-
+Definition extendTid (t:tid) : tid :=
+  match t with
+      |Tid (a, b) l => Tid (1,1) ((a,b)::l)
+  end.
 
 Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
 |StepSwitch : forall h T s s',
@@ -90,8 +92,8 @@ Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
                               (tSingleton (bump tid, s1, s2, E(ret M)))
 |Terminate : forall tid h T M s2,
                step h T (tSingleton (tid, nil, s2, ret M)) h T tEmptySet
-|Fork : forall tid tid' h T M s1 s2 E,
-          ctxt E -> tid' = (1,1)::tid -> 
+|Fork : forall tid tid' h T M s1 s2 E ,
+          ctxt E -> tid' = extendTid tid -> 
           step h T (tSingleton (tid, s1, s2, E(fork M))) h T
                (tCouple (bump tid, fAct tid' tid (E(fork M))::s1, s2, E(ret unit)) 
                (tid', [specAct], nil, M))
@@ -110,33 +112,26 @@ Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
          step h T (tSingleton (tid, s1, s2, E new)) h' T
               (tSingleton (bump tid, cAct i tid new::s1, s2, E(ret(var i))))
 |Spec : forall E M  N tid' tid s1 s2 T h s1', 
-          ctxt E -> tid' = (1,1)::tid -> s1' = [sAct tid' N; specAct] ->
+          ctxt E -> tid' = extendTid tid -> s1' = [sAct tid' N; specAct] ->
           step h T (tSingleton (tid, s1, s2, E (spec M N))) h T
                (tCouple (bump tid, fAct tid' tid (E (spec M N))::s1, s2, specReturn M (threadId tid'))
                         (tid', s1', nil, N))
 |PopSpec : forall E M N1 N2 tid maj min min' tid' tid'' T h t1 t2 s1 s1' s2 s2',
              ctxt E -> s1 = s1' ++ [sAct tid'' M] ->
-             t1 = (tid, nil, s2, E(specReturn (ret N1) (threadId ((maj, min)::tid')))) ->
-             t2 = ((maj, min')::tid', s1, s2', ret N2) ->
-             step h T (tCouple t1 t2) h T (tCouple t1 ((maj, S min')::tid', s1', s2', ret N2))
-|SpecJoin : forall E h s2 s2' tid tid' N1 N2 maj min T t1 t2 ,
-              ctxt E -> t1 = (tid, nil, s2, E(specReturn (ret N1) (threadId ((maj, min)::tid')))) ->
-              t2 = (tid', [joinAct], s2', ret N2) ->
+             t1 = (tid, nil, s2, E(specReturn (ret N1) (threadId (Tid(maj, min) tid')))) ->
+             t2 = (Tid(maj, min') tid', s1, s2', ret N2) ->
+             step h T (tCouple t1 t2) h T (tCouple t1 (Tid(maj, S min')tid', s1', s2', ret N2))
+|SpecJoin : forall E h s2 s2' tid tid' N1 N2 maj min min' T t1 t2,
+              ctxt E -> t1 = (tid, nil, s2, E(specReturn (ret N1) (threadId (Tid (maj, min) tid')))) ->
+              t2 = (Tid (maj, min') tid', [joinAct], s2', ret N2) ->
               step h T (tCouple t1 t2) h T (tSingleton (bump tid, nil, s2, ret(pair_ N1 N2)))
-(*
-|SpecRB : forall E' h h' tid tid' maj min  min'' T T' E M' s2 s1' a s2' t1 t2, 
-            ctxt E' -> t1 = (tid, nil, s2, E'(specReturn (raise E) (threadId ((maj, min'')::tid')))) ->
-            t2 = ((maj, min)::tid', a::s1', s2', M') ->
-            rollback ((maj, min)::tid') h T h' T' ->
-            step h T (tCouple t1 t2) h' T' (tSingleton (bump tid, nil, s2, E'(raise E)))
-*)
 |SpecRB : forall E' h h' tid tid' maj min  min'' T T' E M' s2 s1' a s2' t1 t2 TRB, 
-            ctxt E' -> t1 = (tid, nil, s2, E'(specReturn (raise E) (threadId ((maj, min'')::tid')))) ->
-            t2 = ((maj, min)::tid', a::s1', s2', M') ->
-            rollback ((maj, min)::tid') h (tAdd TRB t2) h' T' ->
+            ctxt E' -> t1 = (tid, nil, s2, E'(specReturn (raise E) (threadId (Tid (maj, min'') tid')))) ->
+            t2 = (Tid (maj, min) tid', a::s1', s2', M') -> ~(tIn T' t2) ->
+            rollback (Tid (maj, min) tid') h (tAdd TRB t2) h' T' ->
             step h T (tCouple t1 t2) h' T (tAdd T' (bump tid, nil, s2, E'(raise E)))
 |SpecRaise : forall E' N h tid tid' maj  min' s2 s2' T E t1 t2,
-               ctxt E' -> t1 = (tid, nil, s2, N) -> t2 = ((maj, min')::tid', [joinAct], s2', raise E) ->
+               ctxt E' -> t1 = (tid, nil, s2, N) -> t2 = (Tid (maj, min') tid', [joinAct], s2', raise E) ->
                step h T (tCouple t1 t2) h T (tSingleton (bump tid, nil, s2, E' (raise E)))
 |PopRead : forall tid tid' t s1 s1' s2 M M' N T h x ds, 
              s1 = s1' ++ [rAct x tid' M'] -> heap_lookup x h = Some (sfull nil ds nil t N) ->
@@ -185,22 +180,22 @@ Inductive unspecThread : thread -> option thread -> Prop :=
 |unspecCommit : forall tid s2 M,
                   unspecThread (tid, nil, s2, M) (Some(tid, nil, s2, M))
 |unspecRead : forall tid s1 s1' s2 M i maj min min' c,
-                ctxt c -> s1 = s1' ++ [rAct i ((maj, min')::tid) (c (get i))] ->
-                unspecThread ((maj, min)::tid, s1, s2, M) (Some((maj, min')::tid, nil, s2, c(get i)))
+                ctxt c -> s1 = s1' ++ [rAct i (Tid (maj, min') tid) (c (get i))] ->
+                unspecThread (Tid (maj, min) tid, s1, s2, M) (Some(Tid (maj, min') tid, nil, s2, c(get i)))
 |unspecWrite : forall tid s1 s1' s2 M M' i maj min min' c,
-                 ctxt c -> s1 = s1' ++ [wAct i ((maj, min')::tid) (c (put i M'))] ->
-                 unspecThread ((maj, min)::tid, s1, s2, M) (Some((maj, min')::tid, nil, s2, (c(put i M'))))
+                 ctxt c -> s1 = s1' ++ [wAct i (Tid (maj, min') tid) (c (put i M'))] ->
+                 unspecThread (Tid (maj, min) tid, s1, s2, M) (Some(Tid (maj, min') tid, nil, s2, (c(put i M'))))
 |unspecCreate : forall tid s1 s1' s2 M i maj min min'  c,
-                  ctxt c -> s1 = s1' ++ [cAct i ((maj, min')::tid) (c new)] ->
-                  unspecThread ((maj, min)::tid, s1, s2, M) (Some((maj, min')::tid, nil, s2, (c new)))
+                  ctxt c -> s1 = s1' ++ [cAct i (Tid (maj, min') tid) (c new)] ->
+                  unspecThread (Tid (maj, min) tid, s1, s2, M) (Some(Tid (maj, min') tid, nil, s2, (c new)))
 |unspecSpec : forall c tid s1 s1' s2 M maj min min' M',
-                ctxt c -> s1 = s1' ++ [sAct ((maj, min')::tid) M'] ->
-                unspecThread ((maj, min)::tid, s1, s2, M) 
-                             (Some((maj, min')::tid, [sAct ((maj, min')::tid) M'], s2, M'))
+                ctxt c -> s1 = s1' ++ [sAct (Tid (maj, min') tid) M'] ->
+                unspecThread (Tid (maj, min) tid, s1, s2, M) 
+                             (Some(Tid (maj, min') tid, [sAct (Tid (maj, min') tid) M'], s2, M'))
 |unSpecFork : forall c tid s1 s1' s2 M tid' M' maj min min',
-                  ctxt c -> s1 = s1' ++ [fAct tid' ((maj, min')::tid) (c (fork M'))] ->
-                  unspecThread ((maj, min)::tid, s1, s2, M) 
-                               (Some((maj, min')::tid, nil, s2, c(fork M')))
+                  ctxt c -> s1 = s1' ++ [fAct tid' (Tid (maj, min') tid) (c (fork M'))] ->
+                  unspecThread (Tid (maj, min) tid, s1, s2, M) 
+                               (Some(Tid (maj, min') tid, nil, s2, c(fork M')))
 |unspecCreatedSpec : forall s1 s1' s2 M tid,
                        s1 = s1' ++ [specAct] -> unspecThread (tid, s1, s2, M) None
 |unspecJoin : forall s1 s1' s2 M tid,
@@ -241,7 +236,7 @@ Inductive commitActions : pool -> Ensemble (tid * specStack) -> Prop :=
         commitActions T actions. 
 
 *)
-
+(*
 Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
 |saEmpty : specActions (Empty_set thread) (Empty_set (tid * specStack))
 |saNonEmpty : forall maj min t s1 s2 M T As, 
@@ -249,21 +244,35 @@ Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
                 specActions T As -> specActions (tAdd T ((maj, min)::t, s1, s2, M))
                                                 (Add (tid * specStack) As ((maj, 0)::t, s1))
 .
+*)
+
+Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
+|saEmpty : specActions (Empty_set thread) (Empty_set (tid * specStack))
+|saSingle : forall maj min t s1 s2 M,
+              specActions (tSingleton (Tid (maj, min) t, s1, s2, M)) 
+                          (Singleton (tid * specStack) (Tid (maj, 0) t, s1))
+|saCouple : forall maj min t s1 s2 M maj' min' t' s1' s2' M',
+              specActions (tCouple (Tid (maj, min) t, s1, s2, M) (Tid (maj', min') t', s1', s2', M'))
+                          (Couple (tid * specStack)(Tid (maj, 0) t, s1) (Tid (maj', 0) t', s1'))
+|saUnion : forall T1 T2 a1 a2,
+             specActions T1 a1 -> specActions T2 a2 -> 
+             specActions (tUnion T1 T2) (Union (tid*specStack) a1 a2)
+.
 
 Hint Constructors specActions. 
 
 Inductive commitActions : pool -> Ensemble (tid * specStack) -> Prop :=
 |caEmpty : commitActions (Empty_set thread) (Empty_set (tid * specStack))
 |caNonEmpty : forall maj min t s1 s2 M T As,
-                ~(tIn T ((maj, min)::t, s1, s2, M)) -> 
-                commitActions T As -> commitActions (tAdd T ((maj, min)::t, s1, s2, M))
-                                                    (Add (tid * specStack) As ((maj, 0)::t, s2))
+                ~(tIn T (Tid (maj, min) t, s1, s2, M)) -> 
+                commitActions T As -> commitActions (tAdd T (Tid (maj, min) t, s1, s2, M))
+                                                    (Add (tid * specStack) As (Tid (maj, 0)t, s2))
 .
 Hint Constructors commitActions. 
 
 Inductive thread_lookup : pool -> tid -> thread -> Prop :=
 |hit : forall T t tid maj min min' s1 s2 M,
-         tIn T t -> t = ((maj, min')::tid, s1, s2, M) -> thread_lookup T ((maj, min)::tid) t.
+         tIn T t -> t = (Tid (maj, min') tid, s1, s2, M) -> thread_lookup T (Tid (maj, min) tid) t.
 
 Hint Constructors thread_lookup. 
 
@@ -420,37 +429,6 @@ Proof.
   }
 Qed. 
 
-(*
-Theorem helper : forall T T' t, 
-                   unspecPool T T' -> 
-                   tIn T' t -> exists t', unspecThread t' (Some t) /\ tIn T t'. 
-Proof.
-  intros. induction H. 
-  {inversion H0. }
-  {assert(t = t' \/ ~(t = t')). apply classic. inversion H3. 
-   {subst. 
-
-
-
-
-Theorem helper : forall T T' tid maj min s2 M, 
-                   unspecPool T T' -> 
-                   tIn T' ((maj, min)::tid, nil, s2, M) ->
-                   exists min' s1 M', tIn T ((maj, min')::tid, s1, s2, M'). 
-Proof.
-  intros. induction H. 
-  {inversion H0. }
-  {inversion H2. 
-   {subst. 
-********************************************************************************)
-
-Theorem helper : forall T T' tid maj min s2 M, 
-                   unspecPool T T' -> 
-                   tIn T' ((maj, min)::tid, nil, s2, M) ->
-                   exists min' s1 M', tIn T ((maj, min')::tid, s1, s2, M'). 
-Proof.
-  Admitted. 
-
 Theorem InAdd : forall T t, tIn (tAdd T t) t. 
   intros. unfold tIn. unfold In. unfold tAdd. unfold Add. apply Union_intror. 
   constructor. Qed. 
@@ -472,28 +450,28 @@ Theorem LookupSame :
 Proof.
   intros P P' H. induction H. 
   {intros. inversion H; subst. inversion H0. }
-  {intros. inversion H2; subst. remember ((maj, min') :: tid0, s1, s2, M). 
+  {intros. inversion H2; subst. remember (Tid (maj, min') tid0, s1, s2, M). 
    assert(p = t' \/ ~(p = t')). apply classic. inversion H4. 
    {subst. rewrite <- H5 in H1. inversion H1; subst; eauto. }
    {unfold not in *. inversion H2. subst. inversion H12. subst. 
-    inversion H3. subst. assert(thread_lookup T' ((maj, min)::tid0) ((maj, min'0) :: tid0, s0, s3, M0)). 
+    inversion H3. subst. assert(thread_lookup T' (Tid (maj, min) tid0) (Tid (maj, min'0) tid0, s0, s3, M0)). 
     econstructor. eassumption. reflexivity. apply IHunspecPool in H7. inversion H7. inversion H8. 
     inversion H10; subst. 
-    {exists  ((maj, min'0) :: tid0, [], s3, M0). split. econstructor. inversion H9; subst. 
+    {exists  (Tid (maj, min'0) tid0, [], s3, M0). split. econstructor. inversion H9; subst. 
      apply AddWeakening with (t' := t) in H18. assumption. reflexivity. constructor. }
-    {exists ((maj, min0) :: tid0, s1' ++ [rAct i ((maj, min'0) :: tid0) (c (get i))], s3, M).
+    {exists (Tid(maj, min0) tid0, s1' ++ [rAct i (Tid(maj, min'0) tid0) (c (get i))], s3, M).
      split. econstructor. inversion H9; subst. apply AddWeakening with (t' := t) in H19. 
      assumption. reflexivity. assumption. }
-    {exists ((maj, min0) :: tid0, s1' ++ [wAct i ((maj, min'0) :: tid0) (c (put i M'))], s3, M). 
+    {exists (Tid(maj, min0) tid0, s1' ++ [wAct i (Tid(maj, min'0) tid0) (c (put i M'))], s3, M). 
      split. econstructor. inversion H9; subst. apply AddWeakening with (t' := t) in H19. 
      assumption. reflexivity. assumption. }
-    {exists  ((maj, min0) :: tid0, s1' ++ [cAct i ((maj, min'0) :: tid0) (c new)], s3, M). 
+    {exists  (Tid(maj, min0) tid0, s1' ++ [cAct i (Tid(maj, min'0) tid0) (c new)], s3, M). 
      split. econstructor. inversion H9. eauto. eauto. eauto. }
-    {exists  ((maj, min0) :: tid0, s1' ++ [sAct ((maj, min'0) :: tid0) M0], s3, M). 
+    {exists  (Tid(maj, min0) tid0, s1' ++ [sAct (Tid(maj, min'0) tid0) M0], s3, M). 
      split. econstructor. inversion H9. eauto. reflexivity. assumption. }
-    {exists ((maj, min0) :: tid0, s1' ++ [fAct tid' ((maj, min'0) :: tid0) (c (fork M'))], s3, M).
+    {exists (Tid(maj, min0) tid0, s1' ++ [fAct tid' (Tid(maj, min'0) tid0) (c (fork M'))], s3, M).
      split. econstructor. inversion H9. eauto. reflexivity. assumption. }
-    {exists  ((maj, min'0) :: tid0, s1' ++ [joinAct], s3, M0). split. econstructor. 
+    {exists  (Tid(maj, min'0) tid0, s1' ++ [joinAct], s3, M0). split. econstructor. 
      inversion H9. eauto. reflexivity. assumption. }
     {inversion H6. symmetry in H8. contradiction. }
    }
@@ -523,7 +501,7 @@ Proof.
    inversion H2. inversion H4. inversion H6; subst; try(solve[destruct s1'; inversion H8]). 
    {destruct s1'; inversion H10. }
    {inversion H8. destruct s1'. simpl in *. inversion H7. subst. 
-    {eapply eraseSpecReturn with (tid' := (maj, min)::tid0) (s1 := (s1'0 ++ [sAct ((maj, min') :: tid0) M'])). 
+    {eapply eraseSpecReturn with (tid' := Tid(maj, min) tid0) (s1 := (s1'0 ++ [sAct (Tid(maj, min') tid0) M'])). 
      eapply IHeraseTerm1. assumption. reflexivity. eapply IHeraseTerm2. assumption. assumption. 
      eassumption. }
     {inversion H7. destruct s1'; inversion H11. }

@@ -2,7 +2,7 @@ Require Import Spec.
 Require Import Coq.Sets.Ensembles. 
 Require Import Heap. 
 
-
+ 
 
 Theorem eqImpliesSameSet : forall (T:Type) T1 T2, T1 = T2 -> Same_set T T1 T2. 
 Proof.
@@ -152,44 +152,34 @@ Ltac evalSpecActions :=
        assert(a = Couple (tid*specStack) (Tid(maj,0)t, s1) (Tid (maj',0)t', s1'))by admit
   end.       
 
-Theorem Reorder : forall T t1 t2 t1' t2' h h' sa ca,
+Theorem Reorder : forall  t1 t2 t1' t2' h h' sa ca,
                     specActions t2 sa -> specActions t2' sa ->
                     commitActions t2 ca -> commitActions t2' ca ->
-                    step h (tUnion T t2) t1 h' (tUnion T t2) t1' ->
-                    step h' (tUnion T t1') t2 h' (tUnion T t1') t2' ->
-                    step h (tUnion T t1) t2 h (tUnion T t1) t2' /\
-                    step h (tUnion T t2') t1 h' (tUnion T t2') t1'.
+                    step h t2 t1 h' t2 t1' ->
+                    step h' t1' t2 h' t1' t2' ->
+                    step h t1 t2 h t1 t2' /\
+                    step h t2' t1 h' t2' t1'.
 Proof.
-  intros. inversion H3. 
+  intros. inversion H3.
   {inversion H4; try(subst; assert(t1 = t1'); eauto;contradiction; subst; 
                      assert(t1 = t1'); eauto;contradiction). 
-   {handleReadWrite. contradiction. intros c. inversion c. apply listNeq in H23. assumption. }
+   {subst. apply UnionEq in H5. contradiction. assumption. assumption. }
+   {handleReadWrite. contradiction. intros c. inversion c. apply listNeq in H24. assumption. }
    {handleReadWrite. contradiction. intros c. inversion c. }
   }
-  {inversion H4; eauto. 
-   {subst. assert(t2 = t2'); eauto. contradiction. }
-  }
-  {inversion H4; eauto. 
-   {subst. assert(t2 = t2'). eauto. contradiction. }
-  }
-  {inversion H4; eauto. 
-   {subst. assert(t2 = t2'); eauto. contradiction. }
-  }
-  {inversion H4; eauto. 
-   {subst. assert(t2 = t2'); eauto. contradiction. }
-  }
-  {inversion H4; eauto. 
-   {subst. assert(t2 = t2'); eauto. contradiction. }
-  }
-  {inversion H4; eauto. 
-   {subst. assert(t2 = t2'); eauto. contradiction. }
-  }
+  {inversion H4; eauto; try(subst; assert(t2 = t2') by eauto; contradiction). }
+  {inversion H4; eauto; try(subst; assert(t2 = t2') by eauto; contradiction). }
+  {inversion H4; eauto; try(subst; assert(t2 = t2') by eauto; contradiction). }
+  {inversion H4; eauto; try(subst; assert(t2 = t2') by eauto; contradiction). }
+  {inversion H4; eauto; try(subst; assert(t2 = t2') by eauto; contradiction). }
+  {inversion H4; eauto; try(subst; assert(t2 = t2') by eauto; contradiction). }
   {inversion H4; eauto; try(subst; eapply AddSpecAction in H; inversion H; eassumption).
    {subst. assert(t2 = t2'); eauto. contradiction. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. admit. }
+
    {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
    {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
    {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
@@ -208,7 +198,7 @@ Proof.
   }
   {inversion H4; eauto; try(subst; eapply AddSpecAction in H; inversion H; eassumption).
    {subst. assert(t2 = t2'); eauto. contradiction. }
-   {handleReadWrite. contradiction. intros contra. inversion contra. apply listNeq in H21. assumption. }
+   {handleReadWrite. contradiction. intros contra. inversion contra. apply listNeq in H23. assumption. }
    {handleReadWrite. contradiction. intros contra. inversion contra. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. admit. }
@@ -228,7 +218,7 @@ Proof.
   }
   {inversion H4; eauto. 
    {subst. assert(t2 = t2'); eauto. contradiction. }
-   {handleReadWrite. contradiction. intros contra. inversion contra. apply listNeq in H24. assumption. }
+   {handleReadWrite. contradiction. intros contra. inversion contra. apply listNeq in H26. assumption. }
    {handleReadWrite. contradiction. intros contra. inversion contra. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. admit. }
@@ -256,6 +246,7 @@ Proof.
    {subst. assert(t2 = t2'). eauto. contradiction. }
   } 
 Qed. 
+
 
 Inductive multistep : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
 |multi_refl : forall h p1 p2, multistep h p1 p2 h p1 p2
