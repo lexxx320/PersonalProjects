@@ -133,6 +133,5 @@ Ltac invertSetEq :=
 
 
 
-
 End Ensembles.
 

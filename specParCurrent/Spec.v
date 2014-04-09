@@ -74,6 +74,13 @@ Definition extendTid (t:tid) : tid :=
       |Tid (a, b) l => Tid (1,1) ((a,b)::l)
   end.
 
+
+Inductive thread_lookup : pool -> tid -> thread -> Prop :=
+|hit : forall T t tid maj min min' s1 s2 M,
+         tIn T t -> t = (Tid (maj, min') tid, s1, s2, M) -> thread_lookup T (Tid (maj, min) tid) t.
+
+Hint Constructors thread_lookup. 
+
 Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
 |StepSwitch : forall h T s s',
                 tIntersection T s = tEmptySet -> tIntersection T s' = tEmptySet ->
@@ -114,7 +121,7 @@ Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
 |Spec : forall E M  N tid' tid s1 s2 T h s1', 
           ctxt E -> tid' = extendTid tid -> s1' = [sAct tid' N; specAct] ->
           step h T (tSingleton (tid, s1, s2, E (spec M N))) h T
-               (tCouple (bump tid, fAct tid' tid (E (spec M N))::s1, s2, specReturn M (threadId tid'))
+               (tCouple (bump tid, fAct tid' tid (E (spec M N))::s1, s2,E(specReturn M (threadId tid')))
                         (tid', s1', nil, N))
 |PopSpec : forall E M N1 N2 tid maj min min' tid' tid'' T h t1 t2 s1 s1' s2 s2',
              ctxt E -> s1 = s1' ++ [sAct tid'' M] ->
@@ -125,11 +132,13 @@ Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
               ctxt E -> t1 = (tid, nil, s2, E(specReturn (ret N1) (threadId (Tid (maj, min) tid')))) ->
               t2 = (Tid (maj, min') tid', [joinAct], s2', ret N2) ->
               step h T (tCouple t1 t2) h T (tSingleton (bump tid, nil, s2, ret(pair_ N1 N2)))
-|SpecRB : forall E' h h' tid tid' maj min  min'' T T' E M' s2 s1' a s2' t1 t2 TRB, 
+|SpecRB : forall E' h h' tid tid' maj min  min'' T T' E M' s2 s1' a s2' t1 t2 TRB p p', 
             ctxt E' -> t1 = (tid, nil, s2, E'(specReturn (raise E) (threadId (Tid (maj, min'') tid')))) ->
-            t2 = (Tid (maj, min) tid', a::s1', s2', M') -> ~(tIn T' t2) ->
+            t2 = (Tid (maj, min) tid', a::s1', s2', M') -> 
+            ~ thread_lookup TRB tid p -> thread_lookup TRB (Tid (maj, min) tid') t2 -> 
+            ~ thread_lookup T' (Tid (maj, min) tid') p' ->
             rollback (Tid (maj, min) tid') h (tAdd TRB t2) h' T' ->
-            step h T (tCouple t1 t2) h' T (tAdd T' (bump tid, nil, s2, E'(raise E)))
+            step h T (tAdd TRB t1) h' T (tAdd T' (bump tid, nil, s2, E'(raise E)))
 |SpecRaise : forall E' N h tid tid' maj  min' s2 s2' T E t1 t2,
                ctxt E' -> t1 = (tid, nil, s2, N) -> t2 = (Tid (maj, min') tid', [joinAct], s2', raise E) ->
                step h T (tCouple t1 t2) h T (tSingleton (bump tid, nil, s2, E' (raise E)))
@@ -224,28 +233,15 @@ Inductive wellFormed : sHeap -> pool -> Prop :=
                          wellFormed h p. 
 Hint Constructors wellFormed. 
 *)
-(*
-Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
-|sa : forall maj min t s1 s2 M T actions, 
-        tIn T ((maj, min)::t, s1, s2, M) -> Ensembles.In (tid * specStack) actions ((maj, 0)::t, s1) ->
-        specActions T actions. 
 
-Inductive commitActions : pool -> Ensemble (tid * specStack) -> Prop :=
-|ca : forall maj min t s1 s2 M T actions,
-        tIn T ((maj, min)::t, s1, s2, M) -> Ensembles.In (tid * specStack) actions ((maj,0)::t, s2) ->
-        commitActions T actions. 
-
-*)
-(*
 Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
-|saEmpty : specActions (Empty_set thread) (Empty_set (tid * specStack))
-|saNonEmpty : forall maj min t s1 s2 M T As, 
-                ~(tIn T ((maj, min)::t, s1, s2, M)) ->
-                specActions T As -> specActions (tAdd T ((maj, min)::t, s1, s2, M))
-                                                (Add (tid * specStack) As ((maj, 0)::t, s1))
+|sa : forall T actions, 
+        (forall maj min t s1 s2 M, tIn T (Tid (maj, min) t, s1, s2, M) -> 
+                                   Ensembles.In (tid * specStack) actions (Tid(maj, 0)t, s1)) ->
+        specActions T actions
 .
-*)
 
+(*
 Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
 |saEmpty : specActions (Empty_set thread) (Empty_set (tid * specStack))
 |saSingle : forall maj min t s1 s2 M,
@@ -257,7 +253,7 @@ Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
 |saUnion : forall T1 T2 a1 a2,
              specActions T1 a1 -> specActions T2 a2 -> 
              specActions (tUnion T1 T2) (Union (tid*specStack) a1 a2)
-.
+.*)
 
 Hint Constructors specActions. 
 
@@ -270,11 +266,6 @@ Inductive commitActions : pool -> Ensemble (tid * specStack) -> Prop :=
 .
 Hint Constructors commitActions. 
 
-Inductive thread_lookup : pool -> tid -> thread -> Prop :=
-|hit : forall T t tid maj min min' s1 s2 M,
-         tIn T t -> t = (Tid (maj, min') tid, s1, s2, M) -> thread_lookup T (Tid (maj, min) tid) t.
-
-Hint Constructors thread_lookup. 
 
 (*Erasure*)
 Inductive appears_free_in : id -> term -> Prop :=

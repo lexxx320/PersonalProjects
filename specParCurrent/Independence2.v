@@ -178,8 +178,7 @@ Proof.
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
-   {subst. admit. }
-
+   {admit. }
    {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
    {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
    {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
@@ -218,7 +217,7 @@ Proof.
   }
   {inversion H4; eauto. 
    {subst. assert(t2 = t2'); eauto. contradiction. }
-   {handleReadWrite. contradiction. intros contra. inversion contra. apply listNeq in H26. assumption. }
+   {handleReadWrite. contradiction. intros contra. inversion contra. apply listNeq in H28. assumption. }
    {handleReadWrite. contradiction. intros contra. inversion contra. }
    {subst. eapply addSpecAction in H. inversion H. eassumption. }
    {subst. admit. }
@@ -253,6 +252,10 @@ Inductive multistep : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
 |multi_step : forall h h' h'' p1 p1' p1'' p2 p2' p2'',
                 step h p1 p2 h' p1' p2' -> multistep h' p1' p2' h'' p1'' p2'' ->
                 multistep h p1 p2 h'' p1'' p2''.
+
+Inductive multistep : 
+
+
 Require Import Coq.Program.Equality. 
 
 Theorem stepNoProgress : forall h T t,
@@ -260,7 +263,7 @@ Theorem stepNoProgress : forall h T t,
 Proof.
   Admitted. 
 
-Theorem ReorderStepStar : forall T t1 t2 t1' t2' h h' sa ca,
+Theorem ReorderStepStar : forall t1 t2 t1' t2' h T h' sa ca,
                             specActions t2 sa -> specActions t2' sa ->
                             commitActions t2 ca -> commitActions t2' ca ->
                             step h T t2 h T t2' ->
@@ -268,9 +271,11 @@ Theorem ReorderStepStar : forall T t1 t2 t1' t2' h h' sa ca,
                             multistep h T t1 h' T t1' /\
                             step h' T t2 h' T t2'.
 Proof.
-  intros. induction H4. 
-  {split. constructor. assumption. }
-  {
+  intros. generalize dependent t2. generalize dependent t2'.  induction H4. 
+  {intros. split. constructor. assumption. }
+  {intros. split. 
+   {apply multi_step with (h' := h')(p1' :=p1')(p2' := p2'). admit. assumption. }
+
 
 Theorem ReorderStepStar : forall T t1 t2 t1' t2' h h' sa ca,
                             specActions t2 sa -> specActions t2' sa ->
