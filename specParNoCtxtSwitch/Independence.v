@@ -41,7 +41,7 @@ Ltac invertSetEq :=
   end. 
 
 Ltac unfoldSetOp := repeat(try unfold tAdd in *; try unfold tIn in *; try unfold tCouple in *;
-                           try unfold tSingleton in *; try unfold tEmptySet in *).
+                           try unfold tSingleton in *; try unfold tEmptySet in *; unfold tUnion in *).
 
 Theorem UnionEq : forall T t1 t2, tIntersection T t1 = tEmptySet -> tIntersection T t2 = tEmptySet -> 
                                   tUnion T t1 = tUnion T t2 -> t1 = t2.
@@ -134,17 +134,15 @@ Theorem addSpecAction : forall tid a s1 s2 M M' sa,
                           specActions (tSingleton (tid, s1, s2, M)) sa ->
                           specActions (tSingleton (bump tid, a::s1, s2, M')) sa -> False.
 Proof.
+  intros. inversion H; inversion H0; subst; unfoldSetOp; try invertSetEq. 
+  {inversion H3. subst. apply SingletonEq in H2. apply SingletonEq in H4. 
+   inversion H4. inversion H2. subst. symmetry in H10. apply listNeq in H10. assumption. }
   Admitted.
 Theorem addCommitAction : forall tid a s1 s1' s2 M M' sa,
                           commitActions (tSingleton (tid, s1, s2, M)) sa ->
                           commitActions (tSingleton (tid, s1', a::s2, M')) sa -> False.
 Proof.
   Admitted. 
-
-Axiom specActionsEq : forall T T' sa,
-                          specActions T sa -> specActions T' sa ->
-                          (forall tid s1 s2 M, tIn T (tid,s1,s2,M) -> exists x, thread_lookup T' tid x) /\
-                          (forall tid s1 s2 M, tIn T' (tid,s1,s2,M) -> exists x, thread_lookup T tid x).
 
 Theorem Reorder : forall T t1 t2 t1' t2' h h' sa ca,
                     specActions t2 sa -> specActions t2' sa ->
@@ -228,38 +226,80 @@ Inductive splitMultistep : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Pro
 |splitStepR : forall h h' h'' p1 p1' p2 p2' t1 t2 t2', 
                 p2 = tUnion t1 t2 -> Disjoint thread t1 t2 ->
                 step h (tUnion t1 p1) t2 h' (tUnion t1 p1) t2' ->
-                splitMultistep h' (tUnion t1 t2') p1 h'' p1' p1' ->
+                splitMultistep h' p1 (tUnion t1 t2') h'' p1' p2' ->
                 splitMultistep h p1 p2 h'' p1' p2'
 .
 
-Theorem Independence : forall t1 t2 t1' t2' h h' sa ca,
-                         specActions t2 sa -> specActions t2' sa ->
-                         commitActions t2 ca -> commitActions t2' ca ->
-                         Disjoint thread t1 t2 -> Disjoint thread t1' t2' ->
-                         multistep h tEmptySet (tUnion t1 t2) h' tEmptySet (tUnion t1' t2') ->
-                         multistep h t2 t1 h' t2 t1' /\ multistep h' t1' t2 h' t1' t2'. 
-Proof.  
-  intros. induction H5. 
-  {
+Theorem HeapUnchanged : forall T t h h' t' sa, step h T t h' T t' -> specActions t sa ->
+                                               specActions t' sa -> h' = h. 
+Proof.
+  intros. inversion H; eauto. 
+  {subst. eapply addSpecAction in H0. inversion H0. eassumption. }
+  {subst. eapply addSpecAction in H1. inversion H1. eassumption. }
+  {subst. eapply addSpecAction in H1. inversion H1. eassumption. }
+  {subst. admit. }
+Qed. 
+
+Ltac copy H :=
+  match type of H with
+      | ?P => assert(P) by assumption
+  end. 
+
+Axiom addSpecActionUnion : forall t a s1 s2 M M' sa T,
+                             specActions (tAdd T (t, s1, s2, M)) sa ->
+                             specActions (tAdd T (bump t, a :: s1, s2, M')) sa -> False.
+
+
+Theorem actionPreservation : forall t1 t2 t2' p1 p1' p2' sa ca h h' h'',
+                               specActions (tUnion t1 t2) sa -> commitActions (tUnion t1 t2) ca ->
+                               specActions p2' sa -> commitActions p2' ca ->
+                               step h (tUnion t1 p1) t2 h' (tUnion t1 p1) t2' ->
+                               splitMultistep h' p1 (tUnion t1 t2') h'' p1' p2' ->
+                               specActions (tUnion t1 t2') sa /\ 
+                               commitActions (tUnion t1 t2') ca.
+Proof.
+  intros. inversion H3; subst. 
+  {inversion H. 
+   {apply eqImpliesSameSet in H7. unfold Same_set in H7. unfold Included in H7.
+    inversion H7. 
+    assert(tIn (tUnion t1 (tSingleton(tid, s1, s2, E(bind(ret M) N)))) (tid, s1, s2, E(bind(ret M) N))). 
+    unfoldSetOp. apply Union_intror. constructor. apply H9 in H10. inversion H10. }
+   {admit. }
+   {admit. }
+   {
+Admitted. 
+
+Definition specActions (p:pool) : Ensemble (tid*specStack) :=
+  match p with
+      |Singleton(Tid (maj, min) t, s1, s2, M) => Singleton (tid*specStack) (Tid(maj, 0) t, s1)
+  end. 
 
 Theorem Independence : forall t1 t2 t1' t2' h h' sa ca,
                          specActions t2 sa -> specActions t2' sa ->
                          commitActions t2 ca -> commitActions t2' ca ->
-                         Disjoint thread t1 t2 -> Disjoint thread t1' t2' ->
-                         multistep h tEmptySet (tUnion t1 t2) h' tEmptySet (tUnion t1' t2') ->
-                         multistep h t2 t1 h' t2 t1' /\ multistep h' t1' t2 h' t1' t2'. 
-Proof.  
-  intros. remember (tUnion t1 t2). remember (tUnion t1' t2'). generalize dependent t1. 
-  generalize dependent t2. generalize dependent t1'. generalize dependent t2'. induction H5. 
-  {intros. 
+                         splitMultistep h t1 t2 h' t1' t2' ->
+                         multistep h t2 t1 h' t2 t1' /\ multistep h' t1' t2 h' t1' t2'.
+Proof.
+  intros. induction H3. 
+  {split. constructor. constructor. }
+  {split. subst. eapply multi_step; try eassumption. reflexivity. 
+   apply IHsplitMultistep in H. inversion H. assumption. assumption. 
+   assumption. assumption. apply IHsplitMultistep in H. inversion H. 
+   assumption. assumption. assumption. assumption. }
+  {subst. copy H.  apply actionPreservation with 
+          (t1:=t1)(t2:=t2)(t2':=t2')(p1:=p1)(p1':=p1')(ca:=ca)(h:=h)(h':=h')(h'':=h'') in H;try assumption.
+   inversion H. copy H7. apply IHsplitMultistep in H7; try assumption. inversion H7. 
+   copy H5. apply HeapUnchanged with(sa:=sa)in H5; try assumption. split. subst. 
+   copy 
 
 
-
-
-
-
-
-
+assert(specActions (tUnion t1 t2') sa) by admit.
+   assert(commitActions (tUnion t1 t2') ca) by admit. assert(specActions (tUnion t1 t2') sa) by assumption. 
+   apply IHsplitMultistep in H3; try assumption. 
+   inversion H3. split. 
+   {apply ReorderStepStar with (t2':=tUnion t1 t2')(t1:=p1)(t1':=p1')
+                                                   (t2:=tUnion t1 t2)(h:=h)(h':=h')(ca:=ca) in H.
+    
 
 
 
