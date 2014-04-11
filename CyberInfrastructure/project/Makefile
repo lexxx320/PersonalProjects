@@ -1,2 +1,2 @@
 main:	
-	javac -cp jmatio.jar Main.java
+	javac -Xlint:unchecked -cp jmatio.jar ConnComp.java Eddyscan.java Main.java
