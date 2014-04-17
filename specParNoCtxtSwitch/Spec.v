@@ -1,9 +1,11 @@
 Require Import AST. 
 Require Import Heap. 
 Require Import NonSpec. 
+Require Import sets. 
 Require Import Coq.Sets.Ensembles. 
 Require Import Coq.Logic.Classical_Prop. 
 Require Import Coq.Program.Equality. 
+Require Import Coq.Sets.Powerset_facts. 
 
 Require Import sets. 
 
@@ -20,7 +22,11 @@ Inductive ctxt : (term -> term) -> Prop :=
 |handleCtxt : forall N c, ctxt c -> ctxt (fun M => handle M N)
 |hole : forall c, ctxt c -> ctxt (fun M => c M)
 .
+
 Hint Constructors ctxt. 
+
+Inductive decompose : term -> ctxt -> term -> Prop :=
+|decompBind : forall M, M = pair_(e1, e2)
 
 Definition thread := tid * specStack * specStack * term. 
 
@@ -135,10 +141,10 @@ Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
             ~ (exists p, thread_lookup TRB tid p) -> thread_lookup TRB (Tid (maj, min) tid') t2 -> 
             ~ (exists p', thread_lookup T' (Tid (maj, min) tid') p') ->
             rollback (Tid (maj, min) tid') h (tAdd TRB t2) h' T' ->
-            step h T (tAdd TRB t1) h' T (tAdd T' (bump tid, nil, s2, E'(raise E)))
+            step h T (tAdd TRB t1) h' T (tAdd T' (tid, nil, s2, E'(raise E)))
 |SpecRaise : forall E' N h tid tid' maj  min' s2 s2' T E t1 t2,
                ctxt E' -> t1 = (tid, nil, s2, N) -> t2 = (Tid (maj, min') tid', [joinAct], s2', raise E) ->
-               step h T (tCouple t1 t2) h T (tSingleton (bump tid, nil, s2, E' (raise E)))
+               step h T (tCouple t1 t2) h T (tSingleton (tid, nil, s2, E' (raise E)))
 |PopRead : forall tid tid' t s1 s1' s2 M M' N T h x ds, 
              s1 = s1' ++ [rAct x tid' M'] -> heap_lookup x h = Some (sfull nil ds nil t N) ->
              step h T (tSingleton (tid, s1, s2, M)) h T (tSingleton (tid, s1', (rAct x tid' M')::s2, M))
@@ -221,58 +227,38 @@ Inductive unspecThread : thread -> option thread -> Prop :=
 
 Hint Constructors unspecThread. 
 
+Inductive unspecPoolAux (T:pool) : pool :=
+|unspecAux : forall t t' s1 s2 M, thread_lookup T t (t, s1, s2, M) ->
+                                  unspecThread (t, s1, s2, M) (Some t') -> tIn (unspecPoolAux T) t'.
+
 Inductive unspecPool : pool -> pool -> Prop :=
-|unspecEmpty : unspecPool (Empty_set thread) (Empty_set thread)
-|unspecSome : forall t t' T T', ~(tIn T t) -> unspecPool T T' -> unspecThread t (Some t') ->
-                                unspecPool (tAdd T t) (tAdd T' t')
-|unspecNone : forall t  T T', ~(tIn T t) -> unspecPool T T' -> unspecThread t None ->
-                                unspecPool (tAdd T t) T'
-.
+|unspecP : forall T, unspecPool T (unspecPoolAux T).
+
 Hint Constructors unspecPool. 
-(*
-Inductive multistep : sHeap -> pool -> sHeap -> pool -> Prop :=
-|reflStep : forall h p, multistep h p h p
-|multiStep : forall h h' h'' p p' p'', multistep h' p' h'' p'' -> step h p h' p' ->
-                                       multistep h p h'' p''
-.
 
 Inductive wellFormed : sHeap -> pool -> Prop :=
-  |WF : forall h h' p p', unspecHeap h h' -> unspecPool p p' -> multistep h' p' h p ->
-                         wellFormed h p. 
-Hint Constructors wellFormed. 
-*)
-(*
-Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
-|sa : forall T actions, 
-        (forall maj min t s1 s2 M, tIn T (Tid (maj, min) t, s1, s2, M) -> 
-                                   Ensembles.In (tid * specStack) actions (Tid(maj, 0)t, s1)) ->
-        specActions T actions
+|wf : forall H H' T T', unspecPool T T' -> unspecHeap H H' -> multistep H' tEmptySet T' H tEmptySet T ->
+                        wellFormed H T
 .
-*)
+
+Inductive specActionsAux (T:pool) : Ensemble (tid*specStack) :=
+|saAux : forall t s1, (exists s2 M, thread_lookup T t (t, s1, s2, M)) ->
+                      In (tid*specStack) (specActionsAux T) (t, s1)
+.
 
 Inductive specActions : pool -> Ensemble (tid * specStack) -> Prop :=
-|saEmpty : specActions (Empty_set thread) (Empty_set (tid * specStack))
-|saSingle : forall t s1 s2 M,
-              specActions (tSingleton (t, s1, s2, M)) 
-                          (Singleton (tid * specStack) (t, s1))
-|saCouple : forall t s1 s2 M t' s1' s2' M',
-              specActions (tCouple (t, s1, s2, M) (t', s1', s2', M'))
-                          (Couple (tid * specStack)(t, s1) (t', s1'))
-|saUnion : forall T1 T2 a1 a2,
-             specActions T1 a1 -> specActions T2 a2 -> 
-             specActions (tUnion T1 T2) (Union (tid*specStack) a1 a2)
-.
+|sa : forall T, specActions T (specActionsAux T). 
 
-Hint Constructors specActions. 
+Hint Constructors specActions specActionsAux. 
 
-Inductive commitActions : pool -> Ensemble (tid * specStack) -> Prop :=
-|caEmpty : commitActions (Empty_set thread) (Empty_set (tid * specStack))
-|caNonEmpty : forall maj min t s1 s2 M T As,
-                ~(tIn T (Tid (maj, min) t, s1, s2, M)) -> 
-                commitActions T As -> commitActions (tAdd T (Tid (maj, min) t, s1, s2, M))
-                                                    (Add (tid * specStack) As (Tid (maj, 0)t, s2))
-.
-Hint Constructors commitActions. 
+Inductive commitActionsAux (T:pool) : Ensemble (tid*specStack) :=
+|caAux : forall t s2, (exists s1 M, thread_lookup T t (t, s1, s2, M)) -> 
+                      In (tid*specStack) (commitActionsAux T) (t, s2).
+
+Inductive commitActions : pool -> Ensemble (tid*specStack) -> Prop :=
+|ca : forall T, commitActions T (commitActionsAux T). 
+
+Hint Constructors commitActions commitActionsAux. 
 
 
 (*Erasure*)
@@ -428,11 +414,7 @@ Proof.
   }
 Qed. 
 
-Theorem InAdd : forall T t, tIn (tAdd T t) t. 
-  intros. unfold tIn. unfold In. unfold tAdd. unfold Add. apply Union_intror. 
-  constructor. Qed. 
 
-Hint Resolve InAdd. 
 
 Theorem AddWeakening : forall T t t', tIn T t -> tIn (tAdd T t') t. 
 Proof.
@@ -447,37 +429,10 @@ Theorem LookupSame :
                forall tid T, thread_lookup P' tid T ->
                              exists T', thread_lookup P tid T' /\ unspecThread T' (Some T).
 Proof.
-  intros P P' H. induction H. 
-  {intros. inversion H; subst. inversion H0. }
-  {intros. inversion H2; subst. remember (Tid (maj, min') tid0, s1, s2, M). 
-   assert(p = t' \/ ~(p = t')). apply classic. inversion H4. 
-   {subst. rewrite <- H5 in H1. inversion H1; subst; eauto. }
-   {unfold not in *. inversion H2. subst. inversion H12. subst. 
-    inversion H3. subst. assert(thread_lookup T' (Tid (maj, min) tid0) (Tid (maj, min'0) tid0, s0, s3, M0)). 
-    econstructor. eassumption. reflexivity. apply IHunspecPool in H7. inversion H7. inversion H8. 
-    inversion H10; subst. 
-    {exists  (Tid (maj, min'0) tid0, [], s3, M0). split. econstructor. inversion H9; subst. 
-     apply AddWeakening with (t' := t) in H18. assumption. reflexivity. constructor. }
-    {exists (Tid(maj, min0) tid0, s1' ++ [rAct i (Tid(maj, min'0) tid0) (c (get i))], s3, M).
-     split. econstructor. inversion H9; subst. apply AddWeakening with (t' := t) in H19. 
-     assumption. reflexivity. assumption. }
-    {exists (Tid(maj, min0) tid0, s1' ++ [wAct i (Tid(maj, min'0) tid0) (c (put i M'))], s3, M). 
-     split. econstructor. inversion H9; subst. apply AddWeakening with (t' := t) in H19. 
-     assumption. reflexivity. assumption. }
-    {exists  (Tid(maj, min0) tid0, s1' ++ [cAct i (Tid(maj, min'0) tid0) (c new)], s3, M). 
-     split. econstructor. inversion H9. eauto. eauto. eauto. }
-    {exists  (Tid(maj, min0) tid0, s1' ++ [sAct (Tid(maj, min'0) tid0) M0], s3, M). 
-     split. econstructor. inversion H9. eauto. reflexivity. assumption. }
-    {exists (Tid(maj, min0) tid0, s1' ++ [fAct tid' (Tid(maj, min'0) tid0) (c (fork M'))], s3, M).
-     split. econstructor. inversion H9. eauto. reflexivity. assumption. }
-    {exists  (Tid(maj, min'0) tid0, s1' ++ [joinAct], s3, M0). split. econstructor. 
-     inversion H9. eauto. reflexivity. assumption. }
-    {inversion H6. symmetry in H8. contradiction. }
-   }
+  intros. inversion H. rewrite <- H2 in H0. inversion H0. subst. 
+  {inversion H3. subst. inversion H2; 
+   try(solve[econstructor; split; [subst; inversion H1; eauto;eauto | subst; econstructor;eauto;eauto]]).
   }
-  {intros. apply IHunspecPool in H2. inversion H2. inversion H3. exists x. 
-   split. inversion H4. subst. eapply AddWeakening in H6. econstructor. eassumption. 
-   reflexivity. assumption. }
 Qed. 
 
 Theorem lastElementsNotEqual : forall (T:Type) l1 l2 (t1 t2:T), t1 <> t2 -> l1++[t1] <> l2++[t2]. 
@@ -509,3 +464,83 @@ Proof.
    {assumption. }
   }
 Qed. 
+
+Definition commitPool (T:pool) : Prop := forall tid s1 s2 M, tIn T (tid, s1, s2, M) -> s1 = nil. 
+
+Theorem commitPoolUnspecUnchanged : forall T, commitPool T -> T = unspecPoolAux T. 
+Proof.
+  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split. 
+  {intros. destruct x. destruct p. destruct p. destruct t0. destruct p. 
+   econstructor. econstructor. eassumption. reflexivity. unfold commitPool in H. 
+   apply H in H0. subst. constructor. }
+  {intros. inversion H0. unfold commitPool in H. inversion H1. apply H in H4. 
+   subst. inversion H2; try(destruct s1'; inversion H12). 
+   {subst. inversion H1. assumption. } 
+   {destruct s1'; inversion H4. }
+  }
+Qed. 
+
+Theorem unspecDistribute : forall t1 t2, 
+                             unspecPoolAux(tUnion t1 t2) = 
+                             tUnion(unspecPoolAux t1) (unspecPoolAux t2). 
+Proof.
+  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
+  {inversion H. inversion H0. subst. inversion H3. 
+   {constructor. eapply unspecAux. econstructor. eassumption. reflexivity. assumption. }
+   {apply Union_intror. econstructor. econstructor. eassumption. reflexivity. assumption. }
+  }
+  {inversion H. 
+   {inversion H0. inversion H2. subst. econstructor. econstructor. econstructor. 
+    eassumption. reflexivity. assumption. }
+   {inversion H0. inversion H2; subst. econstructor. econstructor. eapply Union_intror. 
+    eassumption. reflexivity. assumption. }
+  }
+Qed. 
+
+Theorem stepUnusedPool : forall t1 t2 t2' p1 h h', 
+                           step h (tUnion t1 p1) t2 h' (tUnion t1 p1) t2' <->
+                           step h p1 t2 h' p1 t2'.
+Proof.
+  intros. split. 
+  {intros. inversion H; eauto. }
+  {intros. inversion H; eauto. }
+Qed. 
+
+Theorem multistepUnusedPool : forall h h' t1 t2 p1 p1',
+                                multistep h (tUnion t1 t2) p1 h' (tUnion t1 t2) p1' <->
+                                multistep h t2 p1 h' t2 p1'. 
+Proof.
+  split. 
+  {intros. remember (tUnion t1 t2). induction H; eauto. 
+   {intros. subst. unfold tUnion in H1. rewrite Union_commutative in H1. rewrite Union_associative in H1. 
+    apply stepUnusedPool in H1. econstructor. reflexivity. assumption. unfold tUnion. 
+    rewrite Union_commutative. eassumption. assert(tUnion t1 t2 = tUnion t1 t2) by reflexivity. 
+    apply IHmultistep in H. assumption. }
+  }
+  {intros. induction H; eauto. eapply multi_step. eassumption. assumption. unfold tUnion. 
+   rewrite Union_commutative. rewrite Union_associative. rewrite stepUnusedPool. rewrite Union_commutative. 
+    eassumption. assumption. 
+  }
+Qed. 
+
+Axiom MultistepUntouchedUnused : forall h h' T1 T2 T2' T3,
+                                   multistep h T3 (tUnion T1 T2) h' T3 (tUnion T1 T2') <->
+                                   multistep h (tUnion T1 T3) T2 h' (tUnion T1 T3) T2'. 
+
+Theorem WFFrameRule : forall T1 T2 H, commitPool T2 -> (wellFormed H (tUnion T1 T2) <-> 
+                                                        wellFormed H T1). 
+Proof.
+  intros. split; intros. 
+  {inversion H1. inversion H3. subst. rewrite unspecDistribute in H5. 
+   assert(T2 = unspecPoolAux T2). apply commitPoolUnspecUnchanged. assumption.
+   rewrite <- H2 in H5. unfold tUnion in *. rewrite Union_commutative in H5. 
+   rewrite Union_commutative with (A:=T1) in H5. apply MultistepUntouchedUnused in H5. 
+   unfold tUnion in H5.  rewrite multistepUnusedPool in H5. econstructor. 
+   econstructor. eassumption. assumption. }
+  {inversion H1. econstructor. econstructor. eassumption. rewrite unspecDistribute. 
+   assert(T2 = unspecPoolAux T2). apply commitPoolUnspecUnchanged. assumption. 
+   rewrite <- H8. rewrite <- multistepUnusedPool with(t1:=T2) in H5. 
+   rewrite <- MultistepUntouchedUnused in H5. inversion H3. subst T'. 
+   unfold tUnion in *. rewrite Union_commutative in H5. 
+   rewrite Union_commutative with(A:=T2)in H5. assumption. }
+Qed.  
