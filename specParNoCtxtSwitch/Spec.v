@@ -1,6 +1,6 @@
 Require Import AST. 
 Require Import Heap. 
-Require Import NonSpec. 
+Require Export NonSpec. 
 Require Import sets. 
 Require Import Coq.Sets.Ensembles. 
 Require Import Coq.Logic.Classical_Prop. 
@@ -367,41 +367,43 @@ Inductive eraseHeap : sHeap -> pHeap -> Prop :=
 
 Hint Constructors eraseHeap. 
 
-Inductive eraseThread : thread -> pool -> option ppool -> Prop :=
+Inductive eraseThread : thread -> pool -> pPool -> Prop :=
 |tEraseCommit : forall T tid s2 M M', eraseTerm M T M' ->
-                                     eraseThread (tid, nil, s2, M) T (Some (pthread M'))
+                                     eraseThread (tid, nil, s2, M) T (pSingleton  M')
 |tEraseRead : forall T tid tid' s1 s1' s2 x M M' M'',
                s1 = s1' ++ [rAct x tid' M'] -> eraseTerm M' T M'' ->
-               eraseThread (tid, s1, s2, M) T (Some (pthread M''))
+               eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseWrite : forall tid tid' M M' M'' x s1 s2 s1' T,
                 s1 = s1' ++ [wAct x tid' M'] -> eraseTerm M' T M'' ->
-                eraseThread (tid, s1, s2, M) T (Some(pthread M''))
+                eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseNew : forall tid tid' M M' M'' x s1 s2 s1' T,
               s1 = s1' ++ [cAct x tid' M'] -> eraseTerm M' T M'' ->
-              eraseThread (tid, s1, s2, M) T (Some (pthread M''))
+              eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseSpec : forall tid tid' M M' s1 s2 s1' T,
                s1 = s1' ++ [sAct tid' M'] -> 
-               eraseThread (tid, s1, s2, M) T None
+               eraseThread (tid, s1, s2, M) T (Empty_set pterm)
 |tEraseFork : forall tid tid' tid'' M M' M'' s1 s2 s1' T,
                 s1 = s1' ++ [fAct tid' tid'' M'] -> eraseTerm M' T M'' ->
-                eraseThread (tid, s1, s2, M) T (Some(pthread M''))
+                eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseJoin : forall tid M M' s1 s1' s2 T,
                      s1 = s1' ++ [joinAct] -> eraseTerm M T M' ->
-                     eraseThread (tid, s1, s2, M) T (Some(pthread M'))
+                     eraseThread (tid, s1, s2, M) T (pSingleton M')
 |tEraseCreatedSpec : forall tid M s1 s1' s2 T,
-                       s1 = s1' ++ [specAct] ->  eraseThread (tid, s1, s2, M) T None
+                       s1 = s1' ++ [specAct] ->  eraseThread (tid, s1, s2, M) T (Empty_set pterm)
 .
 
 Hint Constructors eraseThread. 
 
-Inductive erasePool : pool -> pool -> ppool -> Prop :=
-|eraseEmpty : forall T, erasePool (Empty_set thread) T pdot 
-|eraseParSome : forall P T T' t t',
-                  eraseThread t P (Some t') -> ~(tIn T t) -> erasePool T P T' ->
-                  erasePool (tAdd T t) P (ppar T' t') 
-|eraseParNone : forall P T T' t,
-                  eraseThread t P None -> ~(tIn T t) -> erasePool T P T' ->
-                  erasePool (tAdd T t) P T'.
+Inductive erasePoolAux (T:pool) : pPool :=
+|eraseAux : forall t t' s1 s2 M, 
+              thread_lookup T t (t, s1, s2, M) ->
+              eraseThread (t, s1, s2, M) T t' ->
+              Included pterm t' (erasePoolAux T). 
+
+Hint Constructors erasePoolAux. 
+
+Inductive erasePool : pool -> pPool -> Prop :=
+|eraseP : forall T, erasePool T (erasePoolAux T).
 
 Hint Constructors erasePool. 
 
@@ -488,6 +490,12 @@ Proof.
    {assumption. }
   }
 Qed. 
+
+Theorem eraseUnspecPoolIdem :
+  forall T T' T'', unspecPool T T' -> erasePool T' T'' ->
+                        erasePool T T''. 
+Proof. 
+  Admitted. 
 
 Definition commitPool (T:pool) : Prop := forall tid s1 s2 M, tIn T (tid, s1, s2, M) -> s1 = nil. 
 

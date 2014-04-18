@@ -30,12 +30,12 @@ Lemma disjoint_setminus :
   forall A B,
     Disjoint U A (Setminus U B A).
 
-intros A B.
-apply Disjoint_intro. unfold not.
-intros x in_int.
-destruct in_int as [ x x_in_A x_in_setminus ].
-destruct x_in_setminus.
-tauto.
+  intros A B.
+  apply Disjoint_intro. unfold not.
+  intros x in_int.
+  destruct in_int as [ x x_in_A x_in_setminus ].
+  destruct x_in_setminus.
+  tauto.
 
 Qed.
 
@@ -91,12 +91,11 @@ Proof.
   {subst. assumption. }
 Qed. 
 
-Ltac unfoldSetEq :=
-  match goal with
-      |H : ?S1 = ?S2 |- _ => try apply eqImpliesSameSet in H; unfold Same_set in H;
-                             unfold Included in *; inversion H
-  end.
-
+Ltac unfoldSetEq H :=
+  match type of H with
+      |?S1 = ?S2 => apply eqImpliesSameSet in H; unfold Same_set in H; 
+                    unfold Included in *; inversion H
+  end. 
 
 Hint Unfold In. 
 Hint Constructors Singleton Couple. 
@@ -112,26 +111,10 @@ Proof.
    inversion H2. reflexivity. }
 Qed.
 
-
-Ltac invertSetEq := 
-  match goal with
-      |H : Empty_set ?T = Singleton ?T ?e |- _ => 
-       apply eqImpliesSameSet in H; unfold Same_set in H; unfold Included in H;
-       inversion H as [sameSet1 sameSet2]; 
-       assert(Hin:In T (Singleton T e) e) by auto;
-       apply sameSet2 in Hin; inversion Hin
-      |H : Empty_set ?T = Couple ?T ?e1 ?e2 |- _ =>
-       apply eqImpliesSameSet in H; unfold Same_set in H; unfold Included in H;
-       inversion H as [sameSet1 sameSet2];
-       assert(Hin:In T (Couple T e1 e2) e1) by auto; apply sameSet2 in Hin;
-       inversion Hin
-      |H:Singleton ?T ?e = Empty_set ?T |- _ => symmetry in H; invertSetEq
-      |H:Couple ?T ?e1 ?e2 = Empty_set ?T |- _ => symmetry in H; invertSetEq
-      |H:Singleton ?T ?e1 = Couple ?T ?e2 ?e3 |- _ => apply SingleEqCouple in H
-      |H:Couple ?T ?e2 ?e3 = Singleton ?T ?e1 |- _ => symmetry in H; invertSetEq
-  end. 
-
-
-
+Theorem SingletonEq : forall (T:Type) (e1 e2 : T), Singleton T e1 = Singleton T e2 -> e1 = e2. 
+Proof.
+  intros. unfoldSetEq H. assert(Ensembles.In T (Singleton T e1) e1). auto. apply H0 in H2. 
+  inversion H2. reflexivity. Qed. 
+ 
 End Ensembles.
 
