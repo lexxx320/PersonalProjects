@@ -25,20 +25,19 @@ Inductive value : term -> Prop :=
 |putValue : forall i M, value (put i M)
 |doneValue : forall M, value (done M)
 |newValue : value new
-|specValue : forall M N, value (spec M N)
 .
  
 Inductive decompose : term -> ctxt -> term -> Prop :=
-|bindCtxt : forall E M N M', ~value M -> decompose M E M' ->
+|bindCtxt : forall E M N M', ~value M -> decompose M E M' -> value M' ->
                            decompose (bind M N) (fun x => bind (E x) N) M'
 |bindCtxtValue : forall M N, value M -> decompose (bind M N) (fun x => x) (bind M N)
 |specRetCtxt : forall M N E M', 
-                 ~value M -> decompose M E M' ->
+                 ~value M -> decompose M E M' -> value M' ->
                  decompose (specReturn M N) (fun x => specReturn (E x) N) M'
 |specRetCtxtValue : forall M N, value M -> decompose (specReturn M N) (fun x=>x)
                                                      (specReturn M N)
 |handleCtxt : forall M M' N E,
-                ~value M -> decompose M E M' ->
+                ~value M -> decompose M E M' -> value M' ->
                 decompose (handle M N) (fun x => handle (E x) N) M'
 |handleCtxtValue : forall M N, value M -> decompose (handle M N) (fun x=>x) 
                                                     (handle M N)
@@ -577,3 +576,37 @@ Proof.
    unfold tUnion in *. rewrite Union_commutative in H5. 
    rewrite Union_commutative with(A:=T2)in H5. assumption. }
 Qed.  
+
+Theorem decomposeEq : forall M E e, decompose M E e -> M = E e. 
+Proof.
+  intros. induction H; auto. 
+   {rewrite <- IHdecompose. reflexivity. }
+   {rewrite <- IHdecompose. reflexivity. }
+   {rewrite IHdecompose. reflexivity. } 
+Qed. 
+
+Ltac cleanup := 
+  match goal with
+    |H : ?x = ?x |- _ => clear H; try cleanup
+  end. 
+
+Theorem uniqueCtxtDecomp : forall t E e E' e', decompose t E e ->
+                                             decompose (E e) E' e' -> E = E' /\ e = e'. 
+Proof.
+  intros. generalize dependent E'. generalize dependent e'. induction H. 
+  {intros. inversion H2. subst. 
+   {apply IHdecompose in H6. inversion H6. rewrite H3. split; [reflexivity | assumption]. }
+   {subst. apply decomposeEq in H0. rewrite <- H0 in H7. contradiction. }
+  }
+  {intros. inversion H0; subst. contradiction. split; reflexivity. }
+  {intros. inversion H2; subst.  
+   {apply IHdecompose in H6. inversion H6. rewrite H3. split; [reflexivity | assumption]. }
+   {apply decomposeEq in H0. subst. contradiction. }
+  }
+  {intros. inversion H0; subst. contradiction. split; reflexivity. }
+  {intros. inversion H2; subst. 
+   {apply IHdecompose in H6. inversion H6. subst. split; reflexivity. }
+   {apply decomposeEq in H0. subst. contradiction. }
+  }
+  {intros. inversion H0. contradiction. split; reflexivity. }
+Qed. 

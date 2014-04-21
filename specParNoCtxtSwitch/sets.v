@@ -116,5 +116,40 @@ Proof.
   intros. unfoldSetEq H. assert(Ensembles.In T (Singleton T e1) e1). auto. apply H0 in H2. 
   inversion H2. reflexivity. Qed. 
  
+Theorem UnionEqSingleton : forall (T:Type) S e1 e2, 
+                             Union T S (Singleton T e1) = Singleton T e2 ->
+                             e1 = e2. 
+Proof.
+  intros. unfoldSetEq H. clear H. assert(In T (Union T S(Singleton T e1)) e1). 
+  apply Union_intror. constructor. apply H0 in H. inversion H. 
+  reflexivity. Qed. 
+
+Theorem disjointUnionEqSingleton : forall (T:Type) S e1 e2, 
+                                     Disjoint T S (Singleton T e1) ->
+                                     Union T S (Singleton T e1) = Singleton T e2 ->
+                                     e1 = e2 /\ S = Empty_set T. 
+Proof.
+  intros. unfoldSetEq H0. clear H0. inversion H. split.
+  {assert(In T (Union T S (Singleton T e1)) e1). apply Union_intror. 
+   constructor. apply H1 in H3. inversion H3. reflexivity. }
+  {assert(In T (Singleton T e2) e2). constructor. apply H2 in H3. 
+   inversion H3. 
+   {assert(In T (Union T S (Singleton T e1)) e1). apply Union_intror. 
+    constructor. apply H1 in H6. inversion H6. subst. inversion H. 
+    assert(In T (Intersection T S (Singleton T e1)) e1). constructor; assumption. 
+    apply H5 in H7. inversion H7. }
+   {subst. apply Extensionality_Ensembles. unfold Same_set. unfold Included. 
+    split; intros. 
+    {assert(In T (Union T S (Singleton T e1)) x). apply Union_introl. assumption. 
+     apply H1 in H6. inversion H6. subst. inversion H4. subst. 
+     assert(In T (Intersection T S(Singleton T x)) x). constructor; assumption. 
+     apply H0 in H7. inversion H7. }
+    {inversion H5. }
+   }
+  }
+Qed. 
+
+
+
 End Ensembles.
 

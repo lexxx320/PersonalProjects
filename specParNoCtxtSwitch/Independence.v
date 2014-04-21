@@ -564,40 +564,6 @@ Hint Constructors multistep.
 
 Require Import Coq.Program.Equality. 
 
-Theorem decomposeEq : forall M E e, decompose M E e -> M = E e. 
-Proof.
-  intros. induction H; auto. 
-   {rewrite <- IHdecompose. reflexivity. }
-   {rewrite <- IHdecompose. reflexivity. }
-   {rewrite IHdecompose. reflexivity. } 
-Qed. 
-
-Ltac cleanup := 
-  match goal with
-    |H : ?x = ?x |- _ => clear H; try cleanup
-  end. 
-
-Theorem uniqueCtxtDecomp : forall t E e E' e', decompose t E e ->
-                                             decompose (E e) E' e' -> E = E' /\ e = e'. 
-Proof.
-  intros. generalize dependent E'. generalize dependent e'. induction H. 
-  {intros. inversion H1. subst. 
-   {apply IHdecompose in H7. inversion H7. rewrite H2. split; [reflexivity | assumption]. }
-   {subst. apply decomposeEq in H0. rewrite <- H0 in H6. contradiction. }
-  }
-  {intros. inversion H0; subst. contradiction. split; reflexivity. }
-  {intros. inversion H1; subst.  
-   {apply IHdecompose in H7. inversion H7. rewrite H2. split; [reflexivity | assumption]. }
-   {apply decomposeEq in H0. subst. contradiction. }
-  }
-  {intros. inversion H0; subst. contradiction. split; reflexivity. }
-  {intros. inversion H1; subst. 
-   {apply IHdecompose in H7. inversion H7. subst. split; reflexivity. }
-   {apply decomposeEq in H0. subst. contradiction. }
-  }
-  {intros. inversion H0. contradiction. split; reflexivity. }
-Qed. 
-
 Theorem AddSingletonEq : forall T S1 s1 s2, Add T S1 s1 = Singleton T s2 -> s1 = s2. 
 Proof.
   intros. unfoldSetEq H. assert(Ensembles.In T (Add T S1 s1) s1). apply Union_intror. 

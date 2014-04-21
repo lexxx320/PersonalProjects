@@ -1,6 +1,7 @@
 Require Import AST. 
 Require Import Heap.
 Require Import Coq.Sets.Ensembles. 
+Require Import sets. 
 
 Definition pHeap := heap pivar_state. 
 
@@ -25,6 +26,11 @@ Inductive pdecompose : pterm -> pctxt -> pterm -> Prop :=
 |handleCtxtValue : forall M N, pvalue M -> pdecompose (phandle M N) (fun x=>x) 
                                                     (phandle M N)
 .
+
+Theorem pdecomposeEq : forall M E e, pdecompose M E e -> M = E e. 
+Proof.
+  intros. induction H; subst; reflexivity. Qed. 
+
 Definition pPool := Ensemble pterm. 
 Definition pSingleton := Singleton pterm. 
 Definition pUnion := Union pterm. 
@@ -60,15 +66,23 @@ Inductive pstep : pHeap -> pPool -> pPool -> pHeap -> pPool -> pPool -> Prop :=
 .
 
 Inductive pmultistep : pHeap -> pPool -> pPool -> pHeap -> pPool -> pPool -> Prop :=
-|multi_refl : forall h p1 p2, pmultistep h p1 p2 h p1 p2
-|multi_step : forall T1 T2 T2' h h' h'' t t',
-                ~ In pterm T2 t -> pstep h (pUnion T1 T2) (pSingleton t) h' (pUnion T1 T2) t' ->
-                pmultistep h' T1 (pUnion T2 t') h'' T1 T2' ->
-                pmultistep h T1 (Add pterm T2 t) h'' T1 T2'
+|pmulti_refl : forall h p1 p2, pmultistep h p1 p2 h p1 p2
+|pmulti_step : forall T1 T2 T2' h h' h'' t t',
+                 ~ In pterm T2 t -> 
+                 pstep h (pUnion T1 T2) (pSingleton t) h' (pUnion T1 T2) t' ->
+                 pmultistep h' T1 (pUnion T2 t') h'' T1 T2' ->
+                 pmultistep h T1 (Add pterm T2 t) h'' T1 T2'
 .
 
+Require Import Coq.Sets.Powerset_facts. 
 
 
+Theorem pSingletonMultistep : forall h h' T T' t t',
+          pmultistep h T (Union pterm (Empty_set pterm) t) h' T' t' ->
+          pmultistep h T t h' T' t'. 
+Proof.
+  intros. rewrite Union_commutative in H. rewrite union_empty in H. 
+  assumption. Qed.   
 
 
 
