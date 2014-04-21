@@ -1,0 +1,9 @@
+coqc AST.v
+coqc sets.v
+coqc SfLib.v
+coqc Heap.v
+coqc NonSpec.v
+coqc Spec.v
+
+
+
