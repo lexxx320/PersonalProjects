@@ -32,3 +32,16 @@ Fixpoint remove {T:Type} (h : heap T) x :=
       |(x', v')::h' => if beq_nat x x' then h' else (x', v')::remove h' x
       |nil => nil
   end.
+
+Theorem heapUpdateNeq : forall (T:Type) h i (v v' : T),
+                          heap_lookup i h = Some v ->
+                          v <> v' -> h <> replace i v' h. 
+Proof.
+  intros. unfold not in *. intros. unfold replace in H1. 
+  induction h. 
+  {inversion H. }
+  {destruct a. simpl in *. destruct (beq_nat i i0). 
+   {inversion H. subst. inversion H1. contradiction. }
+   {inversion H1. apply IHh in H3. assumption. assumption. }
+  }
+Qed. 

@@ -335,12 +335,12 @@ Inductive eraseTerm : term -> pool -> pterm -> Prop :=
                                        eraseTerm (handle e1 e2) T (phandle e1' e2')
 |eraseDone : forall e e' T, eraseTerm e T e' -> eraseTerm (done e) T (pdone e')
 |eraseSpec : forall e1 e1' e2 e2' T i j, 
-               eraseTerm e1 T e1' -> eraseTerm e2 T e2' -> ~(appears_free_in i e2) ->
+               eraseTerm e1 T e1' -> eraseTerm e2 T e2' -> ~(appears_free_in i e2) -> i<>j->
                eraseTerm (spec e1 e2) T 
    (pbind e1' (plambda i (pbind e2' (plambda j (pret (ppair (pvar i) (pvar j)))))))
 |eraseSpecReturn : forall e e' tid tid' tid'' T i j M M' M'' s1 s1' s2 , 
                      eraseTerm e T e' -> s1 = s1' ++ [sAct tid'' M'] ->
-                     eraseTerm M' T M'' -> ~(appears_free_in i M') ->
+                     eraseTerm M' T M'' -> ~(appears_free_in i M') -> i <> j ->
                      thread_lookup T tid (tid', s1, s2, M) ->
                      eraseTerm (specReturn e (threadId tid)) T
    (pbind e' (plambda i (pbind M'' (plambda j (pret (ppair (pvar i) (pvar j)))))))
@@ -476,16 +476,16 @@ Theorem eraseHelper :
   forall M M' P P', unspecPool P P' -> eraseTerm M P' M' -> eraseTerm M P M'.
 Proof.
   intros. induction H0; eauto.  
-  {assert(unspecPool P T). assumption. eapply LookupSame with(tid := tid) (T := (tid', s1, s2, M)) in H2. 
-   inversion H2. inversion H4. inversion H6; subst; try(solve[destruct s1'; inversion H8]). 
-   {destruct s1'; inversion H10. }
-   {inversion H10. destruct s1'. simpl in *. inversion H7. subst. 
+  {assert(unspecPool P T). assumption. eapply LookupSame with(tid := tid) (T := (tid', s1, s2, M)) in H3. 
+   inversion H3. inversion H5. inversion H7; subst; try(solve[destruct s1'; inversion H9]). 
+   {destruct s1'; inversion H11. }
+   {inversion H11. destruct s1'. simpl in *. inversion H8. subst. 
     {eapply eraseSpecReturn with (tid' := Tid(maj, min) tid0) (s1 := (s1'0 ++ [sAct (Tid(maj, min') tid0) M'])). 
      eapply IHeraseTerm1. assumption. reflexivity. eapply IHeraseTerm2. assumption. assumption. 
-     eassumption. }
-    {inversion H7. destruct s1'; inversion H9. }
+     eassumption. eassumption. }
+    {inversion H8. destruct s1'; inversion H10. }
    }
-   {apply lastElementsNotEqual in H9. inversion H9. unfold not. intros. inversion H0. }
+   {apply lastElementsNotEqual in H10. inversion H10. unfold not. intros. inversion H0. }
    {assumption. }
   }
 Qed. 
@@ -610,3 +610,4 @@ Proof.
   }
   {intros. inversion H0. contradiction. split; reflexivity. }
 Qed. 
+

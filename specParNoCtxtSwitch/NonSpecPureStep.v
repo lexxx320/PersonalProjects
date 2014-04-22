@@ -118,7 +118,7 @@ Proof.
    eassumption. }
   {intros. inversion H2; subst. apply IHdecompose in H5. inversion H5. 
    inversion H3. inversion H4. econstructor. exists x0. split. assumption. 
-   econstructor. apply pdecomposeNotVal in H9. assumption. eassumption. }
+   econstructor. apply pdecomposeNotVal in H10. assumption. eassumption. }
   {intros. inversion H0; subst. econstructor. econstructor. split. 
    eassumption. eapply bindCtxtValue. eapply eraseValue in H. eassumption. 
    eassumption. }
@@ -127,35 +127,6 @@ Proof.
    econstructor. apply pdecomposeNotVal in H7. assumption. eassumption. }
   {intros. inversion H0; subst. econstructor. econstructor. split. eassumption. 
    eapply handleCtxtValue. eapply eraseValue in H. eassumption. eassumption. }
-Qed. 
-
-Theorem erasureDecompose' : forall t T pt E e e',
-                             eraseTerm t T pt -> decompose t E e ->
-                             eraseTerm e T e' -> 
-                             exists E', pdecompose pt E' e'. 
-Proof.
-  intros. generalize dependent pt. generalize dependent e'. induction H0. 
-  {intros. inversion H1; 
-   try(subst; inversion H2; subst; inversion H3; subst; eapply IHdecompose in H2; 
-    inversion H2; [econstructor; econstructor;[apply pdecomposeNotVal in H4| 
-    eassumption]; eassumption |assumption]). }
-  {intros; apply termErasureDeterminism with (M1:=pt)in H1; [subst; econstructor; 
-   inversion H0; subst; econstructor; eapply eraseValue in H; [eassumption|
-   eassumption]|assumption]. }
-  {intros. inversion H1; 
-    try(subst; inversion H2; subst; inversion H3; subst; eapply IHdecompose in H2; 
-    inversion H2; [econstructor; econstructor;[apply pdecomposeNotVal in H4| 
-    eassumption]; eassumption |assumption]). }
- {intros; apply termErasureDeterminism with (M1:=pt)in H1; [subst; econstructor; 
-   inversion H0; subst; econstructor; eapply eraseValue in H; [eassumption|
-   eassumption]|assumption]. }   
- {intros. inversion H1; 
-    try(subst; inversion H2; subst; inversion H3; subst; eapply IHdecompose in H2; 
-    inversion H2; [econstructor; econstructor;[apply pdecomposeNotVal in H4| 
-    eassumption]; eassumption |assumption]). }
- {intros; apply termErasureDeterminism with (M1:=pt)in H1; [subst; econstructor; 
-   inversion H0; subst; econstructor; eapply eraseValue in H; [eassumption|
-   eassumption]|assumption]. }  
 Qed. 
 
 Ltac copy H := 
@@ -169,34 +140,133 @@ Theorem eraseHole : forall E E' t (e1 e2:term) (e1' e2':pterm) T,
                       eraseTerm e2 T e2' ->
                       eraseTerm (E e2) T (E' e2').
 Proof.
-  intros. remember (E' e1'). induction H0; try(solve[inversion H]). 
-  {
+  intros. remember (E' e1'). generalize dependent E. generalize dependent E'. 
+  generalize dependent e2. generalize dependent e2'. generalize dependent e1. 
+  generalize dependent e1'. induction H0; intros; try(solve[inversion H]). 
+Admitted. 
+
+
+
+
+Theorem EmptyEqUnion : forall (T:Type) S1 S2, Empty_set T = Union T S1 S2 -> 
+                                              S1 = Empty_set T /\ S2 = Empty_set T. 
+Proof.
+  intros. apply eqImpliesSameSet in H. unfold Same_set in H. unfold Included in H. 
+  inversion H; clear H. split. 
+  {apply Extensionality_Ensembles. unfold Same_set. unfold Included. split. 
+   {intros. assert(Ensembles.In T (Union T S1 S2) x). apply Union_introl; assumption. 
+    apply H1 in H2. inversion H2. }
+   {intros. inversion H. }
+  }
+  {apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
+   {assert(Ensembles.In T (Union T S1 S2) x). apply Union_intror; assumption. 
+    apply H1 in H2. inversion H2. }
+   {inversion H. }
+  }
+Qed. 
+
+Theorem SingletonNeqEmpty : forall (T:Type) s, Singleton T s = Empty_set T -> False. 
+Proof.
+  intros. apply eqImpliesSameSet in H. unfold Same_set in H. unfold Included in H. 
+  inversion H. assert(Ensembles.In T (Singleton T s) s). constructor. apply H0 in H2. 
+  inversion H2. Qed. 
+
+Theorem CoupleNeqEmpty : forall (T:Type) s1 s2, Couple T s1 s2 = Empty_set T -> False. 
+Proof.
+  intros. apply eqImpliesSameSet in H. unfold Same_set in H. unfold Included in H. inversion H. 
+  assert(Ensembles.In T (Couple T s1 s2) s1). constructor. apply H0 in H2. inversion H2. Qed. 
+
+Theorem listNeq : forall (T:Type) l (e:T), l = e::l -> False. 
+Proof.
+  intros. induction l. 
+  {inversion H. }{inversion H. apply IHl in H2. assumption. }Qed. 
 
 Require Import Coq.Sets.Powerset_facts. 
-Theorem NonSpecPureStep : forall h h' sh sh' t t' pt pt' tid tid' s1 s2 M M',
+Theorem NonSpecPureStep : forall h sh t t' pt pt' tid tid' s1 s2 M M',
                             t = tSingleton (tid,s1,s2,M) -> 
                             t' = tSingleton(tid',s1,s2,M') ->
-                            multistep h tEmptySet t h' tEmptySet t' ->
+                            multistep h tEmptySet t h tEmptySet t' ->
                             eraseTerm M tEmptySet pt ->
                             eraseTerm M' tEmptySet pt' ->
-                            eraseHeap h sh -> eraseHeap h' sh' ->
-                            pmultistep sh (Empty_set pterm)(pSingleton pt) sh'
+                            eraseHeap h sh ->
+                            pmultistep sh (Empty_set pterm)(pSingleton pt) sh
                                        (Empty_set pterm) (pSingleton pt').
 Proof.
   intros. generalize dependent tid'. generalize dependent M'. 
   generalize dependent pt. generalize dependent M. induction H1. 
-  {intros. subst. apply SingletonEq in H0. inversion H0. subst. 
-   eapply termErasureDeterminism in H2. eapply eraseHeapDeterminism in H4. 
-   rewrite <- H2. rewrite <- H4. econstructor. assumption. assumption. }
-  {intros. inversion H1; subst. 
-   {symmetry in H. apply disjointUnionEqSingleton with(e2:=(tid,s1,s2,M))in H0. 
-    inversion H0. copy H9. apply decomposeEq in H9. subst t.  copy H6. 
-    eapply erasureDecompose with (e:=bind(ret M0) N)in H6. inversion H6. 
-    inversion H11. inversion H12. inversion H13. inversion H17. 
-    eapply pSingletonMultistep. econstructor. 
-    intros c. inversion c. apply PBind. subst x0. subst e1'. eassumption. 
+  {intros. subst. apply SingletonEq in H0. inversion H0. subst.  
+   eapply termErasureDeterminism in H2. rewrite <- H2.  econstructor. assumption. }
+   {intros. inversion H1; subst. 
+   {symmetry in H. apply disjointUnionEqSingleton with (e2:=(tid,s1,s2,M)) in H0; try assumption. 
+    inversion H0. inversion H3; subst. copy H8; apply decomposeEq in H8. copy H5. 
+    eapply erasureDecompose with (e:=bind(ret M0) N)in H5; try eassumption. inversion H5. 
+    inversion H10. inversion H11. inversion H12. inversion H16. subst. 
+    eapply pSingletonMultistep. econstructor. intros c. inversion c. apply PBind. eassumption. 
     unfold pUnion. unfold pSingleton. rewrite Union_commutative. rewrite union_empty. 
-    eapply IHmultistep. assumption. assumption. subst. rewrite <- union_empty. 
-    rewrite Union_commutative. unfold tUnion. inversion H3. subst. reflexivity. 
-    subst. 
+    eapply IHmultistep; try eassumption. rewrite <- union_empty. 
+    rewrite Union_commutative. unfold tUnion. reflexivity. 
+    apply eraseHole with (t:=E(bind(ret M0) N))(e1:=bind(ret M0)N)(e1':=pbind(pret e') e2'). 
+    assumption. apply pdecomposeEq in H13. rewrite H13 in H9. assumption. constructor. assumption. 
+    assumption. reflexivity. }
+   {symmetry in H. apply disjointUnionEqSingleton with (e2:=(tid,s1,s2,M)) in H0; try assumption. 
+    inversion H0. inversion H3. subst. copy H8. apply decomposeEq in H8. copy H5. 
+    eapply erasureDecompose with (e:=bind(raise M0) N)in H5; try eassumption. inversion H5. 
+    inversion H10. inversion H11. inversion H12. inversion H16. subst. 
+    eapply pSingletonMultistep. econstructor. intros c. inversion c. eapply PBindRaise. eassumption. 
+    unfold pUnion. unfold pSingleton. rewrite Union_commutative. rewrite union_empty. 
+    eapply IHmultistep; try eassumption. rewrite <- union_empty. 
+    rewrite Union_commutative. unfold tUnion. reflexivity. eapply eraseHole. eassumption. 
+    apply pdecomposeEq in H13. rewrite H13 in H9. eassumption. eassumption. reflexivity. }
+   {symmetry in H. apply disjointUnionEqSingleton with (e2:=(tid,s1,s2,M)) in H0; try assumption. 
+    inversion H0. inversion H3. subst. copy H8. apply decomposeEq in H8. copy H5. 
+    eapply erasureDecompose with (e:=handle(raise M0) N)in H5; try eassumption. inversion H5. 
+    inversion H10. inversion H11. inversion H12. inversion H16. subst. 
+    eapply pSingletonMultistep. econstructor. intros c. inversion c. eapply pHandle. eassumption. 
+    unfold pUnion. unfold pSingleton. rewrite Union_commutative. rewrite union_empty. 
+    eapply IHmultistep; try eassumption. rewrite <- union_empty. 
+    rewrite Union_commutative. unfold tUnion. reflexivity. eapply eraseHole. eassumption. 
+    apply pdecomposeEq in H13. rewrite H13 in H9. eassumption. econstructor; assumption. reflexivity. }
+   {symmetry in H. apply disjointUnionEqSingleton with (e2:=(tid,s1,s2,M)) in H0; try assumption. 
+    inversion H0. inversion H3. subst. copy H8. apply decomposeEq in H8. copy H5. 
+    eapply erasureDecompose with (e:=handle(ret M0) N)in H5; try eassumption. inversion H5. 
+    inversion H10. inversion H11. inversion H12. inversion H16. subst. 
+    eapply pSingletonMultistep. econstructor. intros c. inversion c. eapply pHandleRet. eassumption. 
+    unfold pUnion. unfold pSingleton. rewrite Union_commutative. rewrite union_empty. 
+    eapply IHmultistep; try eassumption. rewrite <- union_empty. 
+    rewrite Union_commutative. unfold tUnion. reflexivity. eapply eraseHole. eassumption. 
+    apply pdecomposeEq in H13. rewrite H13 in H9. eassumption. econstructor; assumption. reflexivity. }
+   {symmetry in H. apply disjointUnionEqSingleton with (e2:=(tid,s1,s2,M)) in H0; try assumption. 
+    inversion H0. inversion H3. subst. unfold tUnion in H2. rewrite union_empty in H2. 
+    inversion H2. 
+    {apply eqImpliesSameSet in H13. unfold Same_set in H13. unfold Included in H13. inversion H13. 
+     assert(tIn (tSingleton(tid',nil,s2,M'))(tid',nil,s2,M')). constructor. apply H14 in H15. 
+     inversion H15. }
+    {subst. apply EmptyEqUnion in H7. inversion H7. subst. inversion H9; try(
+     match goal with
+         |H : tSingleton ?s = Empty_set ?T |- _ => apply SingletonNeqEmpty in H; inversion H
+         |H : tCouple ?s1 ?s2 = Empty_set ?T |- _ => apply CoupleNeqEmpty in H; inversion H
+     end). 
+     {subst. unfold tAdd in H11. unfold Add in H11. symmetry in H11. apply EmptyEqUnion in H11. 
+      inversion H11. apply SingletonNeqEmpty in H14. inversion H14. }
+    }
+   }
+   {admit. }
+   {inversion H1; try
+    match goal with
+        |H:Heap.heap_lookup ?x ?h = Some ?v, H':?h = Heap.replace ?x ?V' ?h |- _ =>
+         apply Heap.heapUpdateNeq with (v' := V') in H;[exfalso; unfold not in H; apply H; assumption|
+         intros c; inversion c; match goal with
+                                    |H:?l = ?x::?l |- _ => apply listNeq in H; inversion H
+                                end]
+    end.
+    {subst. apply SingletonEq in H3. apply SingletonEq in H7. inversion H3; inversion H7; subst. 
+     cleanup. 
+
+
+
+
+
+
+
+
 
