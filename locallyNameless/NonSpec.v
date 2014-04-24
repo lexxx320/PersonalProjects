@@ -7,22 +7,27 @@ Definition pHeap := heap pivar_state.
 
 Definition pctxt := ptrm -> ptrm.
 
-Inductive pdecomposable : ptrm -> Prop :=
-|pbindDecomposable : forall M N, pdecomposable (pbind M N)
-|phandleDecomposable : forall M N, pdecomposable (phandle M N)
-.
-
-Inductive pdecompose : ptrm -> pctxt -> ptrm -> Prop :=
-|pBindCtxt : forall E M M' N, pdecomposable M -> pdecompose M E M' ->
-                             pdecompose (pbind M N) (fun x => pbind (E x) N) M'
-|pHandleCtxt : forall E M M' N, pdecomposable M -> pdecompose M E M' ->
-                                pdecompose (phandle M N) (fun x => phandle (E x) N) M'
-. 
+Fixpoint pdecompose (t:ptrm) : (pctxt * ptrm) :=
+  match t with
+      |pbind M N => let (E, M') := pdecompose M
+                    in (fun x => pbind (E x) N, M')
+      |phandle M N => let (E, M') := pdecompose M
+                      in (fun x => phandle (E x) N, M')
+      |_ => (fun x => x, t)
+  end. 
 
 
-Theorem pdecomposeEq : forall M E e, pdecompose M E e -> M = E e. 
+Theorem pdecomposeEq : forall M E e, pdecompose M = (E, e) -> M = E e. 
 Proof.
-  intros. induction H; subst; reflexivity. Qed. 
+  induction M; intros; simpl in *; inversion H; try reflexivity. 
+  {destruct (pdecompose M1). inversion H; inversion H1; subst. 
+   assert((p,e)=(p,e)) by reflexivity. apply IHM1 in H0. subst. 
+   reflexivity. }
+  {destruct (pdecompose M1). inversion H; inversion H1; subst. 
+   assert((p,e)=(p,e)) by reflexivity. apply IHM1 in H0. subst. 
+   reflexivity. }
+Qed. 
+
 
 Definition pPool := Ensemble ptrm. 
 Definition pSingleton := Singleton ptrm. 
@@ -30,29 +35,29 @@ Definition pUnion := Union ptrm.
 
 Inductive pstep : pHeap -> pPool -> pPool -> pHeap -> pPool -> pPool -> Prop :=
 |PBind : forall E t M N h T, 
-           pterm t -> pdecompose t E (pbind (pret M) N) -> 
+           pterm t -> pdecompose t = (E, pbind (pret M) N) -> 
            pstep h T (pSingleton t) h T (pSingleton(E(papp N M)))
 |PBindRaise : forall E t M N h T,
-                pterm t -> pdecompose t E (pbind (praise M) N) -> 
+                pterm t -> pdecompose t = (E, pbind (praise M) N) -> 
                 pstep h T (pSingleton t) h T (pSingleton (E(praise M)))
 |pHandle : forall E t M N h T,
-             pterm t -> pdecompose t E (phandle (praise M) N) -> 
+             pterm t -> pdecompose t = (E, phandle (praise M) N) -> 
              pstep h T (pSingleton t) h T (pSingleton (E(papp N M)))
 |pHandleRet : forall E t M N h T,
-                pterm t -> pdecompose t E (phandle (pret M) N) -> 
+                pterm t -> pdecompose t = (E, phandle (pret M) N) -> 
                 pstep h T (pSingleton t) h T (pSingleton (E(pret M)))
 |pFork : forall E t M h T,
-           pterm t -> pdecompose t E (pfork M) -> 
+           pterm t -> pdecompose t = (E, pfork M) -> 
            pstep h T (pSingleton t) h (Add ptrm T M) (pSingleton (E(pret punit)))
 |PGet : forall E M t h T x,
-          pterm t -> heap_lookup x h = Some(pfull M) -> pdecompose t E (pget (pfvar x)) -> 
+          pterm t -> heap_lookup x h = Some(pfull M) -> pdecompose t = (E, pget (pfvar x)) -> 
           pstep h T (pSingleton t) h T (pSingleton (E(pret M)))
 |PPut : forall E t M h h' T x y,
-          pterm t -> pdecompose t E (pput (pfvar x) M) -> heap_lookup x h = Some pempty ->
+          pterm t -> pdecompose t = (E, pput (pfvar x) M) -> heap_lookup x h = Some pempty ->
           h' = replace x (pfull M) h ->
           pstep h T (pSingleton t) (replace y (pfull M) h) T (pSingleton (E (pret punit)))
 |PNew : forall E t h h' T x,
-             pdecompose t E pnew -> (x, h') = extend pempty h ->
+             pdecompose t = (E, pnew) -> (x, h') = extend pempty h ->
              pstep h T (pSingleton t) h' T (pSingleton (E (pret (pfvar x))))
 |PTerminate : forall h T M, pstep h T (pSingleton (pret M)) h T (Empty_set ptrm)
                 

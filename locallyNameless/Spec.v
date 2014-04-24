@@ -18,46 +18,56 @@ Definition sHeap := heap (ivar_state).
 
 Definition ctxt := trm -> trm.
 
-Inductive decomposable : trm -> Prop :=
-|bindDecomposable : forall M N, decomposable (bind M N)
-|handleDecomposable : forall M N, decomposable (handle M N)
-|specReturnDecomposable : forall M N, decomposable (specReturn M N)
+Inductive value : trm -> Prop :=
+|retVal : forall M, value (ret M)
+|raiseVal : forall M, value (raise M)
 .
 
-Inductive decompose : trm -> ctxt -> trm -> Prop :=
-|bindCtxt : forall E M N M', decomposable M -> decompose M E M' ->
-                             decompose (bind M N) (fun x => bind (E x) N) M'
-|specRetCtxt : forall E M M' N, decomposable M -> decompose M E M' ->
-                                decompose (specReturn M N) (fun x => specReturn (E x) N) M'
-|handleCtxt : forall E M M' N, decomposable M -> decompose M E M' ->
-                               decompose (handle M N) (fun x => handle (E x) N) M'
-|holeCtxt : forall M, ~ decomposable M -> decompose M (fun x => x) M
-.
 
-Theorem decomposeEq : forall M E e, decompose M E e -> M = E e. 
-Proof.
-  intros. induction H; auto. 
-   {rewrite <- IHdecompose. reflexivity. }
-   {rewrite <- IHdecompose. reflexivity. }
-   {rewrite IHdecompose. reflexivity. } 
-Qed. 
+Fixpoint decompose (t:trm) : (ctxt * trm) := 
+  match t with
+      |bind M N => let (E, M') := decompose M
+                   in (fun x => (bind (E x) N), M')
+      |specReturn M N => let (E, M') := decompose M
+                         in (fun x => (specReturn (E x) N), M')
+      |handle M N => let (E, M') := decompose M
+                     in (fun x => (handle (E x) N), M')
+      |_ => (fun x => x, t)
+  end. 
 
 Ltac cleanup := 
   match goal with
     |H : ?x = ?x |- _ => clear H; try cleanup
   end. 
 
-Theorem uniqueCtxtDecomp : forall t E e E' e', decompose t E e ->
-                                             decompose (E e) E' e' -> E = E' /\ e = e'. 
+Theorem decomposeEq : forall M E e, decompose M = (E, e) -> M = E e.
 Proof.
-  intros. generalize dependent E'. generalize dependent e'. induction H; intros; 
-  try(inversion H1; subst; [apply IHdecompose in H7; inversion H7; subst; split; reflexivity|
-  exfalso; apply H2; constructor]). 
-  {inversion H0; subst; try(exfalso; apply H; constructor). split; reflexivity. }
+  induction M; intros; simpl in *; inversion H; subst; try reflexivity. 
+  {destruct (decompose M1). inversion H; inversion H1; subst. 
+   assert((c,e)=(c,e)) by reflexivity. apply IHM1 in H0. subst. reflexivity. }
+  {destruct (decompose M1). inversion H; inversion H1; subst. 
+   assert((c,e)=(c,e)) by reflexivity. apply IHM1 in H0. subst. reflexivity. }
+  {destruct (decompose M1). inversion H; inversion H1; subst. 
+   assert((c,e)=(c,e)) by reflexivity. apply IHM1 in H0. subst. reflexivity. }
 Qed. 
 
 
-Hint Constructors decompose. 
+Theorem uniqueCtxtDecomp : forall t E e E' e',
+                             decompose t = (E, e) -> decompose t = (E', e') ->
+                             E = E' /\ e = e'. 
+Proof.
+  induction t; intros; simpl in *; try(inversion H; inversion H0; subst; 
+                                   split; reflexivity).
+  {destruct (decompose t1). inversion H; inversion H0; subst. split. 
+   reflexivity. assert((c,e) = (c,e)) by reflexivity. eapply IHt1 in H1. 
+   inversion H1. eassumption. reflexivity. }
+  {destruct (decompose t1). inversion H; inversion H0; subst. split. 
+   reflexivity. assert((c,e)=(c,e)) by reflexivity. eapply IHt1 in H1. 
+   inversion H1. eassumption. reflexivity. }
+  {destruct (decompose t1). inversion H; inversion H0; subst. split. 
+   reflexivity. assert((c,e)=(c,e)) by reflexivity. eapply IHt1 in H1. 
+   inversion H1. eassumption. reflexivity. }
+Qed.  
 
 Definition thread := tid * specStack * specStack * trm. 
 
@@ -119,54 +129,54 @@ Inductive thread_lookup : pool -> tid -> thread -> Prop :=
 Hint Constructors thread_lookup. 
 
 Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
-|Bind : forall tid h E T N M s1 s2 t, term t -> decompose t E (bind(ret M) N) ->
+|Bind : forall tid h E T N M s1 s2 t, term t -> decompose t = (E, bind(ret M) N) ->
   step h T (tSingleton (tid, s1, s2, t)) h T (tSingleton (tid,s1,s2,E(AST.app N M)))
-|BindRaise : forall tid h E T N M s1 s2 t, term t -> decompose t E (bind (raise M) N) ->
+|BindRaise : forall tid h E T N M s1 s2 t, term t -> decompose t = (E, bind (raise M) N) ->
   step h T (tSingleton (tid,s1,s2,t)) h T (tSingleton (tid,s1,s2,E (raise M)))
-|Handle : forall tid h E T N M s1 s2 t, term t -> decompose t E (handle (raise M) N) ->
+|Handle : forall tid h E T N M s1 s2 t, term t -> decompose t = (E, handle (raise M) N) ->
   step h T (tSingleton (tid,s1,s2,t)) h T (tSingleton (tid,s1,s2,E (AST.app  N M)))
-|HandleRet : forall tid h E T N M s1 s2 t, term t -> decompose t E (handle (ret M) N) ->
+|HandleRet : forall tid h E T N M s1 s2 t, term t -> decompose t = (E, handle (ret M) N) ->
   step h T (tSingleton (tid,s1,s2,t)) h T (tSingleton (tid,s1,s2,E (ret M)))
 |Terminate : forall tid h T M s2, 
                step h T (tSingleton (tid, nil, s2, ret M)) h T tEmptySet
 |Fork : forall tid tid' h T M s1 s2 E t, 
-          term t -> decompose t E (fork M) -> tid' = extendTid tid -> 
+          term t -> decompose t = (E, fork M) -> tid' = extendTid tid -> 
           step h T (tSingleton (tid, s1, s2,t)) h T
                (tCouple (bump tid, fAct tid' tid (E(fork M))::s1, s2, E(ret unit)) 
                (tid', [specAct], nil, M))
 |Get : forall tid h h' T N s1 s2 E x s ds writer sc t,
-         term t -> decompose t E (get (fvar x)) -> heap_lookup x h = Some(sfull sc ds s writer N) -> 
+         term t -> decompose t = (E, get (fvar x)) -> heap_lookup x h = Some(sfull sc ds s writer N) -> 
          h' = replace x (sfull sc (tid::ds) s writer N) h ->
          step h T (tSingleton (tid, s1, s2, E(get (fvar x)))) h' T 
               (tSingleton (bump tid, rAct x tid (E(get (fvar x)))::s1, s2, E(ret N)))
 |Put : forall E x N h sc h' s1 s2 tid T t, 
-         term t -> decompose t E (put (fvar x) N) -> heap_lookup x h = Some(sempty sc) ->
+         term t -> decompose t = (E, put (fvar x) N) -> heap_lookup x h = Some(sempty sc) ->
          h' = replace x (sfull sc nil s1 tid N) h ->
          step h T (tSingleton (tid, s1, s2, E(put (fvar x) N))) h' T
               (tSingleton (bump tid, wAct x tid (E(put (fvar x) N))::s1, s2, E(ret unit)))
 |New : forall E h h' i tid t s1 s2 T,
-         term t -> decompose t E new -> (i, h') = extend (sempty s1) h -> 
+         term t -> decompose t = (E, new) -> (i, h') = extend (sempty s1) h -> 
          step h T (tSingleton (tid, s1, s2, E new)) h' T
               (tSingleton (bump tid, cAct i tid new::s1, s2, E(ret(fvar i))))
 |Spec : forall E M t N tid' tid s1 s2 T h s1', 
-          term t -> decompose t E (spec M N) -> tid' = extendTid tid -> 
+          term t -> decompose t = (E, spec M N) -> tid' = extendTid tid -> 
           s1' = [sAct tid' N; specAct] ->
           step h T (tSingleton (tid, s1, s2, E (spec M N))) h T
                (tCouple (bump tid, fAct tid' tid (E (spec M N))::s1, s2,E(specReturn M (threadId tid')))
                         (tid', s1', nil, N))
 |PopSpec : forall t E M N1 N2 tid maj min min' tid' tid'' T h t1 t2 s1 s1' s2 s2',
-             term t -> decompose t E (specReturn (ret N1) (threadId (Tid(maj,min) tid'))) ->
+             term t -> decompose t = (E, specReturn (ret N1) (threadId (Tid(maj,min) tid'))) ->
              s1 = s1' ++ [sAct tid'' M] ->
              t1 = (tid, nil, s2, E(specReturn (ret N1) (threadId (Tid(maj, min) tid')))) ->
              t2 = (Tid(maj, min') tid', s1, s2', ret N2) ->
              step h T (tCouple t1 t2) h T (tCouple t1 (Tid(maj, S min')tid', s1', s2', ret N2))
 |SpecJoin : forall E h s2 s2' tid tid' N1 N2 maj min min' T t1 t2 t,
-              term t -> decompose t E (specReturn (ret N1) (threadId(Tid(maj,min) tid'))) ->
+              term t -> decompose t = (E, specReturn (ret N1) (threadId(Tid(maj,min) tid'))) ->
               t1 = (tid, nil, s2, E(specReturn (ret N1) (threadId (Tid (maj, min) tid')))) ->
               t2 = (Tid (maj, min') tid', [joinAct], s2', ret N2) ->
               step h T (tCouple t1 t2) h T (tSingleton (tid, nil, s2, ret(pair_ N1 N2)))
 |SpecRB : forall t E' h h' tid tid' maj min  min'' T T' E M' s2 s1' a s2' t1 t2 TRB, 
-            term t -> decompose t E' (specReturn (raise E) (threadId(Tid(maj,min'') tid'))) ->
+            term t -> decompose t = (E', specReturn (raise E) (threadId(Tid(maj,min'') tid'))) ->
             t1 = (tid, nil, s2, E'(specReturn (raise E) (threadId (Tid (maj, min'') tid')))) ->
             t2 = (Tid (maj, min) tid', a::s1', s2', M') -> 
             ~ (exists p, thread_lookup TRB tid p) -> thread_lookup TRB (Tid (maj, min) tid') t2 -> 
@@ -174,7 +184,7 @@ Inductive step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
             rollback (Tid (maj, min) tid') h (tAdd TRB t2) h' T' ->
             step h T (tAdd TRB t1) h' T (tAdd T' (tid, nil, s2, E'(raise E)))
 |SpecRaise : forall E' N h tid tid' maj min' min'' s2 s2' T E t1 t2 t,
-               term t -> decompose t E' (specReturn (ret N) (threadId(Tid(maj,min'') tid'))) ->
+               term t -> decompose t = (E', specReturn (ret N) (threadId(Tid(maj,min'') tid'))) ->
                t1 = (tid, nil, s2, t) -> 
                t2 = (Tid (maj, min') tid', [joinAct], s2', raise E) ->
                step h T (tCouple t1 t2) h T (tSingleton (tid, nil, s2, E' (raise E)))
@@ -236,16 +246,16 @@ Inductive unspecThread : thread -> option thread -> Prop :=
 |unspecCommit : forall tid s2 M,
                   unspecThread (tid, nil, s2, M) (Some(tid, nil, s2, M))
 |unspecRead : forall tid s1 s1' s2 M i maj min min' c t,
-                decompose t c (get (fvar i)) -> 
+                decompose t = (c, get (fvar i)) -> 
                 s1 = s1' ++ [rAct i (Tid (maj, min') tid) t] ->
                 unspecThread (Tid (maj, min) tid, s1, s2, M) (Some(Tid (maj, min') tid, nil, s2, c(get (fvar i))))
 |unspecWrite : forall tid s1 s1' s2 M M' i maj min min' c t,
-                 decompose t c (put (fvar i) M') ->
+                 decompose t = (c, put (fvar i) M') ->
                  s1 = s1' ++ [wAct i (Tid (maj, min') tid) t] ->
                  unspecThread (Tid (maj, min) tid, s1, s2, M) 
                               (Some(Tid (maj, min') tid, nil, s2, (c(put (fvar i) M'))))
 |unspecCreate : forall tid s1 s1' s2 M i maj min min' c t,
-                  decompose t c new -> 
+                  decompose t = (c, new) -> 
                   s1 = s1' ++ [cAct i (Tid (maj, min') tid) t] ->
                   unspecThread (Tid (maj, min) tid, s1, s2, M) (Some(Tid (maj, min') tid, nil, s2, (c new)))
 |unspecSpec : forall tid s1 s1' s2 M maj min min' M',
@@ -253,7 +263,7 @@ Inductive unspecThread : thread -> option thread -> Prop :=
                 unspecThread (Tid (maj, min) tid, s1, s2, M) 
                              (Some(Tid (maj, min') tid, [sAct (Tid (maj, min') tid) M'], s2, M'))
 |unSpecFork : forall c tid s1 s1' s2 M tid' M' maj min min' t,
-                  decompose t c (fork M') -> 
+                  decompose t = (c, fork M') -> 
                   s1 = s1' ++ [fAct tid' (Tid (maj, min') tid) t] ->
                   unspecThread (Tid (maj, min) tid, s1, s2, M) 
                                (Some(Tid (maj, min') tid, nil, s2, c(fork M')))
@@ -406,20 +416,20 @@ Inductive eraseThread : thread -> pool -> pPool -> Prop :=
                                      eraseThread (tid, nil, s2, M) T (pSingleton  M')
 |tEraseRead : forall T tid s1 s1' s2 x M M' M'' E maj min min',
                s1 = s1' ++ [rAct x (Tid (maj,min) tid) M'] -> eraseTerm M' T M'' ->
-               decompose M' E (get (fvar x)) -> 
+               decompose M' = (E,get (fvar x)) -> 
                eraseThread (Tid (maj, min') tid, s1, s2, M) T (pSingleton M'')
 |tEraseWrite : forall tid maj min min' M M' M'' x s1 s2 s1' T E N,
                 s1 = s1' ++ [wAct x (Tid (maj,min) tid) M'] -> eraseTerm M' T M'' ->
-                decompose M' E (put (fvar x) N) -> eraseThread (Tid (maj,min') tid, s1, s2, M) T (pSingleton M'')
+                decompose M' = (E,put (fvar x) N) -> eraseThread (Tid (maj,min') tid, s1, s2, M) T (pSingleton M'')
 |tEraseNew : forall tid maj min min' M M' M'' x s1 s2 s1' T E,
               s1 = s1' ++ [cAct x (Tid (maj,min) tid) M'] -> eraseTerm M' T M'' ->
-              decompose M' E new -> eraseThread (Tid(maj,min') tid, s1, s2, M) T (pSingleton M'')
+              decompose M' =(E, new) -> eraseThread (Tid(maj,min') tid, s1, s2, M) T (pSingleton M'')
 |tEraseSpec : forall tid maj min min' M M' s1 s2 s1' T,
                s1 = s1' ++ [sAct (Tid (maj,min) tid) M'] -> 
                eraseThread (Tid(maj,min') tid, s1, s2, M) T (Empty_set ptrm)
 |tEraseFork : forall tid tid' maj min min' M M' M'' s1 s2 s1' T E N,
                 s1 = s1' ++ [fAct tid' (Tid(maj,min)tid) M'] -> eraseTerm M' T M'' ->
-                decompose M' E (fork N) -> eraseThread (Tid(maj,min') tid, s1, s2, M) T (pSingleton M'')
+                decompose M' = (E,fork N) -> eraseThread (Tid(maj,min') tid, s1, s2, M) T (pSingleton M'')
 |tEraseJoin : forall tid M M' s1 s1' s2 T,
                      s1 = s1' ++ [joinAct] -> eraseTerm M T M' ->
                      eraseThread (tid, s1, s2, M) T (pSingleton M')

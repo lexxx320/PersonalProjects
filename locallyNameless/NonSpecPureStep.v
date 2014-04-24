@@ -69,10 +69,17 @@ Proof.
 Qed. 
 
 Theorem erasureDecompose : forall t T pt E e,
-                             eraseTerm t T pt -> decompose t E e ->
-                             exists E' e', eraseTerm e T e' /\ pdecompose pt E' e'. 
+                            eraseTerm t T pt -> decompose t = (E, e) ->
+                            exists E' e', eraseTerm e T e' /\ pdecompose pt = (E',e').
 Proof.
-  intros. generalize dependent pt. induction H0. 
+  induction t; intros; simpl in *;try(inversion H; inversion H0; subst; econstructor; econstructor; split;[eassumption | reflexivity]).
+  {inversion H; inversion H0; subst. }
+  {destruct (decompose t1). inversion H0; inversion H; subst. eapply IHt1 in H5. 
+   inversion H5. inversion H1. inversion H2. econstructor. econstructor. split. 
+   eassumption. simpl. rewrite H4. reflexivity. reflexivity. }
+  {destruct (decompose t1). inversion H0; inversion H; subst. eapply IHt1 in H5. 
+   inversion H5. inversion H1. inversion H2. econstructor. econstructor. split. 
+   eassumption. simpl. rewrite H4. reflexivity. reflexivity. }
   {
 
 Ltac copy H := 
