@@ -89,39 +89,39 @@ Proof.
   {inversion H4; eauto. } 
   {inversion H4; eauto. }
   {inversion H4; subst; try eauto. 
-   {inversion H0. inversion H. subst sa. unfoldSetEq H14. 
+   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
     assert(Ensembles.In(AST.tid*specStack) (specActionsAux
             (tAdd TRB
                (tid, [], s2,
-               E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H10. eassumption. reflexivity.        apply H8 in H14. inversion H14. inversion H18. inversion H22. inversion H23. 
+               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
+    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity.        apply H7 in H13. inversion H13. inversion H17. inversion H20. inversion H21. 
     assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H29. eassumption. inversion H31. reflexivity. contradiction. }
-   {inversion H0. inversion H. subst sa. unfoldSetEq H14. 
+    inversion H27. eassumption. inversion H29. reflexivity. contradiction. }
+   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
     assert(Ensembles.In(AST.tid*specStack) (specActionsAux
             (tAdd TRB
                (tid, [], s2,
-               E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H10. eassumption. reflexivity.        apply H8 in H14. inversion H14. inversion H18. inversion H22. inversion H23. 
+               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
+    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity.        apply H7 in H13. inversion H13. inversion H17. inversion H20. inversion H21. 
     assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H29. eassumption. inversion H31. reflexivity. contradiction. }
-   {inversion H0. inversion H. subst sa. unfoldSetEq H14. 
+    inversion H27. eassumption. inversion H29. reflexivity. contradiction. }
+   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
     assert(Ensembles.In(AST.tid*specStack) (specActionsAux
             (tAdd TRB
                (tid, [], s2,
-               E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H10. eassumption. reflexivity.        apply H8 in H14. inversion H14. inversion H18. inversion H22. inversion H23. 
+               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
+    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity.        apply H7 in H13. inversion H13. inversion H17. inversion H20. inversion H21. 
     assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H29. eassumption. inversion H31. reflexivity. contradiction. }
-   {inversion H0. inversion H. subst sa. unfoldSetEq H14. 
+    inversion H27. eassumption. inversion H29. reflexivity. contradiction. }
+   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
     assert(Ensembles.In(AST.tid*specStack) (specActionsAux
             (tAdd TRB
                (tid, [], s2,
-               E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H10. eassumption. reflexivity. 
-    apply H8 in H14. inversion H14. inversion H18. inversion H21. inversion H26. 
+               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
+    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity. 
+    apply H7 in H13. inversion H13. inversion H17. inversion H19. inversion H24. 
     assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H32. eassumption. inversion H32. inversion H34. inversion H36. reflexivity. contradiction. }
+    inversion H30. eassumption. inversion H30. inversion H32. inversion H34. reflexivity. contradiction. }
   }
   {inversion H4; eauto. }
   {inversion H4; try(subst; eapply addCommitAction in H2; [inversion H2 | eassumption]). }
@@ -165,15 +165,15 @@ Proof.
   {subst. eapply addSpecAction in H0. inversion H0. eassumption. }
   {subst. eapply addSpecAction in H1. inversion H1. eassumption. }
   {subst. eapply addSpecAction in H1. inversion H1. eassumption. }
-  {subst. inversion H0; inversion H1; subst. unfoldSetEq H11. 
+  {subst. inversion H0; inversion H1; subst. unfoldSetEq H10. 
    assert(Ensembles.In (AST.tid*specStack)(specActionsAux
             (tAdd TRB
                (tid, [], s2,
-               E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj, min)tid', a::s1')).
-   econstructor. econstructor. econstructor. econstructor. inversion H7. eapply Union_introl. 
-   eassumption. reflexivity. apply H5 in H10. inversion H10. inversion H12. inversion H15. 
-   inversion H16. inversion H22. assert(exists p, thread_lookup T' (Tid(maj, min) tid') p). 
-   econstructor. eapply hit. eassumption. reflexivity. contradiction. inversion H24. }
+               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj, min)tid', a::s1')).
+   econstructor. econstructor. econstructor. econstructor. inversion H6. eapply Union_introl. 
+   eassumption. reflexivity. apply H4 in H9. inversion H9. inversion H11. inversion H14. 
+   inversion H15. inversion H21. assert(exists p, thread_lookup T' (Tid(maj, min) tid') p). 
+   econstructor. eapply hit. eassumption. reflexivity. contradiction. inversion H23. }
 Qed. 
 
 Ltac copy H :=
@@ -415,25 +415,25 @@ Theorem pureStepHeapChange : forall h h' T t t' sa,
 Proof.
   intros. inversion H1; eauto. 
   {eapply heapUpdateNeq in H4. unfold not in H4. exfalso. apply H4. eassumption. 
-   intros c. inversion c. apply listNeq in H13. assumption. }
+   intros c. inversion c. apply listNeq in H12. assumption. }
   {eapply heapUpdateNeq in H4. unfold not in H4. exfalso. apply H4. eassumption. 
    intros c. inversion c. }
   {subst. destruct h.
-   {simpl in H4. inversion H4. }
-   {simpl in H4. inversion H4. destruct p. inversion H6. apply listNeq in H11. inversion H11. }
+   {simpl in H3. inversion H3. }
+   {simpl in H3. inversion H3. destruct p. inversion H5. apply listNeq in H10. inversion H10. }
   }
-  {subst. inversion H. inversion H0. subst. unfoldSetEq H11. 
+  {subst. inversion H. inversion H0. subst. unfoldSetEq H10. 
    assert(Ensembles.In (AST.tid * specStack)
          (specActionsAux
             (tAdd TRB
                (tid, [], s2,
-                E' (specReturn (raise E) (threadId (Tid (maj, min'') tid'))))))
+                fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid'))))))
          (Tid(maj, min) tid', a::s1')). constructor. econstructor. econstructor. 
-   eapply hit. unfold tAdd. unfold Add. apply Union_introl. inversion H7. eassumption. 
-   reflexivity. apply H5 in H10. inversion H10. 
-   assert(exists y, thread_lookup T' (Tid(maj, min) tid') y). inversion H12. 
-   inversion H15. inversion H16. inversion H22. exists(Tid (maj, min) tid', a :: s1', x, x0). 
-   eapply hit. assumption. reflexivity. inversion H24. contradiction. }
+   eapply hit. unfold tAdd. unfold Add. apply Union_introl. inversion H6. eassumption. 
+   reflexivity. apply H4 in H9. inversion H9. 
+   assert(exists y, thread_lookup T' (Tid(maj, min) tid') y). inversion H11. 
+   inversion H14. inversion H15. inversion H21. exists(Tid (maj, min) tid', a :: s1', x, x0). 
+   eapply hit. assumption. reflexivity. inversion H23. contradiction. }
   {subst. eapply popSpecActionFalse in H0. inversion H0. eassumption.  }
   {subst. eapply popSpecActionFalse in H0. inversion H0. eassumption.  }
   {subst. eapply popSpecActionFalse in H0. inversion H0. eassumption.  }
@@ -574,16 +574,6 @@ Ltac eqImpliesX :=
       |H:?x = ?x -> ?p |- _ => assert(eqAssump : x = x) by reflexivity; eapply H in eqAssump
   end. 
 
-Theorem HeapLookupReplace : forall x (h:sHeap) v v', heap_lookup x h = Some v' ->
-                                                     heap_lookup x (replace x v h) = Some v. 
-Proof.
-  intros. induction h. 
-  {inversion H. }
-  {simpl. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {simpl. rewrite <- beq_nat_refl. reflexivity. }
-   {simpl in *.  rewrite eq. rewrite eq in H. apply IHh in H. assumption. }
-  }
-Qed.  
 
 Theorem ReadInd' : forall h h' T' T  tid s1 s2 E x N t s ds t' M,
                     heap_lookup x h = Some(sfull nil ds s t N) -> decompose M E (get x) ->

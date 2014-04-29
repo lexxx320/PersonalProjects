@@ -7,6 +7,12 @@ Definition id := nat.
 Inductive tid : Type :=
 |Tid : nat * nat -> list (nat * nat) -> tid. 
 
+Axiom classicT : forall (P : Prop), {P} + {~ P}.
+
+Notation "'If' P 'then' v1 'else' v2" := 
+  (if (classicT P) then v1 else v2)
+  (at level 200, right associativity) : type_scope.
+
 (*Syntax for speculative semantics*)
 Inductive trm : Type := 
   |threadId : tid -> trm
@@ -52,13 +58,34 @@ Fixpoint open (k:nat) (u:trm) (t:trm) : trm :=
       |_ => t
   end. 
 
+Fixpoint freeVars (t:trm) : Ensemble id :=
+  match t with
+    |fvar x => Singleton id x
+    |pair_ e1 e2 => Union id (freeVars e1) (freeVars e2)
+    |lambda e => freeVars e
+    |app e1 e2 => Union id (freeVars e1) (freeVars e2)
+    |ret e => freeVars e
+    |bind e1 e2 => Union id (freeVars e1) (freeVars e2)
+    |fork e => freeVars e
+    |put i e => Union id (freeVars i) (freeVars e)
+    |get i => freeVars i
+    |raise e => freeVars e
+    |handle e1 e2 => Union id (freeVars e1) (freeVars e2)
+    |done e => freeVars e
+    |spec e1 e2 => Union id (freeVars e1) (freeVars e2)
+    |specReturn e1 e2 => Union id (freeVars e1) (freeVars e2)
+    |fst e => freeVars e
+    |snd e => freeVars e
+    |_ => Empty_set id
+  end. 
+
 Inductive term : trm -> Prop :=
 |term_threadId : forall t, term (threadId t)
 |term_fvar : forall x, term (fvar x)
 |term_unit : term unit
 |term_pair : forall e1 e2, term e1 -> term e2 -> term (pair_ e1 e2)
-|term_lambda : forall L e, (forall x, ~ Ensembles.In id L x -> term (open 0 (fvar x) e)) -> 
-                           term (lambda e)
+|term_lambda : forall e, (forall x, ~ Ensembles.In id (freeVars e) x -> term (open 0 (fvar x) e)) -> 
+                         term (lambda e)
 |term_app : forall e1 e2, term e1 -> term e2 -> term (app e1 e2)
 |term_ret : forall e, term e -> term (ret e)
 |term_bind : forall e1 e2, term e1 -> term e2 -> term (bind e1 e2)
@@ -115,12 +142,31 @@ Fixpoint popen (k:nat) (u:ptrm) (t:ptrm) : ptrm :=
       |_ => t
   end. 
 
+Fixpoint pfreeVars (t:ptrm) : Ensemble id :=
+  match t with
+      |pfvar x => Singleton id x
+      |ppair e1 e2 => Union id (pfreeVars e1) (pfreeVars e2)
+      |plambda e => pfreeVars e
+      |papp e1 e2 => Union id (pfreeVars e1) (pfreeVars e2)
+      |pret e => pfreeVars e 
+      |pbind e1 e2 => Union id (pfreeVars e1) (pfreeVars e2)
+      |pfork e => pfreeVars e
+      |pput i e => Union id (pfreeVars i) (pfreeVars e)
+      |pget i => pfreeVars i
+      |praise e => pfreeVars e
+      |phandle e1 e2 => Union id (pfreeVars e1) (pfreeVars e2)
+      |pdone e => pfreeVars e
+      |pfst e => pfreeVars e 
+      |psnd e => pfreeVars e
+      |_ => Empty_set id
+  end. 
+
 Inductive pterm : ptrm -> Prop :=
 |pterm_fvar : forall x, pterm (pfvar x)
 |pterm_unit : pterm punit
 |pterm_pair : forall e1 e2, pterm e1 -> pterm e2 -> pterm (ppair e1 e2)
-|pterm_lambda : forall L e, (forall x, ~ Ensembles.In id L x -> pterm (popen 0 (pfvar x) e)) ->
-                            pterm (plambda e)
+|pterm_lambda : forall e, (forall x, ~ Ensembles.In id (pfreeVars e) x -> pterm (popen 0 (pfvar x) e)) ->
+                          pterm (plambda e)
 |pterm_app : forall e1 e2, pterm e1 -> pterm e2 -> pterm (papp e1 e2)
 |pterm_ret : forall e, pterm e -> pterm (pret e)
 |pterm_bind : forall e1 e2, pterm e1 -> pterm e2 -> pterm (pbind e1 e2)
@@ -134,6 +180,8 @@ Inductive pterm : ptrm -> Prop :=
 |pterm_fst : forall e, pterm e -> pterm (pfst e)
 |pterm_snd : forall e, pterm e -> pterm (psnd e)
 .
+
+
 
 Inductive action : Type :=
   |rAct : id -> tid -> trm -> action

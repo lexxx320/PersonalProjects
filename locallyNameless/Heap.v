@@ -45,3 +45,24 @@ Proof.
    {inversion H1. apply IHh in H3. assumption. assumption. }
   }
 Qed. 
+
+Theorem HeapLookupReplace : forall (T:Type) x (h:heap T) v v', 
+                              heap_lookup x h = Some v' ->
+                              heap_lookup x (replace x v h) = Some v. 
+Proof.
+  intros. induction h. 
+  {inversion H. }
+  {simpl. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {simpl. rewrite <- beq_nat_refl. reflexivity. }
+   {simpl in *.  rewrite eq. rewrite eq in H. apply IHh in H. assumption. }
+  }
+Qed. 
+
+Theorem lookupExtend : forall (T:Type) x H H' (v:T), (x, H') = extend v H ->
+                                                     heap_lookup x H' = Some v. 
+Proof.
+  intros. induction H. 
+  {simpl in *. inversion H0; subst. simpl. reflexivity. }
+  {destruct a. simpl in *. inversion H0; subst. simpl. rewrite <- beq_nat_refl. 
+   reflexivity. }
+Qed. 
