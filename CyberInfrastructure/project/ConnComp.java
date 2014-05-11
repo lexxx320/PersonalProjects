@@ -2,18 +2,20 @@ import java.util.Stack;
 
 public class ConnComp{
 
-    private static int rows;
-    private static int cols;
-    private static boolean [][] bw;
-    private static int [][] ccs;
-    private static double [][] data;
+    private int rows;
+    private int cols;
+    private boolean [][] bw;
+    private int [][] ccs;
+    private double [][] data;
+    private int label;
 
     public ConnComp(int rows, int cols, boolean [][] bw, double [][] data){
         this.rows = rows; this.cols = cols; this.bw = bw;
         ccs = new int [rows][cols]; this.data = data;
+        label = 1;
     }
 
-    public updateBW(boolean [][] bw){
+    public void updateBW(boolean [][] bw){
         this.bw = bw;
     }
 
@@ -55,13 +57,11 @@ public class ConnComp{
         Stack<Integer> yStack = new Stack<Integer>();
         Stack<Integer>eraseX = new Stack<Integer>(); 
         Stack<Integer>eraseY = new Stack<Integer>();
-        int label = 1;
         for(int i = 0; i < rows; i++){
             for(int j = 0; j < cols; j++){
                 /*Analyze a connected component*/
                 if(bw[i][j] && ccs[i][j] == 0){
-                    System.out.println("Beginning CC");
-                    int count = 0;
+                    int count = 0; int perimCount = 0;
                     double perim = 0.0;
                     double min = Double.MAX_VALUE;
                     xStack.push(i); yStack.push(j);
@@ -71,9 +71,10 @@ public class ConnComp{
                         if(x>=0&&x<rows&&y>=0&&y<cols&&bw[x][y]&&ccs[x][y]==0){
                             count++;
                             eraseX.push(x); eraseY.push(y);
-                            ccs[x][y] = label;
                             boolean p = perimiter(x, y);
+                            ccs[x][y] = label;
                             perim += p ? data[x][y] : 0.0;
+                            perimCount += p ? 1 : 0;
                             min = data[x][y] < min ? data[x][y] : min;
                             xStack.push(x-1); yStack.push(y);
                             xStack.push(x+1); yStack.push(y);
@@ -81,17 +82,14 @@ public class ConnComp{
                             xStack.push(x); yStack.push(y+1);
                         }
                     }
-                    double amp = (perim / count) - min;
-                    System.out.println("perim = " + perim + ", count = " + count + 
-                        ", min = " + min + ", amp = " + amp + ", avg perim = " + perim/count);
-                    System.out.println("count = " + count + ", amplitude = " + amp);
-                    if(count > 8 || count <= 1000 && amp >= 1){
+                    double amp = (perim / perimCount) - min;
+                    if(count > 8 && count < 1000 && amp >= 1){
+                        //Remove pixels from erase stack
                         for(int k = 0; k < count; k++){
                             eraseX.pop(); eraseY.pop();
                         }
                         label++;
                     }
-                    System.out.println("Done with CC, size = " + count);
                 }
             }
         }

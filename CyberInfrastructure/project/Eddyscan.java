@@ -1,5 +1,4 @@
 
-
 public class Eddyscan{
     private int rows;
     private int cols;
@@ -22,16 +21,14 @@ public class Eddyscan{
     public int [][] scan(){
         int [][] eddies = new int [rows][cols];
 
-        boolean [][] bw = image2BW(thresh);
+        boolean [][] bw = image2BW(100);
         ConnComp cc = new ConnComp(rows, cols, bw, data);
         eddies = cc.getComponents();
-
-        for(int thresh = 100; thresh >= -100; thresh--){
-            System.out.println("Executing threshold " + thresh);
-            boolean [][] bw = image2BW(thresh);
-            ConnComp cc = new ConnComp(rows, cols, bw, data);
+        
+        for(int thresh = 99; thresh >= -100; thresh--){
+            bw = image2BW(thresh);
+            cc.updateBW(bw);
             eddies = cc.getComponents();
-            
         }
         return eddies;
     }
