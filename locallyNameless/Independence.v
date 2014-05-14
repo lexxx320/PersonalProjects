@@ -486,133 +486,16 @@ Proof.
    }
   }
   Qed. 
-
-(*---------------------------Read Independence--------------------------*)
-
-Theorem HeapUpdateShadow : forall (h:sHeap) v1 v2 x, 
-                           replace x v1 (replace x v2 h) = replace x v1 h. 
+ 
+Theorem AddEqCouple : forall T S e e1 e2, Add T S e = Couple T e1 e2 ->
+                                          e = e1 \/ e = e2. 
 Proof.
-  intros. induction h. 
-  {simpl. reflexivity. }
-  {simpl. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {simpl. rewrite <- beq_nat_refl. reflexivity. }
-   {simpl. rewrite eq. rewrite IHh. reflexivity. }
-  }
-Qed. 
-
-
-Theorem HeapUpdateSame : forall (h:sHeap) v x, heap_lookup x h = Some v ->
-                                               replace x v h = h. 
-Proof.
-  intros. induction h. 
-  {inversion H. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inversion H. apply beq_nat_true in eq. subst. reflexivity. }
-   {apply IHh in H. rewrite H. reflexivity. }
-  }
-Qed. 
-
-Hint Resolve HeapUpdateSame. 
-
-Require Import Coq.Logic.Classical_Prop. 
-
-Theorem HeapUpdateMiss : forall (h:sHeap) x x' v, x'<>x -> heap_lookup x (replace x' v h) = heap_lookup x h. 
-Proof.
-  intros. simpl. induction h. 
-  {simpl. reflexivity. }
-  {simpl. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {destruct (beq_nat x' i) eqn :c. 
-    {rewrite beq_nat_true_iff in eq. rewrite beq_nat_true_iff in c. subst. exfalso. 
-     apply H. reflexivity. }
-    {simpl. rewrite eq. reflexivity. }
-   }
-   {destruct (beq_nat x' i). 
-    {simpl. destruct (beq_nat x x') eqn:c. 
-     {rewrite beq_nat_true_iff in c. symmetry in c. contradiction. }
-     {reflexivity. }
-    }
-    {simpl. rewrite eq. assumption. }
-   }
-  }
-Qed. 
-
-Hint Constructors multistep. 
-
-Require Import Coq.Program.Equality. 
-
-Theorem AddSingletonEq : forall T S1 s1 s2, Add T S1 s1 = Singleton T s2 -> s1 = s2. 
-Proof.
-  intros. unfoldSetEq H. assert(Ensembles.In T (Add T S1 s1) s1). apply Union_intror. 
-  constructor. apply H0 in H. inversion H. reflexivity. Qed. 
-
-
-Theorem ReadInd : forall h h' h'' T' T tid s1 s2 E x N t s ds t' M,
-                    heap_lookup x h = Some(sfull nil ds s t N) -> decompose M E (get x) ->
-                    t' = (tSingleton (bump tid, rAct x tid M::s1, s2, E(ret N))) ->
-                    step h T (tSingleton (tid,s1,s2,M)) h' T t' -> 
-                    multistep h' t' T h'' t' T' ->
-                    multistep h (tSingleton (tid,s1,s2,M)) T (replace x (sfull nil ds s t N) h'')
-                              (tSingleton (tid,s1,s2,M)) T'. 
-Proof.
-  intros. generalize dependent h. induction H3. 
-  {intros. subst. inversion H2; try(subst; apply HeapUpdateSame in H; rewrite H; constructor). 
-   {apply SingletonEq in H1. inversion H1. apply uniqueCtxtDecomp with(E':=E)(e':=get x)in H4. 
-    inversion H4. inversion H16. subst. 
-    {rewrite HeapUpdateShadow. cleanup. clear H4. apply HeapUpdateSame in H. rewrite H. constructor. }
-    {subst. assumption. }
-   }
-   {apply SingletonEq in H1. inversion H1. subst. apply uniqueCtxtDecomp with (E':=E)(e':=get x) in H4. 
-    inversion H4. inversion H6. assumption. }
-   {apply SingletonEq in H1. inversion H1. subst. apply uniqueCtxtDecomp with (E':=E)(e':=get x) in H6. 
-    inversion H6. inversion H5. assumption. }
-   {subst. apply AddSingletonEq in H3. inversion H3. }
-  }
-  {Case "Inductive Case". intros. subst. 
-
-Ltac eqImpliesX :=
-  match goal with
-      |H:?x = ?x -> ?p |- _ => assert(eqAssump : x = x) by reflexivity; eapply H in eqAssump
-  end. 
-
-
-Theorem ReadInd' : forall h h' T' T  tid s1 s2 E x N t s ds t' M,
-                    heap_lookup x h = Some(sfull nil ds s t N) -> decompose M E (get x) ->
-                    t' = (tSingleton (bump tid, rAct x tid (E(get x))::s1, s2, E(ret N))) ->
-                    step h T (tSingleton (tid,s1,s2,E(get x))) 
-                         (replace x (sfull nil (tid::ds) s t N) h) T t' -> 
-                    multistep (replace x (sfull nil (tid::ds) s t N) h) t' T h' t' T' ->
-                    multistep h (tSingleton (tid,s1,s2,E(get x))) T (replace x (sfull nil ds s t N) h')
-                              (tSingleton (tid,s1,s2,E(get x))) T'. 
-Proof.
-  intros. remember (replace x (sfull [] (tid :: ds) s t N) h). generalize dependent h.  induction H3. 
-  {intros. subst. rewrite HeapUpdateShadow. apply HeapUpdateSame in H. rewrite H. 
-   constructor. }
-  {intros. subst. inversion H3; subst. 
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor; eauto. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor. eauto. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. eapply Handle. eauto. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor. eauto. }
-   {eqImpliesX; eauto. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor; eauto. }
-   {admit. } 
-   {admit. }
-   {admit. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor; eauto. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor; eauto. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor; eauto. }
-   {admit. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor; eauto. }
-   {admit. }
-   {admit. }
-   {admit. }
-   {admit. }
-   {eqImpliesX; eauto. eapply multi_step; eauto. econstructor; eauto. }
-  }
-Qed. 
+  intros. unfold Add in H. unfoldSetEq H. assert(Ensembles.In T (Union T S (Singleton T e)) e). 
+  auto. apply H0 in H. inversion H. auto. auto. Qed. 
 
 Theorem ForkInd : forall h h' T T' tid s1 s2 E t t' M,
-                    decompose t E (fork M) ->
-                    t' = (bump tid, fAct (extendTid tid) tid t::s1, s2, E(ret unit)) ->
+                    decompose t = (E, fork M) ->
+                    t' = (bump tid, fAct (extendTid tid) tid t::s1, s2, fill E(ret unit)) ->
                     step h T (tSingleton (tid, s1, s2, t)) h T (tCouple t' (extendTid tid, [specAct], nil, M)) ->
                     multistep h (tCouple t' (extendTid tid, [specAct], nil, M)) T h'
                               (tCouple t' (extendTid tid, [specAct], nil, M)) T' ->
@@ -620,19 +503,20 @@ Theorem ForkInd : forall h h' T T' tid s1 s2 E t t' M,
 Proof.
   intros. remember (tCouple t' (extendTid tid, [specAct], [], M)). induction H2; auto. 
   {apply IHmultistep in Heqe. inversion H4; subst; try(solve[eapply multi_step; eauto; eauto]).
-   {copy H. apply decomposeEq in H. subst t. inversion H1; eauto. 
-    {eapply heapUpdateNeq in H11. inversion H11. eassumption. intros c. inversion c. 
-     apply listNeq in H16. assumption. }
-    {eapply heapUpdateNeq in H11. inversion H11. eassumption. intros c. inversion c. }
-    {destruct h. simpl in H10. inversion H10. inversion H10. destruct p. inversion H15. 
-     apply listNeq in H19. inversion H19. }
-    {subst. apply AddSingletonEq in H. inversion H. 
-     eapply uniqueCtxtDecomp with (E':=E)(e':=fork M)in H7. inversion H7. inversion H14. 
-     rewrite <- H13 in H6. assumption. }
-    {subst T1. apply SingleEqCouple in H13. inversion H13. inversion H15. }
+   {copy H. apply decomposeEq in H. inversion H1; eauto. 
+    {eapply heapUpdateNeq in H9. exfalso. apply H9. eassumption. intros c. inversion c. 
+     apply listNeq in H17. assumption. }
+    {eapply heapUpdateNeq in H9. exfalso. apply H9. eassumption. intros c. inversion c. }
+    {destruct h. simpl in H11. inversion H11. inversion H11. destruct p. inversion H16. 
+     apply listNeq in H20. inversion H20. }
+    {subst. apply AddEqCouple in H19. inversion H19. inversion H. inversion H. }
     {subst T1. apply SingleEqCouple in H14. inversion H14. inversion H16. }
-    {subst T1. apply SingleEqCouple in H14. inversion H14. inversion H16. }
-    {subst T1. apply SingleEqCouple in H14. inversion H14. inversion H16. }
+    {subst T1. apply SingleEqCouple in H15. inversion H15. inversion H17. }
+    {subst T1. apply SingleEqCouple in H15. inversion H15. inversion H17. }
+    {subst T1. apply SingleEqCouple in H15. inversion H15. inversion H17. }
    }
   }
 Qed. 
+
+
+

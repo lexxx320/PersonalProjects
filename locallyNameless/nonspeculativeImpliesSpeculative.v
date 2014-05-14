@@ -563,21 +563,3 @@ Proof.
    rewrite union_empty. constructor. }
 Qed. 
    
-
-
-Theorem nonspecImpliesSpecMultistep : forall PH PH' PT pt pt',
-                               pmultistep PH PT pt PH' PT pt' ->
-                               exists H H' t t' T,
-                                 eraseHeap H PH /\ eraseHeap H' PH' /\ erasePool T PT /\
-                                 erasePool t pt /\ erasePool t' pt' /\ multistep H T t H' T t'.
-Proof.
-  intros. induction H. 
-  {assert(exists H, eraseHeap H h). apply eHeap. inversion H. exists x. exists x. 
-   assert(exists t, erasePool t p2). apply ePool. inversion H1. exists x0. 
-   exists x0. assert(exists T, erasePool T p1). apply ePool. inversion H3. exists x1. 
-   repeat(split; auto). }
-  {assert(exists T, erasePool T (Add ptrm T2 t)). apply ePool. eapply nonspecImpliesSpec in H0. 
-   invertHyp. exists x5. exists x1. econstructor. exists x3. exists x4. repeat(split; eauto). 
-   
-
-
