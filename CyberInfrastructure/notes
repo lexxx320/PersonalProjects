@@ -1,0 +1,57 @@
+Choesky factorizaion (LU decomposition)
+Ax = b
+
+LUx = b
+(L is lower triangular and U is upper triangular)
+Decompose A into L and U, such that Ly = b where y = Ux
+
+A = [3 -1 1
+     -1 3 1
+     1 1 3]
+
+A = LL' => [l11 0    0  ][l11 l21 l31
+            l21 l22  0  ] 0   l22 l32
+            l31 l32  l33] 0    0  l33] 
+l11 = sqrt(3)
+l21 * l11 = -1 => l21 * sqrt(3) = -1 => l21 = -1/sqrt(3)
+
+l11 = sqrt(a11)
+lj1 = aj1/l11, j > 1
+lji = 1/lii(aji - sum(ljk * lik)), j > i > 1    (k = 1 to i-1)
+lii = sqrt(aii - sum(lik^2)), i < i < n (k = 1 to i-1) 
+            
+
+Lagrange interpolation
+    P1(x) = ((x-x1) / (x0 - x1)) * y1 + ((x-x0) / (x1 - x0)) * y1
+         = L0(x) * f(x0) + L1(x) * f(x1)
+         
+    In general L(k)(xj) = 0 if k not equal to j, 1 otherwise
+        and sum(Lk(x)) = 1 for k = 0 to n
+    Pn(x) = L0(x) * f(x0) + L1(x) * f(x1) + ... + Ln(x) * f(xn) = sum(Lk(x) * f(xk)) for k = 0 to n
+    Li(x) = PI k = 0 to n ((x - xk) / (xi - xk)) , i not equal to k
+
+
+    L1(x) = ((x-x0)/(x1-x0)) * ((x-x2)/(x1-x2)) * ... * ((x - xn) / (x1 - xn))
+
+
+P2(x) : quadratic lagrange interpolating polynomial for (0,0) (1,y), (2,3)
+find y if coeff of x^2 in P2(x) is 1/2
+
+P2(x) = L0(x) * f(0) + L1(x) * f(1) + L2(x) * f(2) = 
+      = L0(x) * 0 + L1(x) * 1 + L2(x) * 3
+
+      L1(x) = ((x-x0)/(x1-x0)) * ((x-x2)/(x1-x2)) = -x * (x - 2) = -x^2 + 2 * x
+      L2(x) = ((x - x0)/(x2 - x0)) * ((x-x1)/(x2-x1)) = 1/2x * (x-1) = (x^2/2) - (x/2)
+P2(x) = (-x^2 + 2x) * y + 3 * (x^/2 - x/2)
+      = (-y + 3/2) * x^2 + (2y - 3/2) * x
+      1/2 = -y + 3/2
+      y = 1
+      P2(x) = 1/2x^2 + 1/2x
+
+
+
+
+    
+
+
+    
