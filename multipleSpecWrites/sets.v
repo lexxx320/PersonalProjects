@@ -149,7 +149,15 @@ Proof.
   }
 Qed. 
 
+Theorem AddEqCouple : forall T S e e1 e2, Add T S e = Couple T e1 e2 ->
+                                          e = e1 \/ e = e2. 
+Proof.
+  intros. unfold Add in H. unfoldSetEq H. assert(Ensembles.In T (Union T S (Singleton T e)) e).
+  apply Union_intror. constructor. apply H0 in H2. inversion H2. auto. auto. Qed. 
 
+Theorem AddEqSingleton : forall T S e e', Add T S e = Singleton T e' -> e = e'. 
+Proof.
+  intros. unfold Add in H. apply UnionEqSingleton in H. assumption. Qed. 
 
 End Ensembles.
 

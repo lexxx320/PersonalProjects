@@ -5,6 +5,8 @@ Require Import AST.
 Require Import Heap. 
 Require Import Coq.Sets.Ensembles.
 Require Import sets. 
+Require Import Powerset_facts. 
+Require Import erasure. 
 
 Ltac applyHyp :=
   match goal with
@@ -21,53 +23,6 @@ Proof.
   {destruct s2. inversion H. destruct s1; inversion H2. inversion H. apply IHs1 in H2.
    assumption. } Qed. 
 
-Theorem termErasureDeterminism : forall M T M1 M2,
-                                   eraseTerm M T M1 -> eraseTerm M T M2 -> M1 = M2. 
-Proof.
-  intros. generalize dependent M2. induction H; intros; 
-                                   try(inversion H0; reflexivity);
-  try(clear H; clear H0; match goal with
-                           |H:eraseTerm ?T ?T' ?M |- _ => 
-                    inversion H; clear H; applyHyp; applyHyp; subst; reflexivity
-                         end); 
-  try(clear H; match goal with
-                |H : eraseTerm ?T ?T' ?M |- _ =>
-                 inversion H; clear H; applyHyp; subst; reflexivity
-               end). 
-  {inversion H3; subst. apply IHeraseTerm1 in H8. rewrite H8. 
-   apply uniqueThreadPool with (t' := (Tid(maj,min') tid, s1' ++ [sAct (Tid(maj,min'')tid) M'], s2, M)) in H13. 
-   inversion H13. apply lastElementEq in H5. inversion H5. subst. apply IHeraseTerm2 in H12. 
-   subst. reflexivity. assumption. }
-Qed. 
-
-Theorem erasureDeterminism : forall t t1' t2' T, 
-                               eraseThread t T t1' -> 
-                               eraseThread t T t2' -> t1' = t2'.
-Proof.
-  intros. induction H; inversion H0;
-  try(subst; match goal with
-               |H:eraseTerm ?M ?T ?x, H':eraseTerm ?M ?T ?y |- _ =>
-                eapply termErasureDeterminism in H;[rewrite<-H;reflexivity|auto]
-               |H:[] = [] ++ [?x] |- _ => inversion H       
-               |H:[] = ?x ++ [?y] |- _ => destruct x; inversion H
-               |H:?s1++[?x]=?s2++[?y]|-_ => apply lastElementEq in H; inversion H
-             end);
-  try(subst; eapply termErasureDeterminism in H12;[rewrite <-H12; reflexivity| auto]);
-  reflexivity. Qed. 
-  
-Theorem eraseHeapDeterminism : forall h h1 h2, 
-                                 eraseHeap h h1 -> eraseHeap h h2 ->
-                                 h1 = h2. 
-Proof.
-  intros. generalize dependent h2. induction H; intros. 
-  {inversion H0. subst. apply IHeraseHeap in H6. assumption. }
-  {inversion H0. subst. apply IHeraseHeap in H4. subst. reflexivity. }
-  {inversion H0; subst. apply IHeraseHeap in H10. assumption. }
-  {inversion H0. subst. apply IHeraseHeap in H9. subst. reflexivity. }
-  {inversion H1. subst. apply IHeraseHeap in H8. subst. 
-   eapply termErasureDeterminism in H0. rewrite <-H0. reflexivity. assumption. }
-  {inversion H0; subst. reflexivity. }
-Qed. 
 
 Ltac copy H := 
   match type of H with
@@ -85,37 +40,6 @@ Ltac cleanup := unfold tSingleton in *; unfold tCouple in *; unfold tAdd in *; u
            |H : Couple ?T ?y ?z = Singleton ?t ?x |- _ => symmetry in H
          end). 
 
-
-Inductive eraseContext : ctxt -> pool -> pctxt -> Prop :=
-|eraseCtxtHole : forall T, eraseContext holeCtxt T pholeCtxt
-|eraseCtxtBind : forall T N N' E E', eraseTerm N T N' -> eraseContext E T E' ->
-                                     eraseContext (bindCtxt E N) T (pbindCtxt E' N')
-|eraseCtxtSpec : forall T M M' M'' E E' t maj min min' min'' s1 s2,
-                   eraseContext E T E' -> 
-                   thread_lookup T (Tid(maj,min) t) (Tid(maj,min')t, s1 ++ [sAct (Tid(maj,min'')t) M'], s2, M) ->
-                   eraseTerm M' T M'' ->
-                   eraseContext (specReturnCtxt E (threadId (Tid(maj,min)t))) T 
-                                (pbindCtxt E' (plambda (pbind (incBV 1 M'') (plambda (pret (ppair (pbvar 0)(pbvar 1)))))))
-|eraseCtxtHandle : forall T N N' E E',
-                     eraseTerm N T N' -> eraseContext E T E' ->
-                     eraseContext (handleCtxt E N) T (phandleCtxt E' N')
-.
-
-Theorem ctxtErasureDeterminism : forall E T E1 E2, eraseContext E T E1 -> eraseContext E T E2 ->
-                                                   E1 = E2. 
-Proof.
-  intros. generalize dependent E2. induction H; intros. 
-  {inversion H0; subst. reflexivity. }
-  {inversion H1; subst. apply IHeraseContext in H7. subst. eapply termErasureDeterminism in H. 
-   rewrite <- H. reflexivity. assumption. }
-  {inversion H2; subst. apply IHeraseContext in H9. subst. 
-   apply uniqueThreadPool with (t' := (Tid (maj, min'0) t, s0 ++ [sAct (Tid (maj, min''0) t) M'0], s3, M0)) in H0. 
-   inversion H0; subst. apply lastElementEq in H5. inversion H5; subst. 
-   eapply termErasureDeterminism in H11. rewrite <- H11. reflexivity. assumption. assumption. }
-  {inversion H1; subst. apply IHeraseContext in H7. subst. eapply termErasureDeterminism in H. 
-   rewrite <- H. reflexivity. assumption. }
-Qed. 
-
 Ltac invertHyp :=
   match goal with
       |H : exists e : _, ?x |- _ => inversion H; clear H; subst; try invertHyp
@@ -125,69 +49,6 @@ Ltac invertHyp :=
       |H : eraseContext ?E ?T ?E1, H' : eraseContext ?E ?T ?E2 |- _ => 
        eapply ctxtErasureDeterminism in H; try eassumption; subst; try invertHyp
   end. 
-Hint Constructors eraseContext eraseTerm. 
-Theorem decomposeErase : forall E e T t', 
-                           eraseTerm (fill E e) T t' -> 
-                           exists E' e', eraseContext E T E' /\ eraseTerm e T e' /\ t' = pfill E' e'.
-Proof. 
-  intros. remember (fill E e). generalize dependent E. generalize dependent e. induction H; intros;
-       try solve[destruct E; inversion Heqt; simpl in *; subst; econstructor; econstructor; eauto]; 
-       try solve[destruct E; inversion Heqt; simpl in *; repeat (match goal with
-       |H:forall e0 E, ?e = fill E e0 -> ?X |- _ => 
-        assert(Z:e = fill holeCtxt e) by reflexivity; apply H in Z;
-       invertHyp; clear H
-       |H:eraseContext holeCtxt ?T ?x |- _ => inversion H; subst
-   end); econstructor; econstructor; eauto].
-  {destruct E; inversion Heqt; simpl in *. 
-   {apply IHeraseTerm1 in H2. invertHyp. econstructor. econstructor. eauto. } 
-   {subst. econstructor. econstructor. eauto. }
-  }
-  {destruct E; inversion Heqt; simpl in *. 
-   {apply IHeraseTerm1 in H2. invertHyp. econstructor. econstructor. eauto. }
-   {subst. econstructor. econstructor. eauto. }
-  }
-  {destruct E; inversion Heqt; simpl in *. 
-   {apply IHeraseTerm1 in H4. invertHyp. econstructor. econstructor. eauto. }
-   {subst. econstructor. econstructor. eauto. }
-  }
-Qed. 
-
-
-Theorem inErasure : forall t t', erasePoolAux t = Singleton ptrm t' -> Ensembles.In ptrm (erasePoolAux t) t'.
-Proof.
-  intros. apply eqImpliesSameSet in H. unfold Same_set in H. unfold Included in H. inversion H. 
-  assert(In ptrm (Singleton ptrm t') t') by constructor. apply H1 in H2. assumption. Qed. 
-
-Theorem eTerm : forall pt T, exists t, eraseTerm t T pt. 
-Proof.
-  induction pt; eauto;
-  try intros; repeat( match goal with
-               |T:?pool, H:forall T':?pool, ?X |- _ => specialize (H T); try invertHyp
-           end); econstructor; eauto. Qed. 
-
-Theorem eHeap : forall PH, exists H, eraseHeap H PH. 
-Proof.
-  induction PH; eauto. 
-  {destruct a. destruct p. 
-   {assert(hd:action). repeat constructor.  assert(tl:specStack). repeat constructor. 
-    assert(w:tid). repeat constructor. assert(M:trm). repeat constructor. 
-    inversion IHPH. exists((i, sfull nil nil (hd::tl) w M)::x). constructor. 
-    assumption. }
-   {inversion IHPH. assert(exists t, eraseTerm t tEmptySet p) by apply eTerm.  
-    inversion H0. assert(t:tid). repeat constructor. 
-    exists ((i, sfull nil nil nil t x0)::x). constructor. assumption. 
-    assumption. }
-  }
-Qed. 
-    
-Theorem eCtxt : forall E T, exists E', eraseContext E' T E. 
-Proof.
-  induction E; eauto. 
-  {intros. specialize (IHE T). inversion IHE. assert(exists N, eraseTerm N T p). 
-   apply eTerm. inversion H0. exists (bindCtxt x x0). constructor; assumption. }
-  {intros. specialize (IHE T). inversion IHE. assert(exists N, eraseTerm N T p). 
-   apply eTerm. inversion H0. exists (handleCtxt x x0). econstructor; assumption. }
-Qed.  
 
 Theorem pdecomposeDecomposed : forall E e, pdecompose e = (pholeCtxt, e) -> 
                                            pdecompose (pfill E e) = (E, e).
@@ -196,105 +57,12 @@ Proof.
   simpl; apply IHE in H; destruct (pdecompose(pfill E e)); inversion H; auto. 
 Qed. 
 
-Theorem termEraseDifferentPools : forall T M M1 M2, eraseTerm M tEmptySet M1 -> 
-                                            eraseTerm M T M2 -> M1 = M2. 
-Proof.
-  intros. remember tEmptySet. generalize dependent M2. generalize dependent T. induction H; intros;
-  try solve[inversion H0; subst; reflexivity]; 
-  try solve[inversion H0; subst; apply IHeraseTerm in H2; subst; reflexivity]; 
-  try solve[inversion H1; subst; assert(tEmptySet = tEmptySet) by reflexivity; eapply IHeraseTerm1 in H2;[
-   rewrite  H2; assert(tEmptySet = tEmptySet) by reflexivity; eapply IHeraseTerm2 in H3;[ 
-   rewrite H3; reflexivity|eassumption]|eassumption]]. 
-  {subst. inversion H2. inversion H8. }
-Qed. 
-
-Theorem eraseWeakening : forall M M' T, eraseTerm M tEmptySet M' -> eraseTerm M T M'. 
-Proof.
-  intros. remember(tEmptySet). induction H; try solve[auto]. 
-  {subst. inversion H2. inversion H7. }
-Qed. 
-
-Inductive specPoolAux(T:pPool) : pool :=
-|specAux : forall M M', Ensembles.In ptrm T M -> eraseTerm M' tEmptySet M -> 
-                        tIn (specPoolAux T) (Tid(0,0)nil,nil,nil,M'). 
-
-Theorem eraseSpecPool : forall T,erasePoolAux (specPoolAux T) = T.
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. 
-  split; intros. 
-  {inversion H; subst. inversion H0; subst. inversion H3. subst. inversion H4; subst. 
-   clear H4. inversion H1; subst;
-             match goal with
-                 |H:[]=?x++[?y] |- _ => destruct x; inversion H
-                 |_ => idtac
-             end. 
-   {inversion H2. subst. eapply termEraseDifferentPools with(M1:=M1)(M2:=x) in H12.
-    subst. assumption. eassumption. }
-  }
-  {assert(exists M, eraseTerm M tEmptySet x). apply eTerm. inversion H0.
-   apply IncludedSingleton. econstructor. econstructor. econstructor. eassumption. 
-   eassumption. reflexivity. econstructor. eapply eraseWeakening. eassumption. auto. }
-Qed. 
-
-Theorem ePool : forall T, exists T', erasePool T' T. 
-Proof.
-  intros. exists (specPoolAux T). rewrite <- eraseSpecPool. constructor. Qed. 
-
-Hint Constructors thread_lookup erasePoolAux Singleton eraseThread eraseTerm. 
-
-Theorem eraseEmpty : forall M T e, eraseTerm M tEmptySet e -> eraseTerm M T e. 
-Proof.
-  intros. remember tEmptySet. generalize dependent T. induction H; eauto. 
-  {subst. inversion H2. inversion H7. }
-Qed. 
-
-Theorem termErasePoolErase : forall tid M M' s2,
-                               eraseTerm M tEmptySet M' ->
-                               erasePoolAux (tSingleton(tid,nil,s2,M)) = (pSingleton M'). 
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
-  {inversion H0; subst. inversion H1; subst. inversion H4; subst.
-   inversion H2; subst; try solve[match goal with
-                                     |H:nil=?x++[?y] |- _ => destruct x; inversion H
-                                 end]. 
-   {eapply termEraseDifferentPools with(M:=M0)(M1:=M')(M2:=M'0)in H. subst. assumption. 
-    eassumption. }
-  }
-  {inversion H0; subst. inversion H; subst;
-   try solve[destruct tid; destruct p; econstructor;[econstructor;[econstructor|eauto]|eauto|eauto]];
-   try solve[destruct tid; destruct p; econstructor;[econstructor;[econstructor|auto]| econstructor; 
-    econstructor; eapply eraseEmpty; eassumption| assumption]]. 
-   {inversion H4. inversion H9. }
-  }
-Qed. 
-
-Theorem eraseFillHelper : forall E e E' e' T, eraseTerm e T e' -> eraseContext E T E' -> 
-                                              eraseTerm (fill E e) T (pfill E' e').
-Proof.
-  induction E; intros; inversion H0; subst; simpl; eauto. Qed. 
-
-Theorem eraseFill : forall E e pt E' e' T, 
-                      pdecompose pt = (E', e') -> eraseContext E T E' -> eraseTerm e T e' ->
-                      eraseTerm (fill E e) T pt. 
-Proof.
-  intros. generalize dependent e'. generalize dependent pt. generalize dependent e. induction H0; intros. 
-  {apply pdecomposeEq in H. simpl in *. subst. assumption. }
-  {simpl in *. apply pdecomposeEq in H1. subst. simpl. constructor. apply eraseFillHelper; eauto. 
-   assumption. }
-  {simpl. apply pdecomposeEq in H2. subst. simpl. econstructor. apply eraseFillHelper; eauto. 
-   reflexivity. eassumption. eassumption. }
-  {simpl. apply pdecomposeEq in H1. subst; simpl. econstructor. apply eraseFillHelper; eauto. 
-   eauto. }
-Qed. 
-
-Unset Ltac Debug. 
-
 Ltac instantiateHeap :=
   match goal with
-      |H:pstep ?H ?T ?t ?H ?T' ?t' |- _ => assert(EH:exists H', eraseHeap H' H) by apply eHeap; 
+      |H:pstep ?H ?T ?t (pOK ?H ?T' ?t') |- _ => assert(EH:exists H', eraseHeap H' H) by apply eHeap; 
                                           inversion EH as[newHeap heapHyp]; exists newHeap;
                                           exists newHeap
-      |H:pstep ?H ?T ?t ?H' ?T' ?t' |- _ => assert(EH:exists H', eraseHeap H' H) by apply eHeap;
+      |H:pstep ?H ?T ?t (pOK ?H' ?T' ?t') |- _ => assert(EH:exists H', eraseHeap H' H) by apply eHeap;
                                           inversion EH as[newHeap heapHyp]; exists newHeap
   end. 
 
@@ -313,10 +81,9 @@ Ltac instantiateContext :=
        assert(eHyp:exists e', eraseTerm e' tEmptySet e) by apply eTerm; inversion eHyp; clear eHyp
   end.
 
-Unset Ltac Debug. 
 Ltac instantiatePool :=
   match goal with
-      |H:pstep ?h ?T ?t ?h' ?T ?t' |- _ => assert(PHYP:exists T', erasePool T' T) by apply ePool; 
+      |H:pstep ?h ?T ?t (pOK ?h' ?T ?t') |- _ => assert(PHYP:exists T', erasePool T' T) by apply ePool; 
                                           inversion PHYP as [SpecPool specPoolHyp]; exists SpecPool
   end. 
 
@@ -339,8 +106,6 @@ Proof.
 Qed. 
 
 
-
-Require Import Powerset_facts. 
 
 Ltac proveDisjoint :=
   unfold tSingleton in *;
@@ -461,13 +226,13 @@ Proof.
 Qed. 
 
 Theorem nonspecImpliesSpec : forall PH PH' PT pt pt',
-                               pstep PH PT pt PH' PT pt' ->
+                               pstep PH PT pt (pOK PH' PT pt') ->
                                exists H H' t t' T,
                                  eraseHeap H PH /\ eraseHeap H' PH' /\ erasePool T PT /\
-                                 erasePool t pt /\ erasePool t' pt' /\ multistep H T t H' T t'.
+                                 erasePool t pt /\ erasePool t' pt' /\ multistep H T t (OK H' T t').
 Proof.
   intros. inversion H. 
-  {cleanup. instantiateHeap. instantiateContext. inversion H3; subst. invertHyp. 
+  {cleanup. instantiateHeap. instantiateContext. inversion H2; subst. invertHyp. 
    assert(tid:tid); repeat constructor. 
    exists (tSingleton (tid, nil, nil, fill (bindCtxt x x0) (ret e))). 
    exists (tSingleton (tid, nil, nil, fill x (AST.app x0 e))). instantiatePool. 
@@ -480,11 +245,11 @@ Proof.
    exists(tSingleton(tid,nil,nil,fill (bindCtxt x x0) x1)). 
    exists(tSingleton(tid,nil,nil,fill x x1)). instantiatePool. repeat(split; try assumption). 
    eraseEq. constructor. eraseEq. apply termErasePoolErase. eapply eraseFill; eauto. 
-   apply pdecomposeDecomposed; auto. rewrite <- ERASEHYP. constructor. inversion H3; subst.
+   apply pdecomposeDecomposed; auto. rewrite <- ERASEHYP. constructor. inversion H2; subst.
    econstructor. rewrite <- union_empty at 1. rewrite Union_commutative. reflexivity. proveDisjoint. 
    eapply BindRaise. eapply decomposeDecomposed. auto. unfold tUnion. rewrite Union_commutative. 
    rewrite union_empty. constructor. }
-  {cleanup. instantiateHeap. instantiateContext. assert(tid:tid); repeat constructor. inversion H3; subst.
+  {cleanup. instantiateHeap. instantiateContext. assert(tid:tid); repeat constructor. inversion H2; subst.
    exists(tSingleton(tid,nil,nil,fill (handleCtxt x x0) (raise e))). 
    exists(tSingleton(tid,nil,nil,fill x (app x0 e))). instantiatePool. repeat(split; try assumption). 
    eraseEq. constructor. eraseEq. apply termErasePoolErase. eapply eraseFill; eauto. 
@@ -492,7 +257,7 @@ Proof.
    rewrite <- union_empty at 1. rewrite Union_commutative. reflexivity. proveDisjoint. eapply Handle. 
    eapply decomposeDecomposed; eauto. unfold tUnion. rewrite Union_commutative. rewrite union_empty. 
    constructor. }
-  {cleanup. instantiateHeap. instantiateContext. assert(tid:tid); repeat constructor. inversion H3; subst.
+  {cleanup. instantiateHeap. instantiateContext. assert(tid:tid); repeat constructor. inversion H2; subst.
    exists(tSingleton(tid,nil,nil,fill (handleCtxt x x0) (ret e))). 
    exists(tSingleton(tid,nil,nil,fill x (ret e))). instantiatePool. repeat(split; try assumption). 
    eraseEq. constructor. eraseEq. apply termErasePoolErase. eapply eraseFill; eauto. 
@@ -501,7 +266,7 @@ Proof.
    eapply decomposeDecomposed; eauto. unfold tUnion. rewrite Union_commutative. rewrite union_empty. 
    constructor. }
   {cleanup. instantiateHeap. instantiateContext. assert(tid:tid). repeat constructor.  
-   inversion H2; subst. exists (tSingleton(tid,nil,nil, fill x (fork e))). 
+   inversion H1; subst. exists (tSingleton(tid,nil,nil, fill x (fork e))). 
    exists (tCouple (bump tid,nil,[fAct (extendTid tid) tid (fill x (fork e))], 
                     fill x (ret unit))(extendTid tid, nil,[specAct], e)). 
    instantiatePool. repeat(split; try assumption). eraseEq. constructor. eraseEq.
@@ -512,11 +277,11 @@ Proof.
    rewrite <- union_empty at 1. rewrite Union_commutative. reflexivity. proveDisjoint. 
    eapply PopFork. instantiate(4:=nil). reflexivity. instantiate(1:=nil). reflexivity. 
    unfold tUnion. rewrite Union_commutative. rewrite union_empty. constructor. }
-  {cleanup. assert(exists H, speculateHeap PH' H). apply eHeap'. inversion H2. 
-   exists x0. copy H3. eapply lookupSpeculatedHeapFull with(x:=x) in H3. invertHyp. 
+  {cleanup. assert(exists H, speculateHeap PH' H). apply eHeap'.  invertExists. 
+   exists x0. copy H3. eapply lookupSpeculatedHeapFull with(x:=x) in H5; eauto. invertHyp. 
    exists(replace x (sfull nil [Tid(0,0)nil] nil (Tid(0,0)nil) x1) x0). instantiateContext. 
-   exists (tSingleton(Tid(0,0)nil,nil,nil,fill x3 (get (fvar x)))). 
-   exists (tSingleton(bump (Tid(0,0)nil),nil, [rAct x (Tid(0,0)nil) (fill x3 (get(fvar x)))], fill x3 (ret x1))). 
+   exists (tSingleton(Tid(0,0)nil,nil,nil,fill x2 (get (fvar x)))). 
+   exists (tSingleton(bump (Tid(0,0)nil),nil, [rAct x (Tid(0,0)nil) (fill x2 (get(fvar x)))], fill x2 (ret x1))). 
    instantiatePool. repeat(split; try assumption). apply eraseSpeculatedHeap. assumption. 
    apply eraseHeapDependentReader; auto. apply eraseSpeculatedHeap. assumption. 
    eraseEq. constructor. eraseEq. apply termErasePoolErase. eapply eraseFill; eauto.
@@ -524,11 +289,11 @@ Proof.
    rewrite <- union_empty at 1. rewrite Union_commutative. reflexivity. proveDisjoint. eapply Get. 
    eapply decomposeDecomposed. eauto. eassumption. reflexivity. econstructor. reflexivity. proveDisjoint. 
    eapply PopRead. instantiate (4:=nil). reflexivity. eapply HeapLookupReplace. eassumption. 
-   unfold tUnion. rewrite Union_commutative. rewrite union_empty. constructor. assumption. }
-  {cleanup. copy H1. assert(exists H, speculateHeap PH H). apply eHeap'. inversion H3. 
+   unfold tUnion. rewrite Union_commutative. rewrite union_empty. constructor. }
+  {cleanup. copy H1. assert(exists H, speculateHeap PH H). apply eHeap'. invertExists.  
    exists x0. instantiateContext. assert(tid:tid). repeat constructor. 
-   inversion H6; subst. exists (replace x (sfull nil nil nil tid e) x0). 
-   inversion H12; subst. exists (tSingleton(tid,nil,nil,fill x1 (put (fvar x) e))). 
+   inversion H4; subst. exists (replace x (sfull nil nil nil tid e) x0). 
+   inversion H11; subst. exists (tSingleton(tid,nil,nil,fill x1 (put (fvar x) e))). 
    exists (tSingleton(bump tid,nil,[wAct x tid (fill x1 (put (fvar x) e))], fill x1 (ret unit))). 
    instantiatePool. repeat (split; try assumption). apply eraseSpeculatedHeap. assumption. 
    apply eraseReplaceSpecHeap; auto. eraseEq. constructor. eraseEq. 
@@ -539,7 +304,7 @@ Proof.
    eapply PopWrite. instantiate(4:=nil). reflexivity. eapply HeapLookupReplace. 
    eapply lookupSpeculatedHeapEmpty; eauto. reflexivity. unfold tUnion. rewrite Union_commutative. 
    rewrite union_empty. constructor. }
-  {cleanup. assert(exists H, speculateHeap PH H). apply eHeap'. inversion H2. exists x0. clear H2.
+  {cleanup. assert(exists H, speculateHeap PH H). apply eHeap'. invertExists. exists x0.
    assert(exists i newHeap', (i,newHeap') = extend (sempty nil) x0). 
    destruct x0; simpl; eauto. destruct p. eauto. invertHyp. exists x2. 
    instantiateContext. exists(tSingleton(Tid(0,0)nil,nil,nil,fill x3 new)). 

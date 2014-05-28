@@ -1,6 +1,4 @@
-
-
-Require Import Spec.  
+Require Import Spec.   
 Require Import sets. 
 Require Import Coq.Sets.Ensembles. 
 Require Import Heap. 
@@ -10,15 +8,6 @@ Hint Unfold Ensembles.In Add.
 Hint Constructors Singleton Couple Union.  
 
 Hint Resolve heapUpdateNeq. 
-
-
-
-Theorem listNeq : forall (T:Type) (h:T) l, l = h::l -> False. 
-Proof.
-  intros. induction l. 
-  {inversion H. }{inversion H. apply IHl in H2. assumption. } Qed. 
-
-
 
 Theorem emptyNeqSingle : forall e, Empty_set thread = tSingleton e -> False. 
 Proof.
@@ -52,32 +41,52 @@ Proof.
   assert(Ensembles.In(AST.tid*specStack) (specActionsAux (tSingleton (tid, s1, s2, M))) (tid, s1)). 
   econstructor. destruct tid. destruct p. econstructor. econstructor. eapply hit. econstructor. 
   reflexivity. apply H2 in H3. inversion H3. inversion H5. inversion H7. inversion H8. 
-  subst. inversion H9. symmetry in H11. apply listNeq in H11. assumption. Qed. 
+  subst. inversion H9. symmetry in H11. invertListNeq. Qed. 
 
 Theorem addCommitAction : forall tid a s1 s1' s2 M M' sa,
                           commitActions (tSingleton (tid, s1, s2, M)) sa ->
                           commitActions (tSingleton (tid, s1', a::s2, M')) sa -> False.
 Proof.
-  intros. inversion H; inversion H0; subst. unfoldSetEq H4. 
+  intros. inversion H; inversion H0; subst. unfoldSetEq H4.  
   assert(Ensembles.In(AST.tid*specStack) (commitActionsAux (tSingleton (tid, s1, s2, M))) (tid, s2)). 
   econstructor. destruct tid. destruct p. econstructor. econstructor. econstructor. 
   econstructor. reflexivity. apply H2 in H3. inversion H3. inversion H5. inversion H7. inversion H8. 
-  inversion H9. symmetry in H16. apply listNeq in H16. assumption. Qed. 
+  inversion H9. symmetry in H16. invertListNeq. Qed. 
+
+Axiom uniqueThreadPool : forall T tid t t', 
+                           thread_lookup T tid t -> thread_lookup T tid t' -> t = t'. 
+
+Theorem addCommitUnion : forall T T' tid s1 a s2 M M' ca,
+              commitActions (tAdd T (tid, s1, s2, M)) ca -> 
+              commitActions (tAdd T' (tid, s1, a::s2, M')) ca -> False.
+Proof.
+  intros. inversion H; inversion H0; subst. unfoldSetEq H4. 
+  assert(Ensembles.In (AST.tid * specStack)(commitActionsAux (tAdd T (tid, s1, s2, M))) (tid,s2)). 
+  econstructor. destruct tid. destruct p. econstructor. econstructor. econstructor.
+  unfold tAdd. unfold Add. apply Union_intror. econstructor. reflexivity. eapply H2 in H3. 
+  inversion H3. invertExists. inversion H5. subst. inversion H7. 
+  {assert(thread_lookup (tAdd T' (Tid (maj, min) tid0, s1, a :: s2, M'))
+         (Tid (maj, min) tid0) (Tid (maj, min) tid0, s1, a::s2, M')). econstructor. unfold tAdd. 
+   unfold Add. apply Union_intror. constructor. reflexivity. 
+   apply uniqueThreadPool with (t':= (Tid (maj, min) tid0, s1, a :: s2, M')) in H5. 
+   subst. inversion H5. invertListNeq. assumption. }
+  {inversion H4. symmetry in H11. invertListNeq. }
+Qed.  
 
 Ltac handleReadWrite :=
   match goal with
       |H1 : heap_lookup ?x ?h = Some ?v, H2 : ?h = replace ?x ?v2 ?h |- _ =>
        eapply heapUpdateNeq with (v' := v2) in H1; 
-         [contradiction | intros c; inversion c as [lneq]; apply listNeq in lneq; assumption]
+         [contradiction | intros c; inversion c as [lneq]; invertListNeq]
   end. 
 
 Theorem Reorder : forall T t1 t2 t1' t2' h h' sa ca,
                     specActions t2 sa -> specActions t2' sa ->
                     commitActions t2 ca -> commitActions t2' ca ->
-                    step h (tUnion T t1) t2 h (tUnion T t1) t2' ->
-                    step h (tUnion T t2') t1 h' (tUnion T t2') t1' ->
-                    step h (tUnion T t2) t1 h' (tUnion T t2) t1' /\
-                    step h' (tUnion T t1') t2 h' (tUnion T t1') t2'.
+                    step h (tUnion T t1) t2 (OK h (tUnion T t1) t2') ->
+                    step h (tUnion T t2') t1 (OK h' (tUnion T t2') t1') ->
+                    step h (tUnion T t2) t1 (OK h' (tUnion T t2) t1') /\
+                    step h' (tUnion T t1') t2 (OK h' (tUnion T t1') t2').
 Proof.
   intros. inversion H3. 
   {inversion H4; eauto. }
@@ -86,118 +95,107 @@ Proof.
   {inversion H4; eauto. }
   {inversion H4; eauto. }
   {inversion H4; eauto. }
-  {inversion H4; try(subst; eapply addSpecAction in H0; [inversion H0| eassumption]); handleReadWrite. }
-  {inversion H4; try(subst; eapply addSpecAction in H0; [inversion H0 | eassumption]); handleReadWrite. } 
-  {inversion H4; try(subst; eapply addSpecAction in H0; [inversion H0| eassumption]). }
+  {clear H12. subst. eapply addSpecAction in H0. inversion H0. eassumption. }
+  {clear H12. subst. eapply addSpecAction in H0. inversion H0. eassumption. }
+  {subst. eapply addCommitUnion in H1. inversion H1. eapply H2. }
+  {subst. eapply addSpecAction in H0. inversion H0. eassumption. }
   {inversion H4; eauto. }
   {inversion H4; eauto. } 
   {inversion H4; eauto. }
-  {inversion H4; subst; try eauto. 
-   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
-    assert(Ensembles.In(AST.tid*specStack) (specActionsAux
+  {subst. inversion H0; inversion H; subst. unfoldSetEq H9. 
+   assert(Ensembles.In(AST.tid*specStack) (specActionsAux
             (tAdd TRB
                (tid, [], s2,
-               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity.        apply H7 in H13. inversion H13. inversion H17. inversion H20. inversion H21. 
-    assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H27. eassumption. inversion H29. reflexivity. contradiction. }
-   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
-    assert(Ensembles.In(AST.tid*specStack) (specActionsAux
-            (tAdd TRB
-               (tid, [], s2,
-               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity.        apply H7 in H13. inversion H13. inversion H17. inversion H20. inversion H21. 
-    assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H27. eassumption. inversion H29. reflexivity. contradiction. }
-   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
-    assert(Ensembles.In(AST.tid*specStack) (specActionsAux
-            (tAdd TRB
-               (tid, [], s2,
-               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity.        apply H7 in H13. inversion H13. inversion H17. inversion H20. inversion H21. 
-    assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H27. eassumption. inversion H29. reflexivity. contradiction. }
-   {inversion H0. inversion H. subst sa. unfoldSetEq H13. 
-    assert(Ensembles.In(AST.tid*specStack) (specActionsAux
-            (tAdd TRB
-               (tid, [], s2,
-               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', a::s1')). 
-    econstructor. econstructor. econstructor. econstructor. econstructor. inversion H9. eassumption. reflexivity. 
-    apply H7 in H13. inversion H13. inversion H17. inversion H19. inversion H24. 
-    assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit.  
-    inversion H30. eassumption. inversion H30. inversion H32. inversion H34. reflexivity. contradiction. }
-  }
-  {inversion H4; eauto. }
-  {inversion H4; try(subst; eapply addCommitAction in H2; [inversion H2 | eassumption]). }
-  {inversion H4; try(subst; eapply addCommitAction in H2; [inversion H2 | eassumption]). }
-  {inversion H4;  try(subst; eapply addCommitAction in H2; [inversion H2 | eassumption]). }
-  {inversion H4; try(subst; eapply addCommitAction in H2; [inversion H2 | eassumption]). }
+               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj,min) tid', s1'++[a])). 
+   econstructor. econstructor. econstructor. econstructor. econstructor. inversion H11. 
+   eassumption. reflexivity. apply H5 in H8. inversion H8. invertExists. inversion H12. inversion H21.   
+   assert(exists X, thread_lookup T' (Tid (maj, min) tid') X). econstructor. eapply hit. eassumption. 
+   reflexivity. contradiction. inversion H23. destruct s1'; inversion H27. }
+  {inversion H4; eauto. } 
+  {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
+  {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
+  {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
+  {subst. eapply addCommitAction in H2. inversion H2. eassumption. }
   {inversion H4; eauto. }
 Qed. 
 
 Theorem ReorderStepStar : forall t1 t2 t1' t2' h h' sa ca,
                             specActions t2 sa -> specActions t2' sa ->
                             commitActions t2 ca -> commitActions t2' ca ->
-                            step h t1 t2 h t1 t2' ->
-                            multistep h t2' t1 h' t2' t1' ->
-                            multistep h t2 t1 h' t2 t1' /\
-                            step h' t1' t2 h' t1' t2'.
+                            step h t1 t2 (OK h t1 t2') ->
+                            multistep h t2' t1 (OK h' t2' t1') ->
+                            multistep h t2 t1 (OK h' t2 t1') /\
+                            step h' t1' t2 (OK h' t1' t2').
 Proof.
-  intros. induction H4. 
-  {split. constructor. assumption. } 
-  {subst. split. 
-   {clear t2'. rename T1 into t2'. assert(specActions t2' sa). assumption. apply IHmultistep in H0. 
-    {inversion H0. apply multi_step with (P1 := P1) (P2 := P2) (P2' := P2') (h' := h'). 
-     reflexivity. assumption. assert(specActions t2 sa) by assumption. 
+  intros. remember (OK h' t2' t1'). induction H4. 
+  {inversion Heqc; subst. split. constructor. assumption. } 
+  {inversion Heqc; subst. split. 
+   {rename T1 into t2'. assert(specActions t2' sa). assumption. apply IHmultistep in H0; auto. 
+    {inversion H0. apply multi_step with (P1 := P1) (P2 := P2) (P2' := P2') (h' := h'0); auto. 
      apply Reorder with (T := P1) (t1 := P2) (t1' := P2') 
-                                  (t2' := t2') (h := h) (h' := h') (ca := ca) in H; try assumption. 
-     inversion H. assumption. assumption. }
-    {assumption. }
-    {apply Reorder with (T := P1)(t1:=P2)(t1':=P2')(t2:=t2)(t2':=t2')(h:=h)(h':=h')(ca:=ca) in H.
+                                  (t2' := t2') (h := h) (h' := h'0) (ca := ca) in H.  
+     inversion H. assumption. assumption. assumption. assumption. assumption. assumption. 
+    }
+
+    {apply Reorder with (T := P1)(t1:=P2)(t1':=P2')(t2:=t2)(t2':=t2')(h:=h)(h':=h'0)(ca:=ca) in H.
      inversion H. assumption. assumption. assumption. assumption. assumption. assumption. }
    }
-   {clear t2'. rename T1 into t2'. apply IHmultistep in H0. inversion H0. assumption. 
-    assumption. apply Reorder with (T:=P1)(t1:=P2)(t1':=P2')(t2:=t2)(t2':=t2')(h:=h)(h':=h')(ca:=ca) in H.
-    inversion H. assumption. assumption. assumption. assumption. assumption. assumption. }
+   {rename T1 into t2'. apply IHmultistep in H0. inversion H0. assumption. 
+    assumption. apply Reorder with (T:=P1)(t1:=P2)(t1':=P2')(t2:=t2)(t2':=t2')(h:=h)(h':=h'0)(ca:=ca) in H.
+    inversion H. assumption. assumption. assumption. assumption. assumption. assumption. reflexivity. }
   }
+  {inversion Heqc. }
 Qed. 
 
-Theorem HeapUnchanged : forall T t h h' t' sa, step h T t h' T t' -> specActions t sa ->
-                                               specActions t' sa -> h' = h. 
+Theorem HeapUnchanged : forall T t h h' t' sa ca, step h T t (OK h' T t') -> specActions t sa ->
+                                                  specActions t' sa -> commitActions t ca -> 
+                                                  commitActions t' ca -> h' = h. 
 Proof.
   intros. inversion H; eauto. 
   {subst. eapply addSpecAction in H0. inversion H0. eassumption. }
   {subst. eapply addSpecAction in H1. inversion H1. eassumption. }
+  {subst. eapply addCommitUnion in H2. inversion H2. eassumption. }
   {subst. eapply addSpecAction in H1. inversion H1. eassumption. }
-  {subst. inversion H0; inversion H1; subst. unfoldSetEq H10. 
+  {subst. inversion H0; inversion H1; subst. unfoldSetEq H8. 
    assert(Ensembles.In (AST.tid*specStack)(specActionsAux
             (tAdd TRB
                (tid, [], s2,
-               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj, min)tid', a::s1')).
-   econstructor. econstructor. econstructor. econstructor. inversion H6. eapply Union_introl. 
-   eassumption. reflexivity. apply H4 in H9. inversion H9. inversion H11. inversion H14. 
-   inversion H15. inversion H21. assert(exists p, thread_lookup T' (Tid(maj, min) tid') p). 
-   econstructor. eapply hit. eassumption. reflexivity. contradiction. inversion H23. }
+               fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid')))))) (Tid(maj, min)tid', s1'++[a])).
+   econstructor. econstructor. econstructor. econstructor. inversion H10. eapply Union_introl. 
+   eassumption. reflexivity. apply H5 in H7. inversion H7. invertExists. inversion H11. subst.
+   inversion H20. 
+   {assert(exists p, thread_lookup T' (Tid(maj, min) tid') p). econstructor. eapply hit. eassumption. 
+   reflexivity. inversion H13. contradiction. }
+   {inversion H8. destruct s1'; inversion H17. }
+  }
 Qed. 
-
+  
 Ltac copy H :=
   match type of H with
       | ?P => assert(P) by assumption
   end. 
 
 
-Inductive splitMultistep : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
-|splitRefl : forall h p1 p2, splitMultistep h p1 p2 h p1 p2
-|splitStepL : forall h h' h'' p1 p1' p2 p2' t1 t2 t2', 
+Inductive splitMultistep : sHeap -> pool -> pool -> config -> Prop :=
+|splitRefl : forall h p1 p2, splitMultistep h p1 p2 (OK h p1 p2)
+|splitStepL : forall h h' p1 p2 t1 t2 t2' config, 
                 p1 = tUnion t1 t2 -> Disjoint thread t1 t2 ->
-                step h (tUnion t1 p2) t2 h' (tUnion t1 p2) t2' ->
-                splitMultistep h' (tUnion t1 t2') p2 h'' p1' p2' ->
-                splitMultistep h p1 p2 h'' p1' p2'
-|splitStepR : forall h h' h'' p1 p1' p2 p2' t1 t2 t2', 
+                step h (tUnion t1 p2) t2 (OK h' (tUnion t1 p2) t2') ->
+                splitMultistep h' (tUnion t1 t2') p2 config ->
+                splitMultistep h p1 p2 config
+|splitStepR : forall h h' p1 p2 t1 t2 t2' config, 
                 p2 = tUnion t1 t2 -> Disjoint thread t1 t2 ->
-                step h (tUnion t1 p1) t2 h' (tUnion t1 p1) t2' ->
-                splitMultistep h' p1 (tUnion t1 t2') h'' p1' p2' ->
-                splitMultistep h p1 p2 h'' p1' p2'
+                step h (tUnion t1 p1) t2 (OK h' (tUnion t1 p1) t2') ->
+                splitMultistep h' p1 (tUnion t1 t2') config ->
+                splitMultistep h p1 p2 config
+|errorL : forall h p1 p2 t1 t2 , 
+                p1 = tUnion t1 t2 -> Disjoint thread t1 t2 ->
+                step h (tUnion t1 p2) t2 Error ->
+                splitMultistep h p1 p2 Error
+|errorR : forall h p1 p2 t1 t2 , 
+                p1 = tUnion t1 t2 -> Disjoint thread t1 t2 ->
+                step h (tUnion t2 p2) t1 Error ->
+                splitMultistep h p1 p2 Error
 .
 
 Theorem pureStepActionPreserve : forall T tid s1 s2 M M' sa,
@@ -221,6 +219,7 @@ Proof.
    }
    {rewrite H2. constructor. }
 Qed. 
+
 Hint Resolve pureStepActionPreserve. 
 Theorem pureStepCActionPreserve : forall T tid s1 s2 M M' ca,
                             commitActions(tUnion T(tSingleton(tid, s1, s2, M))) ca ->
@@ -244,38 +243,18 @@ Proof.
    }
   {rewrite H2. constructor. }
 Qed. 
+
 Hint Resolve pureStepCActionPreserve. 
 
 Axiom UniqueThreadPool : forall t1 t2, tIntersection t1 t2 = tEmptySet. 
 
-Theorem actionPreservation' : forall t1 t2 t2' p1 p1' p2' sa ca h h' h'',
-                               specActions (tUnion t1 t2) sa -> commitActions (tUnion t1 t2) ca ->
-                               specActions p2' sa -> commitActions p2' ca ->
-                               step h (tUnion t1 p1) t2 h' (tUnion t1 p1) t2' ->
-                               splitMultistep h' p1 (tUnion t1 t2') h'' p1' p2' ->
-                               specActions (tUnion t1 t2') sa /\ 
-                               commitActions (tUnion t1 t2') ca.
-Proof.
-  intros. assert(splitMultistep h p1 (tUnion t1 t2) h'' p1' p2'). 
-  eapply splitStepR. reflexivity. admit. eassumption. eassumption.
-  remember (tUnion t1 t2). copy H5. induction H5. 
-  {rewrite Heqe in H6. rewrite Heqe in H4. admit. }
-Admitted. 
-
 Theorem actionPreservation : forall t1 t2 t2' p1 p1' p2' sa ca h h' h'',
                                specActions (tUnion t1 t2) sa -> commitActions (tUnion t1 t2) ca ->
                                specActions p2' sa -> commitActions p2' ca ->
-                               step h (tUnion t1 p1) t2 h' (tUnion t1 p1) t2' ->
-                               splitMultistep h' p1 (tUnion t1 t2') h'' p1' p2' ->
+                               step h (tUnion t1 p1) t2 (OK h' (tUnion t1 p1) t2') ->
+                               splitMultistep h' p1 (tUnion t1 t2') (OK h'' p1' p2') ->
                                specActions (tUnion t1 t2') sa /\ 
                                commitActions (tUnion t1 t2') ca.
-Proof.
-  intros. inversion H3; subst.   
-  {split. eapply pureStepActionPreserve in H. eassumption. eapply pureStepCActionPreserve. eassumption. }
-  {split. eapply pureStepActionPreserve in H. eassumption. eapply pureStepCActionPreserve. eassumption. }
-  {split. eapply pureStepActionPreserve in H. eassumption. eapply pureStepCActionPreserve. eassumption. }
-  {split. eapply pureStepActionPreserve in H. eassumption. eapply pureStepCActionPreserve. eassumption. }
-  {inversion H. inversion H0. rewrite <- H6 in H1. inversion H1. 
 Admitted. 
 
 Theorem specActionsAuxDistribute : forall t1 t2, 
@@ -412,115 +391,115 @@ Proof.
 Qed. 
 
 
-Theorem pureStepHeapChange : forall h h' T t t' sa,
+Theorem pureStepHeapChange : forall h h' T t t' sa ca,
                                specActions t sa -> specActions t' sa ->
-                               step h T t h T t' ->
-                               step h' T t h' T t'.
+                               commitActions t ca -> commitActions t' ca ->
+                               step h T t (OK h T t') ->
+                               step h' T t (OK h' T t').
 Proof.
-  intros. inversion H1; eauto. 
-  {eapply heapUpdateNeq in H4. unfold not in H4. exfalso. apply H4. eassumption. 
-   intros c. inversion c. apply listNeq in H12. assumption. }
-  {eapply heapUpdateNeq in H4. unfold not in H4. exfalso. apply H4. eassumption. 
-   intros c. inversion c. }
-  {subst. destruct h.
-   {simpl in H3. inversion H3. }
-   {simpl in H3. inversion H3. destruct p. inversion H5. apply listNeq in H10. inversion H10. }
-  }
-  {subst. inversion H. inversion H0. subst. unfoldSetEq H10. 
+  intros. inversion H3; eauto;
+  try solve[repeat match goal with
+       |H:heap_lookup ?x ?h = Some ?v, H' : ?h = replace ?x ?v' ?h |- _ =>
+        eapply heapUpdateNeq in H;[exfalso; apply H; eauto| intros c; inversion c] 
+       |H : ?y = ?x::?y |- _ => invertListNeq
+   end].
+  {subst. eapply addCommitUnion in H2. inversion H2. eassumption. }
+  {subst. destruct h. 
+   {inversion H10. }
+   {inversion H10. destruct p. inversion H5. invertListNeq. }
+  } 
+  {subst. inversion H. inversion H0. subst. unfoldSetEq H8. 
    assert(Ensembles.In (AST.tid * specStack)
          (specActionsAux
             (tAdd TRB
                (tid, [], s2,
                 fill E' (specReturn (raise E) (threadId (Tid (maj, min'') tid'))))))
-         (Tid(maj, min) tid', a::s1')). constructor. econstructor. econstructor. 
-   eapply hit. unfold tAdd. unfold Add. apply Union_introl. inversion H6. eassumption. 
-   reflexivity. apply H4 in H9. inversion H9. 
-   assert(exists y, thread_lookup T' (Tid(maj, min) tid') y). inversion H11. 
-   inversion H14. inversion H15. inversion H21. exists(Tid (maj, min) tid', a :: s1', x, x0). 
-   eapply hit. assumption. reflexivity. inversion H23. contradiction. }
+         (Tid(maj, min) tid', s1'++[a])). constructor. econstructor. econstructor. 
+   eapply hit. unfold tAdd. unfold Add. apply Union_introl. inversion H10. eassumption. 
+   reflexivity. apply H5 in H7. inversion H7. invertExists. inversion H11. inversion H20. 
+   assert(exists y, thread_lookup T' (Tid(maj, min) tid') y). econstructor. eapply hit. 
+   eassumption. reflexivity. contradiction. inversion H22. destruct s1'; inversion H26. }
   {subst. eapply popSpecActionFalse in H0. inversion H0. eassumption.  }
   {subst. eapply popSpecActionFalse in H0. inversion H0. eassumption.  }
   {subst. eapply popSpecActionFalse in H0. inversion H0. eassumption.  }
   {subst. eapply popSpecActionFalse in H0. inversion H0. eassumption.  }
 Qed. 
-
-
+ 
 Theorem Independence : forall t1 t2 t1' t2' h h' sa ca,
                          specActions t2 sa -> specActions t2' sa ->
                          commitActions t2 ca -> commitActions t2' ca ->
-                         splitMultistep h t1 t2 h' t1' t2' ->
-                         multistep h t2 t1 h' t2 t1' /\ multistep h' t1' t2 h' t1' t2'.
+                         splitMultistep h t1 t2 (OK h' t1' t2') ->
+                         multistep h t2 t1 (OK h' t2 t1') /\ multistep h' t1' t2 (OK h' t1' t2').
 Proof.
-  intros. induction H3. 
-  {split. constructor. constructor. }
-  {split. subst. eapply multi_step; try eassumption. reflexivity. 
+  intros. remember (OK h' t1' t2'). induction H3.  
+  {inversion Heqc; subst. split. constructor. constructor. }
+  {inversion Heqc; subst. split. subst. eapply multi_step; try eassumption. reflexivity. 
    apply IHsplitMultistep in H. inversion H. assumption. assumption. 
-   assumption. assumption. apply IHsplitMultistep in H. inversion H. 
-   assumption. assumption. assumption. assumption. }
-  {split. rewrite H3 in H. copy H. apply specActionsFrameRule with(t2:=t2)(t2':=t2')in H. inversion H. 
-   {copy H5. apply HeapUnchanged with(sa:=x)in H5. 
-    {copy H9. eapply actionPreservation with (p2':=p2')
-     (t1:=t1)(t2:=t2)(t2':=t2')(p1:=p1)(p1':=p1')(ca:=ca)(h:=h)(h':=h')(h'':=h'')in H9. 
-     inversion H9. copy H11. apply IHsplitMultistep in H11. 
-     inversion H11. rewrite stepUnusedPool in H10. rewrite multistepUnusedPool in H14. 
-     rewrite H5 in H10. apply specActionsFrameRule with (t2:=t2)(t2':=t2')in H7. inversion H7. inversion H16.
-     rewrite H3 in H1. apply commitActionsFrameRule with(t2:=t2)(t2':=t2') in H1.
-     inversion H1. inversion H19. 
-     eapply ReorderStepStar with (t1:=p1)(t2:=t2)(t2':=t2')(t1':=p1')(h:=h)(h':=h'')in H17. rewrite H3. 
-     rewrite multistepUnusedPool. inversion H17. assumption. eassumption. 
-     eassumption. eassumption. assumption. rewrite H5 in H14. assumption. assumption. assumption.
-     assumption. assumption. assumption. assumption. rewrite H3 in H1. assumption. 
-     assumption. assumption. assumption. }
-    {inversion H8. assumption. }
-    {inversion H8. assumption. }
+   assumption. apply IHsplitMultistep; auto. }
+  {inversion Heqc; subst. split. 
+   {copy H. apply specActionsFrameRule with(t2:=t2)(t2':=t2'0)in H.  
+    {inversion H. copy H1. apply commitActionsFrameRule with (t2:=t2)(t2':=t2'0) in H1.   
+     {invertExists. inversion H10. copy H3.
+      eapply actionPreservation with (t1:=t1)(t2:=t2)(t2':=t2'0)(p1:=p1)(p1':=t1')(p2':=t2')
+        (sa:=sa)(ca:=ca)(h:=h)(h':=h'0)(h'':=h')in H3; auto. inversion H3. 
+      apply specActionsFrameRule with(t2:=t2)(t2':=t2'0) in H12; auto. invertExists. 
+      apply commitActionsFrameRule with (t2:=t2)(t2':=t2'0) in H9; auto. invertExists. inversion H12. 
+      inversion H15. copy H5.
+      apply HeapUnchanged with(sa:=x2)(ca:=x3)in H5; auto. copy H13. apply IHsplitMultistep in H13. 
+      inversion H13. rewrite multistepUnusedPool in H21. apply stepUnusedPool in H19. subst h'0.  
+      eapply ReorderStepStar with (t1:=p1)(t2:=t2)(t1':=t1')(t2':=t2'0)(h:=h)(h':=h')(sa:=x2)(ca:=x3) in H17. 
+      inversion H17. rewrite multistepUnusedPool. assumption. assumption. assumption. assumption. 
+      assumption. assumption. assumption. reflexivity. }
+     {apply actionPreservation with (t1:=t1)(t2:=t2)(t2':=t2'0)(p1:=p1)(p1':=t1')(p2':=t2')
+        (sa:=sa)(ca:=ca)(h:=h)(h':=h'0)(h'':=h')in H3; auto. inversion H3. assumption. }
+    }
+    {eapply actionPreservation with (t1:=t1)(t2:=t2)(t2':=t2'0)(p1:=p1)(p1':=t1')(p2':=t2')
+        (sa:=sa)(ca:=ca)(h:=h)(h':=h'0)(h'':=h')in H3; auto. inversion H3. assumption. }
    }
-   {copy H. apply actionPreservation with (p2':=p2')
-     (t1:=t1)(t2:=t2)(t2':=t2')(p1:=p1)(p1':=p1')(ca:=ca)(h:=h)(h':=h')(h'':=h'')in H; try assumption. 
-    inversion H. copy H9. apply IHsplitMultistep in H9; try assumption. rewrite H3 in H1. assumption. }
-   {rewrite H3 in H. copy H. apply actionPreservation with (p2':=p2')
-     (t1:=t1)(t2:=t2)(t2':=t2')(p1:=p1)(p1':=p1')(ca:=ca)(h:=h)(h':=h')(h'':=h'')in H; try assumption.
-    inversion H. copy H8. apply IHsplitMultistep in H8; try assumption. rewrite H3 in H1. 
-    unfold tUnion in H5. rewrite Union_commutative in H5. eapply multi_step. eassumption. 
-    assumption. rewrite stepUnusedPool in H5. rewrite <- stepUnusedPool with(t1:=p1')in H5. 
+   {copy H. apply actionPreservation with (t1:=t1)(t2:=t2)(t2':=t2'0)(p1:=p1)(p1':=t1')(p2':=t2')
+                                          (sa:=sa)(ca:=ca)(h:=h)(h':=h'0)(h'':=h') in H; auto. 
+    inversion H. copy H8. apply IHsplitMultistep in H8; auto. 
+    unfold tUnion in H5. rewrite Union_commutative in H5. eapply multi_step. reflexivity. eassumption. 
+    rewrite stepUnusedPool in H5. rewrite <- stepUnusedPool with(t1:=t1')in H5. 
     unfold tUnion in H5. rewrite Union_commutative in H5. copy H5. 
-    apply specActionsFrameRule with (t2:=t2)(t2':=t2') in H7. inversion H7. inversion H12. 
-    apply HeapUnchanged with(sa:=x) in H5.  
+    apply specActionsFrameRule with (t2:=t2)(t2':=t2'0) in H3. inversion H3. inversion H12. 
+    apply commitActionsFrameRule with(t2:=t2)(t2':=t2'0) in H1. invertExists. inversion H3. 
+    apply HeapUnchanged with(sa:=x)(ca:=x1) in H5; auto. 
     rewrite H5 in H11. eapply pureStepHeapChange in H11. eassumption.  eassumption. eassumption. 
-    eassumption. eassumption. eassumption. inversion H8. eassumption. rewrite H3 in H1. assumption. 
+    eassumption. eassumption. eassumption. inversion H8. eassumption. inversion H8. assumption. 
    }
   }
+  {inversion Heqc. }{inversion Heqc. }
   Qed. 
- 
-Theorem AddEqCouple : forall T S e e1 e2, Add T S e = Couple T e1 e2 ->
-                                          e = e1 \/ e = e2. 
-Proof.
-  intros. unfold Add in H. unfoldSetEq H. assert(Ensembles.In T (Union T S (Singleton T e)) e). 
-  auto. apply H0 in H. inversion H. auto. auto. Qed. 
+
 
 Theorem ForkInd : forall h h' T T' tid s1 s2 E t t' M,
                     decompose t = (E, fork M) ->
                     t' = (bump tid, fAct (extendTid tid) tid t::s1, s2, fill E(ret unit)) ->
-                    step h T (tSingleton (tid, s1, s2, t)) h T (tCouple t' (extendTid tid, [specAct], nil, M)) ->
-                    multistep h (tCouple t' (extendTid tid, [specAct], nil, M)) T h'
-                              (tCouple t' (extendTid tid, [specAct], nil, M)) T' ->
-                    multistep h (tSingleton(tid, s1, s2, t)) T h' (tSingleton (tid, s1, s2, t)) T'.
+                    step h T (tSingleton (tid, s1, s2, t)) (OK h T (tCouple t' (extendTid tid, [specAct], nil, M))) ->
+                    multistep h (tCouple t' (extendTid tid, [specAct], nil, M)) T (OK h'
+                              (tCouple t' (extendTid tid, [specAct], nil, M)) T') ->
+                    multistep h (tSingleton(tid, s1, s2, t)) T (OK h' (tSingleton (tid, s1, s2, t)) T').
 Proof.
-  intros. remember (tCouple t' (extendTid tid, [specAct], [], M)). induction H2; auto. 
-  {apply IHmultistep in Heqe. inversion H4; subst; try(solve[eapply multi_step; eauto; eauto]).
-   {copy H. apply decomposeEq in H. inversion H1; eauto. 
-    {eapply heapUpdateNeq in H9. exfalso. apply H9. eassumption. intros c. inversion c. 
-     apply listNeq in H17. assumption. }
-    {eapply heapUpdateNeq in H9. exfalso. apply H9. eassumption. intros c. inversion c. }
-    {destruct h. simpl in H11. inversion H11. inversion H11. destruct p. inversion H16. 
-     apply listNeq in H20. inversion H20. }
-    {subst. apply AddEqCouple in H19. inversion H19. inversion H. inversion H. }
-    {subst T1. apply SingleEqCouple in H14. inversion H14. inversion H16. }
-    {subst T1. apply SingleEqCouple in H15. inversion H15. inversion H17. }
-    {subst T1. apply SingleEqCouple in H15. inversion H15. inversion H17. }
-    {subst T1. apply SingleEqCouple in H15. inversion H15. inversion H17. }
+  intros. remember (tCouple t' (extendTid tid, [specAct], [], M)). remember (OK h' e T'). induction H2; auto.
+  {inversion Heqc; subst. constructor. }
+  {inversion Heqc. apply IHmultistep in Heqe. inversion H4; subst; try(solve[eapply multi_step; eauto; eauto]).
+   {copy H. apply decomposeEq in H. inversion H1; eauto; try solve[subst; match goal with
+                |H:tSingleton ?x = tCouple ?y ?z |- _ =>
+                 apply SingleEqCouple in H; inversion H as [Eq1 Eq2]; try solve[inversion Eq1];
+                 try solve[inversion Eq2]
+            end]. 
+    {eapply heapUpdateNeq in H15. exfalso. apply H15. eassumption. intros C. inversion C.  
+     invertListNeq. }
+    {eapply heapUpdateNeq in H15. exfalso. apply H15. eassumption. intros C. inversion C. }
+    {subst. apply AddEqCouple in H10. inversion H10. inversion H. inversion H. }
+    
+    {subst. apply AddEqCouple in H10. inversion H10. inversion H. inversion H. }
    }
+   {subst. reflexivity. }
   }
-Qed. 
-
+  {inversion Heqc. }
+Qed.
+   
 
 
