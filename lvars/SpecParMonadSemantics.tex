@@ -28,7 +28,7 @@
 \newcommand{\specActions}[1]{\mathcal{SA} \llbracket #1 \rrbracket}
 \newcommand{\commitActions}[1]{\mathcal{CA} \llbracket #1 \rrbracket}
 \newcommand{\seq}[1]{\mathcal{S}\llbracket #1 \rrbracket}
-\title{Speculative Par Monad Operational Semantics}
+\title{Techincal Appendix}
 \author{Matthew Le}
 \begin{document}
 \maketitle
@@ -50,7 +50,7 @@ Values \;\;\;\; v & ::= & x \; | \; i \; | \; \backslash x. M \\
 & | & get \; i \\ 
 & | & done \; M \\
 & | & spec \; M \; N \\
-& | & specReturn(M, N_0, wait \; \Theta) \\
+& | & specReturn(M, wait \; \Theta) \\
 & | & raise \; M \\
 & | & handle \; M \; N  \\
 
@@ -65,7 +65,9 @@ ivarState \;\;\; iv &::=& \langle\rangle_x^{sc} \; | \; \langle ds, s, \Theta, M
 specStack \;\;\;\; S &::=& \cdot \; | \; S : A\; \\
 specAction \;\;\;\; A &::=& (j, M)_r^x \; | \; (j, M)_w^x \; | \; (j, M)_s^x \; | \; (j, M)_c^x \; | \; (j, M)_f^{\Theta_i} \; | \; spec \; | \; join\\
 
-Evaluation Context \;\;\;\; \mathcal{E} &::=& [\cdot] \; | \; \mathcal{E} >>= M \; | \; specReturn(\mathcal{E}, M) 
+configuration \;\;\;\; \sigma &::=& H; T \; | \; Error\\
+
+Evaluation Context \;\;\;\; \mathcal{E} &::=& [\cdot] \; | \; \mathcal{E} >>= M \; | \; specReturn(\mathcal{E}, M) \; | \; handle \; \mathcal{E} \; N
 \end{array}
 \end{displaymath}
 
@@ -101,7 +103,7 @@ P \; | \; (Q \; | \; R) &\equiv& (P \; | \; Q) \; | \; R \\
 \infer[\text{SRunPar}]{\text{runPar } M \Downarrow V}{\cdot; 1_1[\cdot, \cdot, M >>= \backslash x. done \; x] \rightarrow^* H'; T \; | \; 1_n[\cdot, S_2, done \; N] , \;\;\; N \Downarrow V, \;\;\; DeadLocked(T)}
 \]
 
-$\boxed{H; T \rightarrow H'; T'} $
+$\boxed{\sigma \rightarrow \sigma} $
 
 \[%Eval and Bind
 \infer[\text{SEval}]{H; \Theta_i[S_1, S_2, \eval{M}] \; | \; T  \rightarrow H; \Theta_{i+1}[S_1, S_2, \eval{V}] \; | \; T}{M \neq V \;\;\; M \Downarrow V} 
@@ -127,24 +129,32 @@ $\boxed{H; T \rightarrow H'; T'} $
 \infer[\text{SPut}]{H; \Theta_i[S_1, S_2, \eval{put \; x \; M}] \; | \; T \rightarrow H'; \Theta_{i+1}[(i, \eval{put \; x \; M})_w^x : S_1, S_2, \eval{return()}] \; | \; T}{H(x) = \langle\rangle_x^{sc}, \;\;\; H' = H[x \mapsto \langle \emptyset, S_1, \Theta_i, M\rangle_x^{sc}]}
 \]
 
+\[%Overwrite
+\inference[\text{Overwrite}]{H(x) = \langle ds, S:A, \Theta_j', N\rangle, \;\;\; rollback(\Theta_j', H, T) \leadsto (H', T'), \;\;\; H'' = H'[x\mapsto\langle \emptyset, \cdot, \Theta_i, M\rangle]}{H; \Theta_i[\cdot, S_2, \eval{put \; x \; M}] \; | \; T \rightarrow H'; \Theta_{i+1}[\cdot, S_2, \eval{return ()}] \; | \; T'}
+\]
+
+\[%ErrorWrite
+\infer[\text{ErrorWrite}]{H; \Theta_i[\cdot, S_2, \eval{put \; x \; M}] \; | \; T \rightarrow Error}{H(x) = \langle ds, \cdot, \Theta_j', N\rangle}
+\]
+
 \[ %Spec
-\infer[\text{Spec}]{H; \Theta_i[S_1, S_2, \eval{spec \; M \; N}] \; | \; T \rightarrow H; \Theta_{i+1}[(i, \eval{spec \; M \; N})_f^{\Theta_i : 1_1} : S_1, S_2, \eval{specReturn(M, N, wait \; \Theta_i : 1_1)}] \; | \; T')}{T' = \Theta_i : 1_1[\cdot : (1, N)_s : spec, \cdot, N] \; | \; T}
+\infer[\text{Spec}]{H; \Theta_i[S_1, S_2, \eval{spec \; M \; N}] \; | \; T \rightarrow H; \Theta_{i+1}[(i, \eval{spec \; M \; N})_f^{\Theta_i : 1_1} : S_1, S_2, \eval{specReturn(M, wait \; \Theta_i : 1_1)}] \; | \; T')}{T' = \Theta_i : 1_1[\cdot : (1, N)_s : spec, \cdot, N] \; | \; T}
 \]
 
 \[%Pop Spec
-\inference[\text{PopSpec}]{}{\begin{array}{l} H; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, M_0, wait \; \Theta_1')}]  \; | \; \Theta_j'[S_1' : (1, M)_s, S_2, return \; N_2] \; | \; T \rightarrow \\ H; \Theta_{i+1}[\cdot, S_2, \eval{specReturn(return \; N_1, M_0, wait \; \Theta_1')}] \; | \; \Theta_{j+1}'[join : S_1', (1, M)_s : S_2', return \; N_2] \; | \; T \end{array}}
+\inference[\text{PopSpec}]{}{\begin{array}{l} H; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, M_0, wait \; \Theta_1')}]  \; | \; \Theta_j'[S_1' : (1, M)_s, S_2, return \; N_2] \; | \; T \rightarrow \\ H; \Theta_{i+1}[\cdot, S_2, \eval{specReturn(return \; N_1, wait \; \Theta_1')}] \; | \; \Theta_{j+1}'[join : S_1', (1, M)_s : S_2', return \; N_2] \; | \; T \end{array}}
 \]
 
 \[%Spec Join
-\inference[\text{SpecJoin}]{}{\begin{array}{l} H; T \; | \; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, M_0, wait \; \Theta_1')}] \; | \; \Theta_j'[\cdot : join, S_2, return \; N_2]) \rightarrow \\ H; T \; | \; \Theta_{i+1}[\cdot, S_2, \eval{return(N_1, N_2)}] \end{array}}
+\inference[\text{SpecJoin}]{}{\begin{array}{l} H; T \; | \; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, wait \; \Theta_1')}] \; | \; \Theta_j'[\cdot : join, S_2, return \; N_2]) \rightarrow \\ H; T \; | \; \Theta_{i+1}[\cdot, S_2, \eval{return(N_1, N_2)}] \end{array}}
 \]
 
 \[%Spec Rollback
-\infer[\text{SpecRB}]{H; \Theta_i[S_1, S_2, \eval{specReturn(raise \; M, M_0, wait \; \Theta_j')}] \; | \; \Theta_j'[S_1', S_2', M] \; | \; T \rightarrow H'; \Theta_{i+1}[S_1, S_2, \eval{raise \; M}] \; | \; T'}{rollback(\Theta_i, H, T \; | \; \Theta_j'[S_1', S_2', M]) \leadsto (H', \Theta_{j'}'[\cdot : (j'', M''), S_2'', M'] \; | \; T')}
+\infer[\text{SpecRB}]{H; \Theta_i[S_1, S_2, \eval{specReturn(raise \; M, wait \; \Theta_j')}] \; | \; \Theta_j'[S_1', S_2', M] \; | \; T \rightarrow H'; \Theta_{i+1}[S_1, S_2, \eval{raise \; M}] \; | \; T'}{rollback(\Theta_i, H, T \; | \; \Theta_j'[S_1', S_2', M]) \leadsto (H', \Theta_{j'}'[\cdot : (j'', M''), S_2'', M'] \; | \; T')}
 \]
 
 \[%Spec Raise
-\infer[\text{SpecRaise}]{H; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, N_0, wait \; \Theta_1')}] \; | \; \Theta_j'[\cdot, S_2', raise \; M] \; | \; T \rightarrow H; \Theta_{i+1}[\cdot, S_2, \eval{raise \; M}] \; | \; T}{}
+\infer[\text{SpecRaise}]{H; \Theta_i[\cdot, S_2, \eval{specReturn(return \; N_1, wait \; \Theta_1')}] \; | \; \Theta_j'[\cdot, S_2', raise \; M] \; | \; T \rightarrow H; \Theta_{i+1}[\cdot, S_2, \eval{raise \; M}] \; | \; T}{}
 \]
 
 \[%Raise
@@ -180,6 +190,7 @@ $\boxed{H; T \rightarrow H'; T'} $
 \]
 
 %----------------------------------------------------------------------------------------------Rollback rules--------------------------------------------------------------------------------
+
 $\boxed{rollback(\Theta_i, H, T) \leadsto (H' ,T')}$
 
 \[%Rollback Finish
@@ -205,6 +216,7 @@ $\boxed{rollback(\Theta_i, H, T) \leadsto (H' ,T')}$
 \[%Rollback Spec
 \infer[\text{RBSpec}]{rollback(\Theta_i, H, \Theta_j'[(j', M')_f^{\Theta_{k'}''} : S_1, S_2, M] \; | \; \Theta_k''[(k', N')_s : spec, \cdot, N] \; | \; T) \leadsto (H'', T'')}{rollback(\Theta_i, H, \Theta_j'[S_1, S_2, M] \; | \; T) \leadsto (H'', T'')}
 \]
+
 
 \section{Proof of Determinism}
 
@@ -255,122 +267,65 @@ $\boxed{\commitActions{T} \leadsto commitStack} $
 \infer[]{\commitActions{\Theta_i[S_1, S_2, M]} \leadsto commitActions}{commitActions = \{(\Theta_0, S_2 )\}} \;\;\;
 \]
 
-We use $T \parStep T'$ to denote a step in the non-speculative (par monad) semantics and $T \specStep T'$ to denote a step in the speculative semantics. 
+Note: we use $H; T \parStep H'; T'$ to denote a step in the non-speculative (par monad) semantics and $H; T \specStep H; T'$ to denote a step in the speculative semantics. 
 
+%Nonspeculative Implies Speculative Execution
 \begin{theorem}[Non-speculative implies speculative]
-For all computations, M in the speculative semantics, if $\erase{M} >>= \backslash x. done \; x \parStep^* done \; N \text{ and } N \Downarrow V$, then $1_1[[], [],\cdot, (M >>= \lambda x. done \; x)] \specStep^* \Theta_i[ws, rs, \cdot, done \; N'] \text{ and } N' \Downarrow V'$, then $V = V'$ 
+For all $M$, if $runPar \; M \Downarrow_p V$, then there exists some $M', V'$, such that $runPar M' \Downarrow V'$, where $\erase{M'} = M$ and $\erase{V' = V}$
+
 \end{theorem}
 
 \begin{proof}
 
-After applying Lemma \ref{RunParStar} to $\erase{M} >>= \backslash x. done \; x \parStep^* done$, we get $\erase{\Theta_i[ws, rs, \cdot, done \; N']} = done \; N$.  From $\erase{\Theta_i[ws, rs, \cdot, done \; N']} = done \; N$, we get $N' = N$, which implies that $N' \Downarrow V = V'$, which establishes the result.
+By inversion of $runPar \; M$, we have $\cdot; M >>= \backslash x. done \; x \parStep^* H; T \; | \; done \; N, N \Downarrow_p V$, and $DeadLocked(T)$
+After applying Lemma \ref{RunParStar} to $\cdot; \erase{M} >>= \backslash x. done \; x \parStep^* done \; N$, we get $\erase{\Theta_i[ws, rs, \cdot, done \; N']} = done \; N$.  From $\erase{\Theta_i[ws, rs, \cdot, done \; N']} = done \; N$, we get $N' = N$, which implies that $N' \Downarrow V = V'$, which establishes the result.
 
 \end{proof}
 
-%Structural Step*
-\begin{lemma}[Step*]
+%Nonspeculative Implies Speculative *
+\begin{lemma}[Nonspeculative Implies Speculative Star]
 \label{RunParStar}
-For all $T_{spar}, T_{par}'$, if $\erase{T_{spar}} \parStep^* T_{par}', $ then there exists $T_{spar}'$, such that $T_{spar} \specStep^* T_{spar}'$ and $\erase{T_{spar}'} = T_{par}'$
+For all $H_{par}, H_{par}', T_{par}, T_{par}'$, if $H_{par}; T_{par} \parStep^* H_{par}'; T_{par}'$, then $\exists H_{spar}, H_{spar}', T_{spar}, T_{spar}'$, such that 
+\begin{enumerate}
+\item $H_{spar}; T_{spar} \parStep^* H_{spar}'; T_{spar}'$
+\item $\erase{H_{spar}} = H_{par}$
+\item  $\erase{H_{spar}'} = H_{par}'$
+\item $\erase{T_{spar}} = T_{par}$
+\item $\erase{T_{spar}'} = T_{par}'$
+\end{enumerate}
 \end{lemma}
 
-%Proof of Structural Step*
+%Proof of non speculative Implies Speculative *
 \begin{proof}
-By induction on the number of steps taken in the derivation: 
+By induction on $H_{par}; T_{par} \parStep^* H_{par}'; T_{par}'$
 
 \begin{itemize}
-\item n = 0 -- In this case, zero steps were taken, therefore $T_{spar}' = T_{spar}$ and $T_{par}' = \erase{T_{spar}}$.  Thus, since $\erase{T_{spar}} = \erase{T_{spar}}$, we have $\erase{T_{spar}'} = T_{par}'$
+\item $H_{par}; T_{par} \parStep^* H_{par}'; T_{par}' \equiv H_{par}; T_{par} \parStep^0 H_{par}; T_{par}$ -- this case holds trivially
 
-\item n = m+1 -- By the inductive hypothesis, we know that $\erase{T_{spar}} \parStep^m T_{par}', T_{spar} \specStep^m T_{spar}'$, and $\erase{T_{spar}'} = T_{par}'$, so we must show that if $\erase{T_{spar}'} \parStep T_{par}''$, then there exists $T_{spar}''$, such that $T_{spar}' \specStep T_{spar}''$ and $\erase{T_{spar}''} = T_{par}''$.  This follows immediately from Lemma \ref{StructuralStep}.
+\item $H_{par}; T_{par} \parStep^* H_{par}'; T_{par}' \equiv H_{par}; T_{par} \parStep H_{par}^\dagger; T_{par}^\dagger \parStep^* H_{par}'; T_{par}'$.  From the induction hypothesis we have $\exists T_{spar}^\dagger, T_{spar}', H_{spar}^\dagger, H_{spar}', H_{spar}^\dagger; T_{spar}^\dagger \specStep H_{spar}'; T_{spar}'$ and by applying Lemma \ref{StructuralStep} to $H_{par}; T_{par} \parStep H_{par}^\dagger; T_{par}^\dagger$, we have $\exists H_{spar}, H_{spar}$
 \end{itemize}
-
+\vspace{-2em}
 \end{proof}
-
-%Structural Step
-\begin{lemma}[Step]
+%Nonspeculative Implies Speculative Step
+\begin{lemma}[Nonspeculative Implies Speculative Step]
 \label{StructuralStep}
 For all $T_{spar}, T_{par}'$, if $\mathcal{E} \llbracket T_{spar}\rrbracket \parStep T_{par}'$, then there exists $T_{spar}'$, such that $T_{spar} \specStep T_{spar}'$ and $\mathcal{E}\llbracket T_{spar}'\rrbracket = T_{par}'$
 \end{lemma}
-
-
-%Proof of Structural Step
+%Proof of Nonspeculative Implies Speculative Step
 \begin{proof}
-by structural induction on the derivation of $\erase{T_{spar} }\parStep T_{par}'$
-
-\begin{itemize}
-
-%Parallel composition step
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[]{P \; | \; R \parStep Q \; | \; R}{P \parStep Q}$.  If we let $\erase{P'} =  P$ and $\erase{R'} = R$, then by the inductive hypothesis, we have $P' \specStep Q'$ and $\erase{Q'} = Q$.  From this, we can construct the following derivation: $\infer[]{P' \; | \; R' \specStep Q' \; | \; R'}{P' \specStep Q'}$.  Since we know that $\erase{Q'} = Q$ and $\erase{R'} = R$, we have $\erase{Q' \; | \; R'} = Q \; | \; R$, which establishes the result.
-
-%Restriction step
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[]{vx.P \parStep vx.Q}{P \parStep Q}$.  If we let $\erase{P'} = P$, then by the inductive hypothesis we have $P' \specStep Q'$ and $\erase{Q'} = Q$.  From this, we can construct the following derivation: $\infer[]{v\vec{x}.P' \specStep v\vec{x}.Q'}{P' \specStep Q'}$ such that $\vec{x}$ is a vector of ivar's with one element, which in this case is $x$.  By the definition of the erasure, we have $\erase{v\vec{x}.Q'} = vx.Q$
-
-%Congruence step 
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[]{P \parStep Q}{P \equiv P' \;\;\; P' \parStep Q' \;\;\; Q' \equiv Q}$.  If we let $\erase{P_s} = P$, then we can use Lemma \ref{congruence} to get $P_s \equiv P_s'$ and $\erase{P_s'} = P'$.  By the inductive hypothesis, we then have $P_s' \specStep Q_s'$ and $\erase{Q_s'} = Q'$.  By applying Lemma \ref{congruence} again to $\erase{Q_s'} = Q'$ and $Q' \equiv Q$, we get $Q_s' \equiv Q_s$ and $\erase{Q_s} = Q$.  From this, we can construct the derivation: $\infer[]{P_s \specStep Q_s}{P_s \equiv P_s' \;\;\; P_s' \specStep Q_s' \;\;\; Q_s' \equiv Q_s}$, which establishes the result.
-
-%Eval Case
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[\text{Eval}]{\eval{M} \parStep \eval{V}}{M \not\equiv V \;\;\; M \Downarrow V}$.  In this case, we can construct the derivation: \\$\infer[\text{SEval}]{\Theta_i[[], [], \cdot, \eval{M}] \specStep \Theta_{i+1}[[], [], \cdot, \eval{V}]}{M \not\equiv V \;\;\; M \Downarrow V} $.  Since $\erase{\Theta_{i+1}[[], [], \cdot, \eval{V}]} = \eval{V}$, we have established that $T_{spar} \specStep T_{spar}'$ and $\erase{T_{spar}'} = T_{par}'$
-
-%Bind
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[\text{Bind}]{\eval{return \; N >>= M} \parStep \eval{M \; N}}{}$.  In this case, we can construct the derivation: $\infer[\text{SBind}]{ \Theta_i[[], [], \cdot, \eval{return \; N >>= M}] \specStep \Theta_{i+1}[[], [], \cdot, \eval{M \; N}]}{}$.\\  Since $\erase{\Theta_{i+1}[[], [] \cdot, \eval{M \; N}]} = \eval{M \; N}$, we have established that $T_{spar} \specStep T_{spar}'$ and $\erase{T_{spar}'} = T_{par}'$
-
-%Fork
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[\text{Fork}]{\eval{fork \; M} \parStep \eval{return()} \; | \; M}{}$.  In this case, we can construct the derivation: $\infer[\text{SFork}]{\Theta_i[[], [] \cdot, \eval{return \; fork \; M}] \specStep \Theta_{i+1}[[], [] \cdot, \eval{return()}] \; | \Theta_i : 1_1[[], [], \cdot, M]}{}$.\\  Since $\erase{\Theta_{i+1}[[], [] \cdot, \eval{return()}] \; | \; \Theta_i : 1_1[[], [], \cdot, M]} = \eval{return()} \; | \; M$, we have established that in this case, $T_{spar} \specStep T_{spar}'$ and $\erase{T_{spar}'} = T_{par}'$
-
-%New
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[\text{New}]{\eval{new} \parStep vi.(\langle\rangle_i \; | \; \eval{return \; i})}{i \; \text{fresh}}$.  In this case, we can construct the derivation $\infer[\text{SNew}]{\Theta_i[[], [] \cdot, \eval{new}] \specStep v\vec{i}.(\langle\rangle_i \; | \; \Theta_{i+1}[[], [] \cdot, \eval{return \; i}]}{\vec{i} = \langle i \rangle \;\;\;\; i \; \text{fresh}}$.\\  Since $\erase{v\vec{i}.(\langle\rangle_i \; | \; \Theta_{i+1}[[], [] \cdot, \eval{return \; i}])} =  vi.(\langle\rangle_i \; | \; \eval{return \; i})$, we have established that $T_{spar} \specStep T_{spar}'$ and $\erase{T_{spar}'} = T_{par}'$
-
-%Get
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[\text{Get}]{\langle M\rangle_i \; | \; \eval{get \; i} \parStep \langle M\rangle_i \; | \; \eval{return \; M}}{}$.  In this case, we can construct the derivation: \\$\infer[\text{SGet}]{\langle ds, \cdot, tid, M\rangle_i \; | \; \Theta_i[[], [] \cdot, \eval{get \; i}] \specStep \langle(\Theta_i, \mathcal{E}) : ds, \cdot, tid, M\rangle_i \; | \; \Theta_{i+1}[[], [] \cdot, \eval{return \; M}]}{}$.  Since $\erase{\langle(\Theta_i, \mathcal{E}) : ds, \cdot, tid, M\rangle_i \; | \; \Theta_{i+1}[[], [] \cdot, \eval{return \; M}]} =  \langle M \rangle_i \; | \; \eval{return \; M}$, we have established that $T_{spar} \specStep T_{spar}'$ and $\erase{T_{spar}'} = T_{par}'$
-
-%Put
-\item $\erase{T_{spar} }\parStep T_{par}' \equiv \infer[\text{Put}]{\langle\rangle_i \; | \; \eval{put \; i \; M} \parStep \langle M \rangle_i \; | \; \eval{return()}}{}$.  In this case, we can construct the derivation: $\infer[\text{SPut}]{\langle\rangle_i \; | \; \Theta_i[[], [] \cdot, \eval{put \; i \; M}] \specStep \langle [], \cdot, \Theta_i, M\rangle_i \; | \; \Theta_{i+1}[i:[], [], \cdot, \eval{return()}]}{}$.  From, $\erase{\langle [], \cdot, \Theta_i, M\rangle_i \; | \; \Theta_{i+1}[i:[], [], \cdot, \eval{return()}]} = \langle M \rangle_i \; | \; \eval{return()}$, we have established that $T_{spar} \specStep T_{spar}'$ and $\erase{T_{spar}'} = T_{par}'$
-
-%GCReturn
-\item $\erase{T_{spar}} \parStep T_{par}' \equiv \infer[\text{GCReturn}]{return \; M \parStep}{}$.  In this case, we can construct the derivation: $\infer[\text{SGCReturn}]{\Theta_i[[], [] \cdot return \; M] \specStep}{}$.  Since the erasure of nothing is also trivially equal to itself, this case is also true.
-
-%GCEmpty
-\item $\erase{T_{spar}} \parStep T_{par}' \equiv \infer[\text{GCEmpty}]{vi.\langle\rangle_i \parStep}{}$.  In this case, we can construct the derivation: $\infer[\text{SGCEmpty}]{v\vec{i}.\langle\rangle_i \specStep}{i \in \vec{i}}$.  Since the erasure of nothing is also trivially equal to itself, this case is also true.
-
-%GCFull
-\item $\erase{T_{spar}} \parStep T_{par}' \equiv \infer[\text{GCFull}]{vi.\langle M\rangle_i \parStep}{}$.  In this case, we can construct the derivation: \\$\infer[\text{SGCReturn}]{v\vec{i}.\langle ds, s, tid, M \rangle_i \specStep}{i \in \vec{i}}$.  Since the erasure of nothing is also trivially equal to itself, this case is also true.
-
-%GCDeadlock
-\item $\erase{T_{spar}} \parStep T_{par}' \equiv \infer[\text{GCDeadlock}]{vi.(\langle\rangle_i \; | \; \eval{get \; i}^* \parStep }{}$.  In this case, we can construct the derivation: $\infer[\text{SGCReturn}]{v\vec{i}.(\langle\rangle_i \; | \; \Theta_i[[], [] \cdot, \eval{get \; i}]^*)\specStep}{}$.  Since the erasure of nothing is also trivially equal to itself, this case is also true.
-
-\end{itemize}
-
-\end{proof}
-
-%Equivalence of Congruence
-\begin{lemma}[Equivalence of Congruence]
-\label{congruence}
-For all $P_s$, if $\erase{P_s} = P_p$ and $P_p \equiv P_p'$, then there exists some $P_s'$ such that $P_s \equiv P_s'$ and $\erase{P_s'} = P_p'$
-\end{lemma}
-
-%Proof of equivalence of congruence
-\begin{proof}
-By case analysis of $P_p \equiv P_p'$
-\begin{itemize}
-\item $P_p \equiv P_p'$ is $P_p \; | \; Q_p \equiv Q_p \; | \; P_p$.  This rule has remained unchanged.  
-
-\item $P_p \equiv P_p'$ is $P_p \; | \; (Q_p \; | \; R_p) \equiv (P_p \; | \; Q_p) \; | \; R_p$.  This rule has remained unchanged
-
-\item $P_p \equiv P_p'$ is $vx.vy.P_p \equiv vy.vx.P_p$.  In this case, $P_s = v\vec{x}.v\vec{y}.P_s$ and $x \in \vec{x}, y \in \vec{y}$ and $\erase{P_s} = P_p$.  By our speculative congruence rules, we have $v\vec{y}.v\vec{x}.P_s$ and from $\erase{P_s} = P_p$, we get $\erase{v\vec{y}.v\vec{x}.P_s} = vy.vx.P_p$ 
-
-\item $P_p \equiv P_p'$ is $vx.(P_p \; | \; Q_p) \equiv (vx.P_p) \; | \; Q_p$.  Let $P_s = v\vec{x}.(P_s \; | \; Q_s)$.  Since $vx.(P_p \; | \; Q_p) \equiv v\vec{x}.(P_s \; | \; Q_s)$, we know that there exists no element of $\vec{x}$ that occurs in $Q_s$.  From this, we get $v\vec{x}.(P_s \; | \; Q_s) \equiv v\vec{x}.(P_s) \; | \; Q_s$ and $\erase{v\vec{x}.(P_s) \; | \; Q_s} = vx.(P_p) | \; Q_p$
-\end{itemize}
+Proven in Coq
 \end{proof}
 
 %Speculative implies non-speculative execution.  
-\begin{theorem}[Speculative implies non-speculative]
-For all $M$, if $\cdot; 1_1[\cdot, \cdot, M >>= \backslash x. done \; x] \specStep^* H; 1_i[\cdot, S_2, done \; N] \; | \; T$, then $\erase{\cdot; 1_1[\cdot, \cdot, M >>= \backslash x. done \; x]} \parStep^* \erase{H; 1_i[\cdot, S_2, done \; N] \; | \; T}$
-
-\end{theorem}
-
-%Proof of Speculative implies non-speculative execution.
-\begin{proof}
-
-\end{proof}
+%\begin{theorem}[Speculative implies non-speculative]
+%For all $M$, if $\cdot; 1_1[\cdot, \cdot, M >>= \backslash x. done \; x] \specStep^* H; 1_i[\cdot, S_2, done \; N] \; | \; T$, then $\erase{\cdot; 1_1[\cdot, \cdot, M >>= \backslash x. done \; x]} \parStep^* \erase{H; 1_i[\cdot, S_2, done \; N] \; | \; T}$
+%
+%\end{theorem}
+%
+%%Proof of Speculative implies non-speculative execution.
+%\begin{proof}
+%
+%\end{proof}
 
 %SpecStep*
 \begin{lemma}[SpecStep*]
@@ -491,7 +446,7 @@ By applying Lemma \ref{frame} to  $\unSpec{H'}; \Theta_{j''}'[(j'', M''), S_2'',
 
 \end{itemize}
 \end{proof}
-
+\vspace{-2em}
 %Well formed rollback
 \begin{lemma}[Well-Formed Rollback]
 \label{wellFormedRollback}
@@ -582,6 +537,19 @@ This case is analogous to third case.
 
 \end{proof}
 
+%Fork Independence Lemma
+\begin{lemma}[Fork Independence]
+\label{forkIndependence}
+For all $H, H', T', T, \Theta_i$, if \\
+$H; T \; | \; \Theta_i[S_1, S_2, M] \specStep H; T \; | \; \Theta_{i+1}[(i, M)_f^{\Theta_j'} : S_1, S_2, M'] \; | \; \Theta_j'[S_1', S_2', N] \specStep^* H'; T' \; | \; \Theta_{i+1}[(i, M)_f^{\Theta_j'} : S_1, S_2, M'] \; | \; \Theta_j'[S_1', S_2', N]$, then $H; T \; | \; \Theta_i[S_1, S_2, M] \specStep^* H'; T' \; | \; \Theta_i[S_1, S_2, M]$
+
+\end{lemma}
+
+%Proof of Fork Independence
+\begin{proof}
+Proven in Coq
+\end{proof}
+
 %Read Independence Lemma
 \begin{lemma}[Read Independence]
 \label{readIndependence}
@@ -594,42 +562,10 @@ $H; T \; | \; \Theta_i[S_1, S_2, M] \specStep^* H''[x\mapsto \langle ds, s, t, N
 
 %Proof of Read Independence Lemma
 \begin{proof}
-By induction on $H'; T \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M'] \specStep^* H''; T' \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M']$ \\
-If $H'; T \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M'] \specStep^0 H''; T'\; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M']$, then this holds trivially \\
-If $H'; T \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M'] \specStep^* H^*; T^* \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M'] \specStep H''; T' \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M']$, \\
-From $\Theta_{i+1}[S_1 : (i, M)_r^x, S_1, M']$, we have $H^*(x) = \langle \Theta_i \uplus ds', s, t, N\rangle_x^{sc}$ \\
-then applying the induction hypothesis to $H^*(x) = \langle \Theta_i \uplus ds', s, t, N\rangle_x^{sc}$ and \\
-$H; T \; | \; \Theta_i[S_1, S_2, M] \specStep H'; T \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M'] \specStep^* H^*; T^* \; | \; \Theta_{i+1}[S_1 : (i, M)_r^x, S_2, M']$, we get \\
-$H; T \; | \; \Theta_i[S_1, S_2, M] \specStep^* H^*[x \mapsto \langle ds', s, t, N\rangle_x^{sc}]; T^* \; | \; \Theta_i[S_1, S_2]$ and we must show: \\
-$H; T \; | \; \Theta_i[S_1, S_2, M] \specStep^* H^*[x \mapsto \langle ds', s, t, N\rangle_x^{sc}]; T^* \; | \; \Theta_i[S_1, S_2, M] \specStep H^*[x \mapsto \langle ds, s, t, N\rangle_x^c]; T' \; | \; \Theta_i[S_1, S_2, M]$ \\
-Assume that $H^*[x \mapsto \langle ds', s, t, N\rangle_x^{sc}]; T^* \; | \; \Theta_i[S_1, S_2, M] \specStep H^*[x \mapsto \langle ds, s, t, N\rangle_x^c]; T' \; | \; \Theta_i[S_1, S_2, M] \equiv $
-
-\begin{itemize}
-\item $\infer[\text{SEval}]{H; \Theta_i[S_1, S_2, \eval{M}] \; | \; T  \rightarrow H; \Theta_{i+1}[S_1, S_2, \eval{V}] \; | \; T}{M \neq V \;\;\; M \Downarrow V} $.  Then we can use this same rule for 
-
-$H^*[x \mapsto \langle ds', s, t, N\rangle_x^{sc}]; T^* \; | \; \Theta_i[S_1, S_2, M] \specStep H^*[x \mapsto \langle ds', s, t, N\rangle_x^{sc}]; T' \; | \; \Theta_i[S_1, S_2, M]$ where $H^* = H'$
-
-\item $\infer[\text{SNew}]{H; \Theta_i[S_1, S_2, \eval{new}] \; | \; T \rightarrow H';  \Theta_{i+1}[(i, \eval{new})_c^x : S_1, S_2, \eval{return \; y}] \; | \; T}{H' = H[y \mapsto \langle\rangle_y^s] \;\;\; y \notin Domain(H)}$.  Again, we use this rule for 
-
-$H^*[x \mapsto \langle ds', s, t, N\rangle_x^{sc}]; T^* \; | \; \Theta_i[S_1, S_2, M] \specStep H^*[x \mapsto \langle ds', s, t, N\rangle_x^{sc}, y\mapsto \langle\rangle_y^s]; T' \; | \; \Theta_i[S_1, S_2, M]$.
-
-\item the remaining cases are analogous to the previous cases
-\end{itemize}
- 
+Analogous to Lemma \ref{forkIndependence}
 \end{proof}
 
-%Fork Independence Lemma
-\begin{lemma}[Fork Independence]
-\label{forkIndependence}
-For all $H, H', T', T, \Theta_i$, if \\
-$H; T \; | \; \Theta_i[S_1, S_2, M] \specStep H; T \; | \; \Theta_{i+1}[(i, M)_f^{\Theta_j'} : S_1, S_2, M'] \; | \; \Theta_j'[S_1', S_2', N] \specStep^* H'; T' \; | \; \Theta_{i+1}[(i, M)_f^{\Theta_j'} : S_1, S_2, M'] \; | \; \Theta_j'[S_1', S_2', N]$, then $H; T \; | \; \Theta_i[S_1, S_2, M] \specStep^* H'; T' \; | \; \Theta_i[S_1, S_2, M]$
 
-\end{lemma}
-
-%Proof of Fork Independence
-\begin{proof}
-By induction on $ H; T \; | \; \Theta_{i+1}[(i, M)_f^{\Theta_j'} : S_1, S_2, M'] \; | \; \Theta_j'[S_1', S_2', N] \specStep^* H'; T' \; | \; \Theta_{i+1}[(i, M)_f^{\Theta_j'} : S_1, S_2, M'] \; | \; \Theta_j'[S_1', S_2', N]$
-\end{proof}
 
 %Write no Read Independence Lemma
 \begin{lemma}[Write Independence]
@@ -640,7 +576,7 @@ $H;\Theta_i[S_1, S_2, M] \; | \; T \specStep H[x\mapsto \langle \emptyset, S_1, 
 
 %Proof of Write no Read Independence Lemma
 \begin{proof}
-By induction on $H[x\mapsto \langle \emptyset, S_1, \Theta_i, N\rangle_x^{sc}]; \Theta_{i'}[(i, M)_w^x : S_1, S_2, M'] \; | \; T \specStep^* H'; \Theta_{i'}[(i, M)_w^x : S_1, S_2, M'] \; | \; T'$
+Analogous to Lemma \ref{forkIndependence}
 \end{proof}
 
 %Create Ivar independence
@@ -652,7 +588,7 @@ $H; \Theta_i[S_1, S_2, M] \; | \; T \specStep^* (H' \backslash x); \Theta_i[S_1,
 \end{lemma}
 
 \begin{proof}
-By induction on $H[x \mapsto \langle\rangle_x^s]; \Theta_{i'}[(i, M)_c^x : S_1, S_2, M'] \; | \; T \specStep^* H'; \Theta_{i'}[(i, M)_c^x : S_1, S_2, M'] \; | \; T'$
+Analogous to Lemma \ref{forkIndependence}
 \end{proof}
 
 %Rollback Erasure Idempotence
@@ -664,115 +600,17 @@ For all $H, H', T, T', \Theta_i$, if $rollback(\Theta_i, H, T) \leadsto (H', T')
 
 %Proof of Rollback Erasure Idempotence
 \begin{proof}
-By induction on $rollback(\Theta_i, H, T) \leadsto (H', T')$.  Assume $rollback(\Theta_i, H, T) \leadsto H', T') \equiv$
-
-\begin{itemize}
-%Rollback done case
-\item $\infer[\text{RBDone}]{rollback(\Theta_i, H, \Theta_{i'}[\cdot : (i'', M')_s, S_2, M] \; | \; T) \leadsto (H, \Theta_{i'}[\cdot : (i'', M')_s, S_2, M] \; | \; T)}{}$.  In this case it trivially holds that $\erase{H; \Theta_{i'}[(i'', M')_s, S_2, M] \; | \; T} = \erase{H; \Theta_{i'}[(i'', M')_s, S_2, M] \; | \; T}$
-
-%Rollback Read case
-\item $\infer[\text{RBRead}]{rollback(\Theta_i, H, \Theta_j'[\cdot : (j', M')_r^x : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}{H(x) = \langle \Theta_{j'}' \uplus ds, s, t, M\rangle, \;\;\; H' = H[x \mapsto \langle ds, s, t, M\rangle] \;\;\; rollback(\Theta_i, H', \Theta_{j'}'[\cdot : S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}$
-
-Let $H = H_1, x\mapsto \Theta_{j'}' \uplus ds, s, t, M\rangle_x^{sc}, H_2$ and $H' = H_1, x \mapsto \langle ds, s, t, M\rangle_x^{sc}, H_2$.  In order to show that $\erase{H} = \erase{H'}$, it suffices to show that $\erase{H_1, x \mapsto \langle \Theta_{j'}' \uplus ds, s, t, M\rangle_x^{sc}} = \erase{H_1, x \mapsto \langle ds, s, t, M\rangle_x^{sc}}$.  Assume that $\erase{H_1, x \mapsto \langle \Theta_{j'}' \uplus ds, s, t, M\rangle_x^{sc}} \equiv $
-
-\begin{itemize}
-\item  $\erase{H_1, x \mapsto \langle\rangle_x^s} $ - This case is vacuous because we are assuming $x$ is full
-\item  $\erase{H_1, x \mapsto \langle \Theta_{j'}' \uplus ds, s, t, M\rangle_x^s}$.  In this case, $\erase{H_1, x \mapsto \langle \Theta_{j'}' \uplus ds, s, t, M\rangle_x^s} = \erase{H_1}$ and 
-
-	$\erase{H_1, x \mapsto \langle ds, s, t, M\rangle_x^{sc}} = \erase{H_1}$.  This case holds because $\erase{H_1} = \erase{H_1}$
-\item  $\erase{H_1, x \mapsto \langle\rangle_x^c} $ - This case is vacuous because we are assuming $x$ is full
-\item  $\erase{H_1, x\mapsto \langle \Theta_{j'} \uplus ds, S : A, t, M\rangle_x^c} $ - In this case, $\erase{H_1, x \mapsto \langle \Theta_{j'}' \uplus ds, S : A, t, M\rangle_x^c} = \erase{H_1}, x \mapsto \langle\rangle_x^c$ 
-
-and $\erase{H_1, x \mapsto \langle ds, s, t, M\rangle_x^{sc}} = \erase{H_1}, x\mapsto \langle\rangle_x^c$, yielding  $\erase{H_1}, x\mapsto \langle\rangle_x^c = \erase{H_1}, x\mapsto \langle\rangle_x^c$
-\item  $\erase{H_1, x \mapsto \langle \Theta_{j'} \uplus ds, \cdot, t, M\rangle_x^c} $ - In this case, $\erase{H_1, x \mapsto \langle \Theta_{j'}' \uplus ds, S : A, t, M\rangle_x^c} = \erase{H_1}, x \mapsto \langle\rangle_x^c$ and 
-
-	$\erase{H_1, x \mapsto \langle ds, s, t, M\rangle_x^{sc}} = \erase{H_1}, x\mapsto \langle\rangle_x^c$.  This case holds because $\erase{H_1}, x\mapsto \langle\rangle_x^c = \erase{H_1}, x\mapsto \langle\rangle_x^c$
-\end{itemize}
-
-Applying Lemma \ref{eraseAction} to $\Theta_j'[(j', M')_r^x : S_1, S_2, M]$, we get: $\erase{\Theta_j'[(j', M')_r^x : S_1, S_2, M]} = \erase{\Theta_{j'}[S_1, S_2, M']}$.  
-From $\erase{H} = \erase{H'}, \erase{\Theta_j'[(j', M')_r^x : S_1, S_2, M]} = \erase{\Theta_{j'}[S_1, S_2, M']}$, and $\erase{T} = \erase{T}$, we have 
-
-$\erase{H; \Theta_j'[(j', M')_r^x : S_1, S_2, M] \; | \; T} = \erase{H'; \Theta_{j'}'[S_1, S_2, M'] \; | \; T}$.  Applying the induction hypothesis, then gives us $\erase{H'; \Theta_{j'}'[S_1, S_2, M'] \; | \; T} = \erase{H'', T'}$, which implies $\erase{H; \Theta_j'[(j', M')_r^x : S_1, S_2, M] \; | \; T} = \erase{H''; T'}$
-
-%Rollback Fork case
-\item $\infer[\text{RBFork}]{rollback(\Theta_i, H, \Theta_j'[\cdot : (j', M')_f^{\Theta_k''} : S_1, S_2, M] \; | \; \Theta_{k'}''[\cdot : spec, S_2', M''] \; | \; T) \leadsto (H', T')}{rollback(\Theta_i, H, \Theta_{j'}'[\cdot : S_1, S_2, M'] \; | \; T) \leadsto (H', T')}$
-
-Applying Lemma \ref{eraseAction} to $\Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M]$, we get $\erase{\Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M]} = \erase{\Theta_j'[S_1, S_2, M]}$
-
-From $\erase{\Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M]} = \erase{\Theta_j'[S_1, S_2, M]}, \erase{H} = \erase{H}$, and $\erase{T} = \erase{T}$, we have 
-
-$\erase{H; \Theta_{j'}'[(j', M')_f^{\Theta_k''} : S_1, S_2, M'] \; | \; T} = \erase{H; \Theta_{j'}'[S_1, S_2, M'] \; | \; T}$.  Applying the induction hypothesis, we get
-
-$\erase{H; \Theta_{j'}'[S_1, S_2, M'] \; | \; T} = \erase{H'; T'}$, which implies $\erase{H; \Theta_{j'}'[(j', M')_f^{\Theta_k''} : S_1, S_2, M'] \; | \; T} = \erase{H'; T'}$
-
-%Rollback Write
-\item $\infer[\text{RBWrite}]{rollback(\Theta_i, H, \Theta_j'[\cdot : (j', M')_w^x : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}{H(x) = \langle \emptyset, S:A, t, M\rangle_x, \;\;\; H' = H[x \mapsto \langle\rangle_x] \;\;\; rollback(\Theta_i, H', \Theta_{j'}'[\cdot : S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}$
-
-Let $H = H_1, x\mapsto \langle \emptyset, S:A, t, M\rangle_x^{sc}, H_2$ and $H' = H_1, x \mapsto \langle \rangle_x^{sc}, H_2$.  In order to show that $\erase{H} = \erase{H'}$, it suffices to show that $\erase{H_1, x \mapsto \langle \emptyset, S:A, t, M\rangle_x^{sc}} = \erase{H_1, x \mapsto \langle\rangle_x^{sc}}$.  
-
-Assume that $\erase{H_1, x \mapsto \langle \emptyset, S:A, t, M\rangle_x^{sc}} \equiv $
-
-\begin{itemize}
-\item  $\erase{H_1, x \mapsto \langle\rangle_x^s} $ - This case is vacuous because we are assuming $x$ is full
-\item  $\erase{H_1, x \mapsto \langle \emptyset, s, t, M\rangle_x^s}$.  In this case, $\erase{H_1, x \mapsto \langle\emptyset, S:A, t, M\rangle_x^s} = \erase{H_1}$ and 
-
-	$\erase{H_1, x \mapsto \langle \rangle_x^s} = \erase{H_1}$.  This case holds because $\erase{H_1} = \erase{H_1}$
-\item  $\erase{H_1, x \mapsto \langle\rangle_x^c} $ - This case is vacuous because we are assuming $x$ is full
-\item  $\erase{H_1, x\mapsto \langle\emptyset, S : A, t, M\rangle_x^c} $ - In this case, $\erase{H_1, x \mapsto \langle \emptyset, S : A, t, M\rangle_x^c} = \erase{H_1}, x \mapsto \langle\rangle_x^c$ 
-
-and $\erase{H_1, x \mapsto \langle \rangle_x^c} = \erase{H_1}, x\mapsto \langle\rangle_x^c$, yielding  $\erase{H_1}, x\mapsto \langle\rangle_x^c = \erase{H_1}, x\mapsto \langle\rangle_x^c$
-\item  $\erase{H_1, x \mapsto \langle\emptyset, \cdot, t, M\rangle_x^c} $ - This case is vacuous as we are assuming $x$ is speculative
-\end{itemize}
-
-Applying Lemma \ref{eraseAction} to $\Theta_j'[(j', M')_w^x : S_1, S_2, M]$, gives us $\erase{\Theta_j'[(j', M')_w^x : S_1, S_2, M]} = \erase{\Theta_j'[S_1, S_2, M]}$.  From $\erase{\Theta_j'[(j', M')_w^x : S_1, S_2, M]} = \erase{\Theta_j'[S_1, S_2, M]}, \erase{T} = \erase{T}, $ and $\erase{H} = \erase{H'}$, we have 
-
-$\erase{H; \Theta_j'[(j', M')_w^x : S_1, S_2, M] \; \ \; T} = \erase{H'; \Theta_{j'}'[S_1, S_2, M'] \; | \; T}$.  From our induction hypothesis, we have $\erase{H'; \Theta_{j'}'[S_1, S_2, M'] \; | \; T} = \erase{H''; T'}$, which implies $\erase{H; \Theta_j'[(j', M')_w^x : S_1, S_2, M] \; | \; T} = \erase{H''; T'}$
-
-%Rollback Create IVar
-\item $\infer[\text{RBNew}]{rollback(\Theta_i, H, \Theta_j'[(j', M')_c^x : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}{H(x) = \langle\rangle_x^s, \;\;\; H' = H \backslash x \;\;\; rollback(\Theta_i, H', \Theta_{j'}'[S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}$
-
-Let $H = H_1, x\mapsto \langle \rangle_x^s, H_2$ and $H' = H_1, H_2$.  In order to show that $\erase{H} = \erase{H'}$, it suffices to show that $\erase{H_1, x \mapsto \langle \rangle_x^x} = \erase{H_1}$.  Assume that $\erase{H_1, x \mapsto \langle\rangle_x^s} \equiv $
-
-\begin{itemize}
-\item  $\erase{H_1, x \mapsto \langle\rangle_x^s} $ - Here we have $\erase{H_1, x\mapsto \langle\rangle_x^s} = \erase{H_1}$
-\item  $\erase{H_1, x \mapsto \langle \emptyset, s, t, M\rangle_x^s}$.  This case is vacuous as we are assuming $x$ is empty
-\item  $\erase{H_1, x \mapsto \langle\rangle_x^c} $ - This case is vacuous as we are assuming $x$ was speculatively created
-\item  $\erase{H_1, x\mapsto \langle\emptyset, S : A, t, M\rangle_x^c} $ - This case is vacuous as we are assuming $x$ is empty
-\item  $\erase{H_1, x \mapsto \langle\emptyset, \cdot, t, M\rangle_x^c} $ - This case is vacuous as we are assuming $x$ is empty
-\end{itemize}
-
-Applying Lemma \ref{eraseAction} to $\Theta_j'[(j', M')_c^x : S_1, S_2, M]$, gives us $\erase{\Theta_j'[(j', M')_w^x : S_1, S_2, M]} = \erase{\Theta_j'[S_1, S_2, M]}$.  From $\erase{\Theta_j'[(j', M')_c^x : S_1, S_2, M]} = \erase{\Theta_j'[S_1, S_2, M]}, \erase{T} = \erase{T}, $ and $\erase{H} = \erase{H'}$, we have 
-
-$\erase{H; \Theta_j'[(j', M')_c^x : S_1, S_2, M] \; \ \; T} = \erase{H'; \Theta_{j'}'[S_1, S_2, M'] \; | \; T}$.  From our induction hypothesis, we have $\erase{H'; \Theta_{j'}'[S_1, S_2, M'] \; | \; T} = \erase{H''; T'}$, which implies $\erase{H; \Theta_j'[(j', M')_c^x : S_1, S_2, M] \; | \; T} = \erase{H''; T'}$
-
-%Rollback Spec Marker
-\item $\infer[\text{RBSpec}]{rollback(\Theta_i, H, \Theta_j'[(j', M')_f^{\Theta_{k'}''} : S_1, S_2, M] \; | \; \Theta_k''[(k', N')_s : spec, \cdot, N] \; | \; T) \leadsto (H'', T'')}{rollback(\Theta_i, H, \Theta_j'[S_1, S_2, M] \; | \; T) \leadsto (H'', T'')}$
-
-Applying Lemma \ref{eraseAction} to $\Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M]$, we get $\erase{\Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M]} = \erase{\Theta_j'[S_1, S_2, M]}$, which implies $\erase{H; \Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M] \; | \; \Theta_k''[(k', N')_s : spec, \cdot, N] \; | \; T} = \erase{H; \Theta_{j'}'[S_1, S_2, M] \; | \; T}$.  Applying the induction hypothesis gives us $\erase{H; \Theta_{j'}'[S_1, S_2, M] \; | \; T} = \erase{H''; T''}$, which implies
-
-$\erase{H; \Theta_j'[(j', M')_f^{\Theta_k''} : S_1, S_2, M] \; | \; \Theta_k''[(k', N')_s : spec, \cdot, N] \; | \; T} = \erase{H''; T''}$
-
-\end{itemize}
+Proven in Coq
 \end{proof}
 
-%Erasure with one action equal
-\begin{lemma}
-\label{eraseAction}
-For all $action, \Theta_i S_1, S_2, M$, $\erase{\Theta_i[action :  S_1, S_2, M]} = \erase{\Theta_i[S_1, S_2, M]}$
+%NonspecPureStep
+\begin{lemma}[NonSpecPureStep]
+\label{nonSpecPureStep}
+For all $H, H', T, T', \Theta_i$, If $H; \Theta_i[S_1, S_2, M] \; | \; T \specStep^* H'; \Theta_{i'}[S_1, S_2, M']\; | \; T'$, then $\erase{H}; \erase{M} \; | \; \erase{T} \parStep^* \erase{H'}; \erase{M'} \; | \; \erase{T'}$
 \end{lemma}
 
-%Proof
 \begin{proof}
-
-Assume:
-
-\begin{itemize}
-\item $S_1 = \cdot$.  In this case, $\erase{\Theta_i[action : \cdot, S_2, M]} = \erase{M'}$ and $\erase{\Theta_i[\cdot, S_2, M']} = \erase{M'}$
-\item $S_1 = S_1' : (i', M')_{a}^x$.  In this case, $\erase{\Theta_i[action : S_1' : (i', M')_{a}^x, S_2, M]} = \erase{M'}$ and $\erase{\Theta_i[S_1' : (i', M')_{a}^x, S_2, M]} = \erase{M'}$
-\item $S_1 = S_1' : spec$. Here, $\erase{\Theta_i[action : S_1' : spec, S_2, M]} = \cdot$ and $\erase{\Theta_i[S_1' : spec, S_2, M]} = \cdot$
-\end{itemize}
-
-
+Proven in Coq
 \end{proof}
 
 %Independence Lemma
@@ -783,29 +621,17 @@ For all $H, T_1, T_2$, if $H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2',
 
 %Proof of independence lemma
 \begin{proof}
-By induction on $n$ 
-\begin{itemize}
-\item $n = 0$, $T_1 = T_1'$ and $T_2 = T_2'$, therefore $H; T_1 \; | \; T_2 \specStep^0 H; T_1 \; | \; T_2 \specStep^0 H; T_1 \; | \; T_2$
+Proven in Coq
+\end{proof}
 
-\item $n = m+1$, consider two cases:
+%Nonspec Pure Single Step
+\begin{lemma}[NonSpecPureSingleStep]
+\label{nonSpecPureSingleStep}
+For all $H, H', T, T', \Theta_i$, If $H; \Theta_i[S_1, S_2, M] \; | \; T \specStep H'; \Theta_{i'}[S_1, S_2, M']\; | \; T'$, then $\erase{H}; \erase{M} \; | \; \erase{T} \parStep \erase{H'}; \erase{M'} \; | \; \erase{T'}$
+\end{lemma}
 
-\begin{itemize}
-
-\item $H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2' \equiv H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2 \specStep^m H'; T_1' \; | \; T_2'$.  We can apply the induction hypothesis to $H^*; T_1^* \; | \; T_2 \specStep^m H'; T_1' \; | \; T_2'$ to get: $H^*; T_1^* \; | \; T_2 \specStep^{m_1} H^{**}; T_1' \; | \; T_2 \specStep^{m_2} H'; T_1' \; | \; T_2'$.  
-
-From this and $H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2$, we get $H; T_1 \; | \; T_2  \specStep^{m_1+1} H^{**}; T_1' \; | \; T_2 \specStep^{m_2} H'; T_1' \; | \; T_2'$
-
-\item $H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2' \equiv H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2^* \specStep^m H'; T_1' \; | \; T_2'$. We can apply the IH to $H; T_1 \; | \; T_2^* \specStep^m H'; T_1' \; | \; T_2'$ to get $H; T_1 \; | \; T_2^* \specStep^{m_1} H^*; T_1' \; | \; T_2^* \specStep^{m_2} H'; T_1' \; | \; T_2'$
-Applying Lemma \ref{reorderLemma} to $H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2^* \specStep^{m_1} H^*; T_1' \; | \; T_2^*$, we get: $H; T_1 \; | \; T_2 \specStep^{m_1} H^*; T_1' \; | \; T_2 \specStep H^*; T_1' \; | \; T_2^*$, putting it all together, we have: $H; T_1 \; | \; T_2 \specStep^{m_1} H^*; T_1' \; | \; T_2 \specStep^{m_2+1} H'; T_1' \; | \; T_2'$
-
-\item $H; T_1 \; | \; T_2 \specStep^n H'; T_1' \; | \; T_2' \equiv H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2^* \specStep^m H'; T_1' \; | \; T_2'$.  
-
-$H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2^*$ could correspond to only 3 rules: PopSpec, SpecRB, and PopFork.  In all three cases, we violate our assumption that $\specActions{T_2} = \specActions{T_2'}$ and $\commitActions{T_2} = \commitActions{T_2'}$ making this case vacuous. 
-
-\end{itemize}
-
-\end{itemize}
-
+\begin{proof}
+Proven in Coq
 \end{proof}
 
 %Reorder lemma
@@ -817,36 +643,26 @@ For all $H, T_1, T_2$, if $H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2' \spe
 
 %Proof of reorder lemma
 \begin{proof}
-
-By induction on $n$
-
-\begin{itemize}
-\item $n = 0$, In this case we can trivially construct the derivation $H; T_1 \; | \; T_2 \specStep^0 H; T_1 \; | \; T_2 \specStep H; T_1 \; | \; T_2'$
-
-\item $n = m+1$, In this case we have $H; T_1 \; | \; T_2 \specStep H; T_1 \; | T_2' \specStep H^*; T_1^* \; | \; T_2' \specStep^m H'; T_1' \; | \; T_2'$.  The only rules that $H; T_1 \; | \; T_2' \specStep H^*; T_1^* \; | \; T_2'$ could correspond to are: SEval, SBind, SpecRaise, Raise, and Handle.  In all cases, The step can be taken regardless of any effects from other threads in the thread pool, so it must be the case that we can construct the derivation for:
-
-$H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2' \specStep^m H'; T_1' \; | \; T_2'$.  Applying the induction hypothesis to: $H^*; T_1^* \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2' \specStep^m H'; T_1' \; | \; T_2'$, we get: $H^*; T_1^* \; | \; T_2 \specStep^m H^*; T_1' \; | \; T_2 \specStep H'; T_1' \; | \; T_2'$.  From 
-$H; T_1 \; | \; T_2 \specStep H^*; T_1^* \; | \; T_2$ and $H^*; T_1^* \; | \; T_2 \specStep^m H^*; T_1' \; | \; T_2 \specStep H'; T_1' \; | \; T_2'$, we get
-
-$H; T_1\; | \; T_2 \specStep H^*; T_1^* \; | \; T_2 \specStep^m H^*; T_1' \; | \; T_2 \specStep H'; T_1' \; | \; T_2'$
-\end{itemize}
-
+Proven in Coq
 \end{proof}
-
-\begin{lemma}[NonSpecPureStep]
-\label{nonSpecPureStep}
-For all $H, H', T, T', \Theta_i$, If $H; \Theta_i[S_1, S_2, M] \; | \; T \specStep^* H'; \Theta_{i'}[S_1, S_2, M']\; | \; T'$, then $\erase{H}; \erase{M} \; | \; \erase{T} \parStep^* \erase{H'}; \erase{M'} \; | \; \erase{T'}$
-\end{lemma}
 
 \begin{lemma}[Frame]
 \label{frame}
 For all $H, H', T_1, T_2, T_1', H; T_1 \; | \; T_2 \specStep^* H'; T_1' \; | \; T_2 \leftrightarrow H; T_1 \specStep^* H'; T_1'$
 \end{lemma}
 
+\begin{proof}
+Proven in Coq
+\end{proof}
+
 \begin{lemma}
 \label{wfFrame}
 For all $H, T_1, T_2$ if $\specActions{T_2} = \emptyset$, then $WF(H; T_1 \; | \; T_2) \leftrightarrow WF(H; T_1)$
 \end{lemma}
+
+\begin{proof}
+Proven in Coq
+\end{proof}
 
 \begin{lemma}
 \label{wfIntermediate}
@@ -861,7 +677,7 @@ For all $T, \erase{\unSpec{T}} = \erase{T}$
 \end{lemma}
 
 \begin{proof}
-TODO
+Proven in Coq
 \end{proof}
 
 \begin{displaymath}
@@ -880,7 +696,7 @@ TODO
 \unSpec{H, x \mapsto \langle ds, s, tid, M\rangle_x^s} &=& \unSpec{H} \\
 \unSpec{H, x \mapsto \langle\rangle_x^c} &=& \unSpec{H}, x\mapsto \langle\rangle_x^c \\
 \unSpec{H, x\mapsto \langle ds, S : A, tid, M\rangle_x^c} &=& \unSpec{H}, x \mapsto \langle\rangle_x^c \\
-\unSpec{H, x \mapsto \langle ds, \cdot, tid, M\rangle_x^c} &=& \unSpec{H}, x \mapsto \langle ds, \cdot, tid, M\rangle_x^c \\
+\unSpec{H, x \mapsto \langle ds, \cdot, tid, M\rangle_x^c} &=& \unSpec{H}, x \mapsto \langle [], \cdot, tid, M\rangle_x^c \\
 \end{array}
 \end{displaymath}
 
