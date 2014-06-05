@@ -102,9 +102,6 @@ Inductive eraseThread : thread -> pool -> pPool -> Prop :=
 |tEraseFork : forall tid tid' maj min min' M M' M'' s1 s2 s1' T E N,
                 s1 = s1' ++ [fAct tid' (Tid(maj,min)tid) M'] -> eraseTerm M' T M'' ->
                 decompose M' = (E,fork N) -> eraseThread (Tid(maj,min') tid, s1, s2, M) T (pSingleton M'')
-|tEraseJoin : forall tid M M' s1 s1' s2 T,
-                     s1 = s1' ++ [joinAct] -> eraseTerm M T M' ->
-                     eraseThread (tid, s1, s2, M) T (pSingleton M')
 |tEraseCreatedSpec : forall tid M s1 s1' s2 T,
                        s1 = s1' ++ [specAct] ->  eraseThread (tid, s1, s2, M) T (Empty_set ptrm)
 .
@@ -123,6 +120,10 @@ Inductive erasePool : pool -> pPool -> Prop :=
 |eraseP : forall T, erasePool T (erasePoolAux T).
 
 Hint Constructors erasePool. 
+
+Axiom erasePoolEraseThread : forall T T' t, erasePool T T' -> tIn T t -> 
+                                              exists t', eraseThread t T t'. 
+
 
 (*Erasure is idempotent with respect to unspeculate*)
 Theorem eraseUnspecHeapIdem : 
@@ -198,11 +199,6 @@ Proof.
      eapply tEraseFork. reflexivity. apply decomposeEq in H11. subst. rewrite eraseTermIff in H14. 
      eassumption. eassumption. assumption. }
    }
-   {inversion H1; subst; try(solve[invertListNeq]); try(solve[
-    econstructor;[eassumption|econstructor; rewrite <- eraseTermIff; eassumption|assumption]]).
-    {econstructor. inversion H6. inversion H16. subst. econstructor. eassumption. reflexivity. 
-     eapply tEraseJoin. reflexivity. rewrite eraseTermIff in H15. eassumption. assumption. }
-   }
   }
   {inversion H. inversion H0; subst. inversion H5; subst; clear H5. apply IncludedSingleton. 
    inversion H1; subst.  
@@ -221,9 +217,6 @@ Proof.
    {inversion H2; subst. eapply eraseAux. econstructor. econstructor. eassumption. 
     eapply unSpecFork; auto. eassumption. reflexivity. econstructor. apply decomposeEq in H14. 
     subst. rewrite <- eraseTermIff in H13. assumption. }
-   {inversion H2; subst. eapply eraseAux. econstructor. econstructor. eassumption. 
-    eapply unspecJoin; auto. reflexivity. eapply tEraseJoin. reflexivity. 
-    rewrite <- eraseTermIff in H11. assumption. }
    {inversion H2. }
   }
 Qed.  

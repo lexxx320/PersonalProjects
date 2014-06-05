@@ -189,7 +189,6 @@ Inductive action : Type :=
   |cAct : id -> tid -> trm -> action
   |sAct : tid -> trm -> action
   |fAct : tid -> tid -> trm -> action  (*first tid is the thread id of the forked thread*)
-  |joinAct : action
   |specAct : action.
 
 Definition specStack := list action. 
@@ -203,3 +202,9 @@ Inductive ivar_state : Type :=
   |sfull : specStack -> list tid -> specStack -> tid -> trm -> ivar_state. 
 (*first spec is who created, second is who wrote*)
 
+Inductive basicAction : action -> trm -> tid -> Prop :=
+|basicRead : forall x tid M, basicAction (rAct x tid M) M tid
+|basicWrite : forall x tid M, basicAction (wAct x tid M) M tid
+|basicFork : forall x tid M, basicAction (fAct x tid M) M tid
+|basicNew : forall x tid M, basicAction(cAct x tid M) M tid
+.

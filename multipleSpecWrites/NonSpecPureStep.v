@@ -97,13 +97,17 @@ Proof.
   {inversion H4. apply listNeq in H10. inversion H10. }
 
   {inversion H8. subst. inversion H7. destruct s1'; inversion H11. }
-  {inversion H8. }
+  {apply decomposeEq in H6. inversion H8. subst. inversion H7. subst. destruct E; simpl in *; 
+   match goal with
+       |H:ret ?N = ?x |- _ => inversion H
+   end.
+  } 
   {eapply disjointUnionEqSingleton in H4. inversion H4; subst. inversion H13. inversion H17. 
    constructor. unfold not. intros. inversion H16. inversion H18. apply AddEqSingleton in H4.
    subst x. subst x0. subst t1. destruct tid0. destruct p. 
    assert(exists x, thread_lookup TRB (Tid (n, n0) l) x). econstructor. econstructor. 
    eassumption. reflexivity. contradiction. }
-  {inversion H8. }
+  {inversion H8. apply decomposeEq in H6. subst. inversion H7; subst. }
   {inversion H10; inversion H11; subst. inversion H17. }
 Qed. 
 

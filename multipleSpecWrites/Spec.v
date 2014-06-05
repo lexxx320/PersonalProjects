@@ -177,7 +177,7 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
 |SpecJoin : forall E h s2 s2' tid tid' N1 N2 maj min min' T t1 t2 t,
               decompose t = (specReturnCtxt E (threadId(Tid(maj,min) tid')), ret N1) ->
               t1 = (tid, nil, s2, fill E(specReturn (ret N1) (threadId (Tid (maj, min) tid')))) ->
-              t2 = (Tid (maj, min') tid', [joinAct], s2', ret N2) ->
+              t2 = (Tid (maj, min') tid', nil, s2', ret N2) ->
               step h T (tCouple t1 t2) (OK h T (tSingleton (tid, nil, s2, ret(pair_ N1 N2))))
 |SpecRB : forall t E' h h' tid tid' maj min  min'' T T' E M' s2 s1' a s2' t1 t2 TRB, 
             decompose t = (specReturnCtxt E' (threadId(Tid(maj,min'') tid')), raise E) ->
@@ -190,7 +190,7 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
 |SpecRaise : forall E' N h tid tid' maj min' min'' s2 s2' T E t1 t2 t,
                decompose t = (specReturnCtxt E' (threadId(Tid(maj,min'') tid')), ret N) ->
                t1 = (tid, nil, s2, t) -> 
-               t2 = (Tid (maj, min') tid', [joinAct], s2', raise E) ->
+               t2 = (Tid (maj, min') tid', nil, s2', raise E) ->
                step h T (tCouple t1 t2) (OK h T (tSingleton (tid, nil, s2, fill E' (raise E))))
 |PopRead : forall tid tid' t s1 s1' s2 M M' N T h x ds, 
              s1 = s1' ++ [rAct x tid' M'] -> heap_lookup x h = Some (sfull nil ds nil t N) ->
@@ -278,8 +278,6 @@ Inductive unspecThread : thread -> option thread -> Prop :=
                                (Some(Tid (maj, min') tid, nil, s2, fill c(fork M')))
 |unspecCreatedSpec : forall s1 s1' s2 M tid,
                        s1 = s1' ++ [specAct] -> unspecThread (tid, s1, s2, M) None
-|unspecJoin : forall s1 s1' s2 M tid,
-                s1 = s1' ++ [joinAct] -> unspecThread (tid, s1, s2, M) (Some(tid, s1, s2, M))
 .
 
 Hint Constructors unspecThread. 
@@ -367,7 +365,6 @@ Proof.
   {intros. inversion H0. unfold commitPool in H. inversion H1. apply H in H4. 
    subst. inversion H2; try(destruct s1'; inversion H12). 
    {subst. inversion H1. assumption. } 
-   {destruct s1'; inversion H4. }
    {destruct s1'; inversion H4. }
   }
 Qed. 
