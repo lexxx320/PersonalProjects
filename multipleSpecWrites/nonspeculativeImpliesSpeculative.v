@@ -266,9 +266,9 @@ Proof.
    eapply decomposeDecomposed; eauto. unfold tUnion. rewrite Union_commutative. rewrite union_empty. 
    constructor. }
   {cleanup. instantiateHeap. instantiateContext. assert(tid:tid). repeat constructor.  
-   inversion H1; subst. exists (tSingleton(tid,nil,nil, fill x (fork e))). 
-   exists (tCouple (bump tid,nil,[fAct (extendTid tid) tid (fill x (fork e))], 
-                    fill x (ret unit))(extendTid tid, nil,[specAct], e)). 
+   inversion H1; subst. exists (tSingleton(tid,nil,nil, fill x (fork e))). destruct tid. destruct p. 
+   exists (tCouple (Tid(n,S n0)l,nil,[fAct (Tid(1,1) ((n,n0)::l)) n0 (fill x (fork e))], 
+                    fill x (ret unit))(Tid(1,1)((n,n0)::l), nil,[specAct], e)). 
    instantiatePool. repeat(split; try assumption). eraseEq. constructor. eraseEq.
    apply termErasePoolCouple. eapply eraseFill. apply pdecomposeDecomposed. auto. auto. auto. auto. 
    rewrite <- ERASEHYP. constructor. econstructor. rewrite <- union_empty at 1. rewrite Union_commutative. 
@@ -281,41 +281,41 @@ Proof.
    exists x0. copy H3. eapply lookupSpeculatedHeapFull with(x:=x) in H5; eauto. invertHyp. 
    exists(replace x (sfull nil [Tid(0,0)nil] nil (Tid(0,0)nil) x1) x0). instantiateContext. 
    exists (tSingleton(Tid(0,0)nil,nil,nil,fill x2 (get (fvar x)))). 
-   exists (tSingleton(bump (Tid(0,0)nil),nil, [rAct x (Tid(0,0)nil) (fill x2 (get(fvar x)))], fill x2 (ret x1))). 
+   exists (tSingleton(bump (Tid(0,0)nil),nil, [rAct x 0 (fill x2 (get(fvar x)))], fill x2 (ret x1))). 
    instantiatePool. repeat(split; try assumption). apply eraseSpeculatedHeap. assumption. 
    apply eraseHeapDependentReader; auto. apply eraseSpeculatedHeap. assumption. 
    eraseEq. constructor. eraseEq. apply termErasePoolErase. eapply eraseFill; eauto.
    apply pdecomposeDecomposed. auto. rewrite <- ERASEHYP. constructor. econstructor. 
    rewrite <- union_empty at 1. rewrite Union_commutative. reflexivity. proveDisjoint. eapply Get. 
-   eapply decomposeDecomposed. eauto. eassumption. reflexivity. econstructor. reflexivity. proveDisjoint. 
-   eapply PopRead. instantiate (4:=nil). reflexivity. eapply HeapLookupReplace. eassumption. 
+   eapply decomposeDecomposed. eauto. eassumption. reflexivity. reflexivity. econstructor. reflexivity. 
+   proveDisjoint. eapply PopRead. instantiate (4:=nil). reflexivity. eapply HeapLookupReplace. eassumption. 
    unfold tUnion. rewrite Union_commutative. rewrite union_empty. constructor. }
   {cleanup. copy H1. assert(exists H, speculateHeap PH H). apply eHeap'. invertExists.  
    exists x0. instantiateContext. assert(tid:tid). repeat constructor. 
-   inversion H4; subst. exists (replace x (sfull nil nil nil tid e) x0). 
-   inversion H11; subst. exists (tSingleton(tid,nil,nil,fill x1 (put (fvar x) e))). 
-   exists (tSingleton(bump tid,nil,[wAct x tid (fill x1 (put (fvar x) e))], fill x1 (ret unit))). 
+   inversion H4; subst. exists (replace x (sfull nil nil nil tid e) x0). destruct tid. destruct p.
+   inversion H11; subst. exists (tSingleton(Tid(n,n0)l,nil,nil,fill x1 (put (fvar x) e))). 
+   exists (tSingleton(Tid(n,S n0) l,nil,[wAct x n0 (fill x1 (put (fvar x) e))], fill x1 (ret unit))). 
    instantiatePool. repeat (split; try assumption). apply eraseSpeculatedHeap. assumption. 
    apply eraseReplaceSpecHeap; auto. eraseEq. constructor. eraseEq. 
    apply termErasePoolErase. eapply eraseFill. apply pdecomposeDecomposed; auto. 
    assumption. auto. rewrite <- ERASEHYP. constructor. econstructor. rewrite <- union_empty at 1. 
    rewrite Union_commutative. reflexivity. proveDisjoint. eapply Put. eapply decomposeDecomposed. 
-   auto. eapply lookupSpeculatedHeapEmpty; eauto. reflexivity. econstructor. reflexivity. proveDisjoint. 
-   eapply PopWrite. instantiate(4:=nil). reflexivity. eapply HeapLookupReplace. 
+   auto. eapply lookupSpeculatedHeapEmpty; eauto. reflexivity. reflexivity. econstructor. 
+   reflexivity. proveDisjoint. eapply PopWrite. instantiate(4:=nil). reflexivity. eapply HeapLookupReplace. 
    eapply lookupSpeculatedHeapEmpty; eauto. reflexivity. unfold tUnion. rewrite Union_commutative. 
    rewrite union_empty. constructor. }
   {cleanup. assert(exists H, speculateHeap PH H). apply eHeap'. invertExists. exists x0.
    assert(exists i newHeap', (i,newHeap') = extend (sempty nil) x0). 
    destruct x0; simpl; eauto. destruct p. eauto. invertHyp. exists x2. 
    instantiateContext. exists(tSingleton(Tid(0,0)nil,nil,nil,fill x3 new)). 
-   exists (tSingleton(bump (Tid(0,0)nil),nil,[cAct x1 (Tid(0,0)nil) (fill x3 new)],fill x3 (ret (fvar x1)))). 
+   exists (tSingleton(bump (Tid(0,0)nil),nil,[cAct x1 0 (fill x3 new)],fill x3 (ret (fvar x1)))). 
    instantiatePool. repeat(split; try assumption). eapply eraseSpeculatedHeap. assumption.
    eapply eraseExtended; eauto.  
    eraseEq. constructor. eraseEq. apply termErasePoolErase. eapply eraseFill. apply pdecomposeDecomposed. 
    auto. assumption. constructor. assert(x=x1). eapply eraseExtended; eauto. subst. constructor. 
    rewrite <- ERASEHYP. constructor. econstructor. 
    rewrite <- union_empty at 1. rewrite Union_commutative. reflexivity. proveDisjoint. eapply New. 
-   apply decomposeDecomposed. auto. eassumption. econstructor. reflexivity. proveDisjoint. 
+   apply decomposeDecomposed. auto. eassumption. reflexivity. econstructor. reflexivity. proveDisjoint. 
    eapply PopNewEmpty. instantiate(4:=nil). reflexivity. eapply lookupExtend. eassumption. reflexivity. 
    unfold tUnion. rewrite Union_commutative. rewrite union_empty. constructor. }
   {cleanup. instantiateHeap. assert(exists M', eraseTerm M' tEmptySet M). apply eTerm. 

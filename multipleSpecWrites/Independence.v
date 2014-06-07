@@ -95,7 +95,8 @@ Proof.
   {inversion H4; eauto. }
   {inversion H4; eauto. }
   {inversion H4; eauto. }
-  {clear H12. subst. eapply addSpecAction in H0. inversion H0. eassumption. }
+  {clear H12. eapply heapUpdateNeq in H8. exfalso. apply H8. eauto. intros c. inversion c. 
+   invertListNeq. }
   {clear H12. subst. eapply addSpecAction in H0. inversion H0. eassumption. }
   {subst. eapply addCommitUnion in H1. inversion H1. eapply H2. }
   {subst. eapply addSpecAction in H0. inversion H0. eassumption. }
@@ -473,28 +474,28 @@ Proof.
   Qed. 
 
 
-Theorem ForkInd : forall h h' T T' tid s1 s2 E t t' M,
-                    decompose t = (E, fork M) ->
-                    t' = (bump tid, fAct (extendTid tid) tid t::s1, s2, fill E(ret unit)) ->
+Theorem ForkInd : forall h h' T T' tid tid' s1 s2 E t t' M i j l,
+                    decompose t = (E, fork M) -> tid = Tid(i, j) l -> tid' = Tid(1,1) ((i,j)::l) ->
+                    t' = (bump tid, fAct tid' j t::s1, s2, fill E(ret unit)) ->
                     step h T (tSingleton (tid, s1, s2, t)) (OK h T (tCouple t' (extendTid tid, [specAct], nil, M))) ->
-                    multistep h (tCouple t' (extendTid tid, [specAct], nil, M)) T (OK h'
-                              (tCouple t' (extendTid tid, [specAct], nil, M)) T') ->
+                    multistep h (tCouple t' (tid', [specAct], nil, M)) T (OK h'
+                              (tCouple t' (tid', [specAct], nil, M)) T') ->
                     multistep h (tSingleton(tid, s1, s2, t)) T (OK h' (tSingleton (tid, s1, s2, t)) T').
 Proof.
-  intros. remember (tCouple t' (extendTid tid, [specAct], [], M)). remember (OK h' e T'). induction H2; auto.
-  {inversion Heqc; subst. constructor. }
-  {inversion Heqc. apply IHmultistep in Heqe. inversion H4; subst; try(solve[eapply multi_step; eauto; eauto]).
-   {copy H. apply decomposeEq in H. inversion H1; eauto; try solve[subst; match goal with
+  intros. remember (tCouple t' (tid', [specAct], [], M)). remember (OK h' e T'). induction H4; auto.
+  {inversion Heqc; subst. constructor. } 
+  {inversion Heqc. apply IHmultistep in Heqe. inversion H6; subst; try(solve[eapply multi_step; eauto; eauto]).
+   {copy H. apply decomposeEq in H. inversion H3; eauto; try solve[subst; match goal with
                 |H:tSingleton ?x = tCouple ?y ?z |- _ =>
                  apply SingleEqCouple in H; inversion H as [Eq1 Eq2]; try solve[inversion Eq1];
                  try solve[inversion Eq2]
             end]. 
-    {eapply heapUpdateNeq in H15. exfalso. apply H15. eassumption. intros C. inversion C.  
+    {eapply heapUpdateNeq in H16. exfalso. apply H16. eassumption. intros C. inversion C.  
      invertListNeq. }
-    {eapply heapUpdateNeq in H15. exfalso. apply H15. eassumption. intros C. inversion C. }
-    {subst. apply AddEqCouple in H10. inversion H10. inversion H. inversion H. }
+    {eapply heapUpdateNeq in H16. exfalso. apply H16. eassumption. intros C. inversion C. }
+    {subst. apply AddEqCouple in H12. inversion H12. inversion H. inversion H. }
     
-    {subst. apply AddEqCouple in H10. inversion H10. inversion H. inversion H. }
+    {subst. apply AddEqCouple in H12. inversion H12. inversion H. inversion H. }
    }
    {subst. reflexivity. }
   }

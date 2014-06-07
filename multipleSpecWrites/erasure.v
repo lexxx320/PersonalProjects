@@ -1,4 +1,4 @@
-Require Import AST. 
+Require Import AST.  
 Require Import NonSpec. 
 Require Import Spec. 
 Require Import Coq.Sets.Ensembles. 
@@ -86,22 +86,25 @@ Hint Constructors eraseHeap.
 Inductive eraseThread : thread -> pool -> pPool -> Prop :=
 |tEraseCommit : forall T tid s2 M M', eraseTerm M T M' ->
                                      eraseThread (tid, nil, s2, M) T (pSingleton  M')
-|tEraseRead : forall T tid s1 s1' s2 x M M' M'' E maj min min',
-               s1 = s1' ++ [rAct x (Tid (maj,min) tid) M'] -> eraseTerm M' T M'' ->
+|tEraseRead : forall T tid min s1 s1' s2 x M M' M'' E,
+               s1 = s1' ++ [rAct x min M'] -> eraseTerm M' T M'' ->
                decompose M' = (E,get (fvar x)) -> 
-               eraseThread (Tid (maj, min') tid, s1, s2, M) T (pSingleton M'')
-|tEraseWrite : forall tid maj min min' M M' M'' x s1 s2 s1' T E N,
-                s1 = s1' ++ [wAct x (Tid (maj,min) tid) M'] -> eraseTerm M' T M'' ->
-                decompose M' = (E,put (fvar x) N) -> eraseThread (Tid (maj,min') tid, s1, s2, M) T (pSingleton M'')
-|tEraseNew : forall tid maj min min' M M' M'' x s1 s2 s1' T E,
-              s1 = s1' ++ [cAct x (Tid (maj,min) tid) M'] -> eraseTerm M' T M'' ->
-              decompose M' =(E, new) -> eraseThread (Tid(maj,min') tid, s1, s2, M) T (pSingleton M'')
-|tEraseSpec : forall tid maj min min' M M' s1 s2 s1' T,
-               s1 = s1' ++ [sAct (Tid (maj,min) tid) M'] -> 
-               eraseThread (Tid(maj,min') tid, s1, s2, M) T (Empty_set ptrm)
-|tEraseFork : forall tid tid' maj min min' M M' M'' s1 s2 s1' T E N,
-                s1 = s1' ++ [fAct tid' (Tid(maj,min)tid) M'] -> eraseTerm M' T M'' ->
-                decompose M' = (E,fork N) -> eraseThread (Tid(maj,min') tid, s1, s2, M) T (pSingleton M'')
+               eraseThread (tid, s1, s2, M) T (pSingleton M'')
+|tEraseWrite : forall tid min M M' M'' x s1 s2 s1' T E N,
+                s1 = s1' ++ [wAct x min M'] -> eraseTerm M' T M'' ->
+                decompose M' = (E,put (fvar x) N) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
+|tEraseNew : forall tid min M M' M'' x s1 s2 s1' T E,
+              s1 = s1' ++ [cAct x min M'] -> eraseTerm M' T M'' ->
+              decompose M' =(E, new) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
+|tEraseSpec : forall tid tid' M M' s1 s2 s1' T,
+               s1 = s1' ++ [sAct tid' M'] -> 
+               eraseThread (tid, s1, s2, M) T (Empty_set ptrm)
+|tEraseFork : forall tid tid' min M M' M'' s1 s2 s1' T E N,
+                s1 = s1' ++ [fAct tid' min M'] -> eraseTerm M' T M'' ->
+                decompose M' = (E,fork N) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
+|tEraseSpecRet : forall tid tid' min M M' M'' s1 s2 s1' T E N N',
+                s1 = s1' ++ [specRetAct tid' min M'] -> eraseTerm M' T M'' ->
+                decompose M' = (E,spec N N') -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseCreatedSpec : forall tid M s1 s1' s2 T,
                        s1 = s1' ++ [specAct] ->  eraseThread (tid, s1, s2, M) T (Empty_set ptrm)
 .
@@ -199,28 +202,36 @@ Proof.
      eapply tEraseFork. reflexivity. apply decomposeEq in H11. subst. rewrite eraseTermIff in H14. 
      eassumption. eassumption. assumption. }
    }
+   {inversion H1; subst; try(invertListNeq); try(
+    econstructor;[eassumption|econstructor; rewrite <- eraseTermIff; eassumption|assumption]).
+    {econstructor. inversion H6. inversion H16. subst. econstructor. eassumption. reflexivity. 
+     eapply tEraseSpecRet. reflexivity. apply decomposeEq in H11. subst. rewrite eraseTermIff in H14. 
+     eassumption. eassumption. assumption. }
+   }
   }
   {inversion H. inversion H0; subst. inversion H5; subst; clear H5. apply IncludedSingleton. 
-   inversion H1; subst.  
+   inversion H1; subst.   
    {inversion H2; subst. eapply eraseAux. inversion H0; subst. econstructor. econstructor. 
     eassumption. econstructor. reflexivity. rewrite <- eraseTermIff in H10. econstructor. assumption. }
    {inversion H2; subst. eapply eraseAux. econstructor. econstructor. eassumption. 
-    econstructor. eassumption. reflexivity. reflexivity. constructor. apply decomposeEq in H14. 
-    subst. rewrite <- eraseTermIff in H13. eassumption. }
+    econstructor. eassumption. reflexivity. reflexivity. constructor. apply decomposeEq in H12. 
+    subst. rewrite <- eraseTermIff in H11. eassumption. }
    {inversion H2; subst. eapply eraseAux. econstructor. econstructor. eassumption. 
-    eapply unspecWrite. eassumption. reflexivity. reflexivity. econstructor. apply decomposeEq in H14. 
-    subst. rewrite <- eraseTermIff in H13. assumption. }
+    eapply unspecWrite. eassumption. reflexivity. reflexivity. econstructor. apply decomposeEq in H12. 
+    subst. rewrite <- eraseTermIff in H11. assumption. }
    {inversion H2; subst. eapply eraseAux. econstructor. econstructor. eassumption. 
-    eapply unspecCreate; auto. eassumption. reflexivity. econstructor. apply decomposeEq in H14. 
-    subst. rewrite <- eraseTermIff in H13. assumption. }
+    eapply unspecCreate; auto. eassumption. reflexivity. econstructor. apply decomposeEq in H12. 
+    subst. rewrite <- eraseTermIff in H11. assumption. }
    {inversion H2; subst. }
    {inversion H2; subst. eapply eraseAux. econstructor. econstructor. eassumption. 
-    eapply unSpecFork; auto. eassumption. reflexivity. econstructor. apply decomposeEq in H14. 
-    subst. rewrite <- eraseTermIff in H13. assumption. }
+    eapply unSpecFork; auto. eassumption. reflexivity. econstructor. apply decomposeEq in H12. 
+    subst. rewrite <- eraseTermIff in H11. assumption. }
+   {inversion H2; subst. eapply eraseAux. econstructor. econstructor. eassumption. 
+    eapply unSpecSpecret; auto. eassumption. reflexivity. econstructor. apply decomposeEq in H12. 
+    subst. rewrite <- eraseTermIff in H11. assumption. }
    {inversion H2. }
   }
 Qed.  
-
 
 Theorem eraseUnspecPoolIdem :
   forall T T' T'', unspecPool T T' -> erasePool T' T'' ->
@@ -274,8 +285,13 @@ Proof.
                |H:[] = ?x ++ [?y] |- _ => destruct x; inversion H
                |H:?s1++[?x]=?s2++[?y]|-_ => apply lastElementEq in H; inversion H
              end);
-  try(subst; eapply termErasureDeterminism in H12;[rewrite <-H12; reflexivity| auto]);
-  reflexivity. Qed. 
+  try(subst; eapply termErasureDeterminism in H12;[rewrite <-H12; reflexivity| auto]); eauto.
+  {inversion H9; subst. eapply termErasureDeterminism in H10. rewrite <- H10. reflexivity. auto. }
+  {inversion H9; subst. eapply termErasureDeterminism in H10. rewrite <- H10. reflexivity. auto. }
+  {inversion H9; subst. eapply termErasureDeterminism in H10. rewrite <- H10. reflexivity. auto. }
+  {inversion H9; subst. eapply termErasureDeterminism in H10. rewrite <- H10. reflexivity. auto. }
+  {inversion H9; subst. eapply termErasureDeterminism in H10. rewrite <- H10. reflexivity. auto. }
+Qed. 
   
 Theorem eraseHeapDeterminism : forall h h1 h2, 
                                  eraseHeap h h1 -> eraseHeap h h2 ->
