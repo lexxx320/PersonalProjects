@@ -6,6 +6,7 @@ coqc SpecLib.v
 coqc Heap.v
 coqc NonSpec.v
 coqc Spec.v
+coqc erasure.v
 coqc Independence.v
 coqc nonspeculativeImpliesSpeculative.v
 coqc NonSpecPureStep.v
