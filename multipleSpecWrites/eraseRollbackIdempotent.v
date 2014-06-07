@@ -1,4 +1,4 @@
-Require Import NonSpec. 
+Require Import NonSpec.     
 Require Import Spec.
 Require Import Coq.Sets.Ensembles. 
 Require Import erasure. 
@@ -17,31 +17,15 @@ Proof.
    {inversion H. exists l'. assumption. }
   }
 Qed. 
- 
+
 Inductive actionIDs : thread -> Prop :=
 |nilAct : forall tid s2 M, actionIDs (tid, nil, s2, M)
-|consRead : forall maj min min' E tid s1 s2 M N x,
-              decompose N = (E, get (fvar x)) ->
-              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, rAct x (Tid(maj,min') tid) N::s1, s2, M)
-|consWrite : forall maj min min' E tid s1 s2 M N x N',
-               decompose N = (E, put (fvar x) N') ->
-               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-               actionIDs(Tid(maj,min)tid, wAct x (Tid(maj,min') tid) N::s1, s2, M)
-|consNew : forall maj min min' E tid s1 s2 M N x,
-             decompose N = (E, new) ->
-             actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-             actionIDs(Tid(maj,min)tid, cAct x (Tid(maj,min') tid) N::s1, s2, M)
 |consSpec : forall maj min min' tid s1 s2 M N,
               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
               actionIDs(Tid(maj,min)tid, sAct (Tid(maj,min') tid) N::s1, s2, M)
-|consFork : forall maj min min' tid s1 s2 M N N' E x,
-              decompose N = (E, fork N') -> 
-              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, fAct x (Tid(maj,min') tid) N::s1, s2, M)
-|consCSpec : forall maj min tid s1 s2 M,
-              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, specAct::s1, s2, M)
+|consOtherwise : forall tid M s1 s2 a,
+                   (forall tid' N, a <> sAct tid' N) -> actionIDs(tid, s1, s2, M) ->
+                   actionIDs(tid, a::s1, s2, M)
 .
 
 Axiom ConsistentIDs : forall T, actionIDs T. 
@@ -55,18 +39,23 @@ Proof.
   {simpl in *. inversion H; subst; auto. }
 Qed. 
 
+
 Ltac eraseThreadTac :=
   match goal with
       | |- eraseThread (?tid, [rAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseRead
       | |- eraseThread (?tid, [wAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseWrite
       | |- eraseThread (?tid, [cAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseNew
       | |- eraseThread (?tid, [fAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseFork
+      | |- eraseThread (?tid, ?z++[rAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseRead
+      | |- eraseThread (?tid, ?z++[wAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseWrite
+      | |- eraseThread (?tid, ?z++[cAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseNew
+      | |- eraseThread (?tid, ?z++[fAct ?x ?tid' ?M], ?s2, ?N) ?T ?m => eapply tEraseFork
   end. 
 
-Theorem eraseLastAct : forall tid tid' A s2 M M' T t,
-                         basicAction A M' tid' ->
-                         (eraseThread (tid, [A], s2, M) T t <->
-                         eraseThread (tid', nil, s2, M') T t). 
+Theorem eraseLastAct : forall A s2 M M' T t i j j' l,
+                         basicAction A M' j' ->
+                         (eraseThread (Tid(i, j) l, [A], s2, M) T t <->
+                         eraseThread (Tid(i, j') l, nil, s2, M') T t). 
 Proof.
   intros. split; intros. 
   {inversion H0; subst; try solve[
@@ -74,21 +63,14 @@ Proof.
               |H:[?A] = ?s++[?x], H':basicAction ?A ?M ?tid'|- _ => 
                destruct s; inversion H; subst; inversion H'; subst; constructor; auto;
                invertListNeq
-            end]. 
+            end].  
    {destruct s1'; inversion H7. subst. inversion H. destruct s1'; inversion H3. }
    {destruct s1'; inversion H7. subst. inversion H. destruct s1'; inversion H3. }
   }
-  {destruct tid. destruct p. destruct tid'. destruct p. inversion H0; subst; try invertListNeq;
-                                                        try solve[
-   inversion H; subst; try solve[ 
-    match goal with
-         | |- eraseThread ?t ?T ?M => assert(C:actionIDs t) by apply ConsistentIDs;
-                                     inversion C; subst
-     end; eraseThreadTac; eauto; rewrite app_nil_l; reflexivity]]; try invertListNeq. 
+  {Hint Resolve app_nil_l. inversion H0; subst; try invertListNeq.
+   inversion H; eauto.  
   }
 Qed. 
-
-
 
 Hint Resolve app_comm_cons. 
 
@@ -102,26 +84,10 @@ Proof.
         end; match goal with
                |H:?A::?As=?x++[?a] |- eraseThread(?t,?A::?As,?s2,?m) ?T ?M =>
                 rewrite H; destruct t; destruct p
-             end; match goal with
-                    | |- eraseThread(?t,?s1,?s2,?M) ?T ?M' => assert(C:actionIDs(t, s1, s2, M)) 
-                                                             by apply ConsistentIDs;
-                                                             apply lastActionConsistent in C; 
-                                                             inversion C; subst
-                  end; eauto.
+             end; eauto. 
   }
-  {inversion H; subst; destruct tid'; destruct p;
-   match goal with
-        |H:?A::?As=?s++[?a], H':eraseThread ?t ?T ?M |- eraseThread ?t' ?T ?M'  =>
-         rewrite H; assert(C:actionIDs t') by apply ConsistentIDs; rewrite H in C;
-         rewrite app_comm_cons in C; apply lastActionConsistent in C; inversion C; subst                     
-   end; eauto. 
-  }
+  {inversion H; subst; rewrite H6; eauto. }
 Qed. 
-
-Axiom uniqueThreadPool2 : forall T1 T2 tid t', 
-                            thread_lookup (Union thread T1 T2) tid t' ->
-                            thread_lookup T1 tid t' ->
-                            thread_lookup T2 tid t' -> False. 
 
 Ltac copy H := 
   match type of H with
@@ -181,15 +147,18 @@ Theorem eraseTermDiffPool :  forall tid tid' T t'' P M M' s1 s2 a b N N',
 Proof.
   intros. split; intros. 
   {remember(tAdd T (tid', a ::b::s1, s2, N')). generalize dependent T. 
-   induction H1; eauto; intros. 
+   induction H1; eauto; intros.  
    {subst. inversion H2; subst. inversion H8; subst; clear H8. inversion H7; subst. 
     {econstructor. eapply IHeraseTerm1; eauto. reflexivity. eapply IHeraseTerm2; eauto. 
      econstructor. econstructor. eassumption. reflexivity. }
-    {inversion H1; subst. clear H1. apply listAlign in H5. invertExists.
-     assert(actionIDs(tid, x++[sAct(Tid(maj,min'')tid0)M'], s4, N)). apply ConsistentIDs. 
-     apply lastActionConsistent in H3. inversion H3; subst. econstructor. 
-     eapply IHeraseTerm1. reflexivity. reflexivity. eapply IHeraseTerm2. reflexivity. 
-     econstructor. apply Union_intror. rewrite H1. econstructor. reflexivity. }
+    {inversion H1; subst. clear H1. apply listAlign in H5. invertExists. 
+     assert(actionIDs(tid, x ++ [sAct (Tid (maj, min'') tid0) M'], s4, N)). apply ConsistentIDs. 
+     apply lastActionConsistent in H3. inversion H3; subst. 
+     {econstructor. eapply IHeraseTerm1; eauto. reflexivity. eapply IHeraseTerm2; eauto. 
+      econstructor. apply Union_intror. rewrite H1. econstructor. auto. }
+     {assert(sAct (Tid (maj, min'') tid0) M'=sAct (Tid (maj, min'') tid0) M') by auto. 
+      apply H6 in H4. inversion H4. }
+    }
    }
   }
   {remember(tAdd T (tid, b :: s1, s2, N)). generalize dependent T. induction H1; auto. 
@@ -201,7 +170,8 @@ Proof.
      rewrite app_comm_cons in H1. apply lastActionConsistent in H1. inversion H1; subst. 
      econstructor. eapply IHeraseTerm1; eauto. reflexivity. eapply IHeraseTerm2; eauto. 
      econstructor. apply Union_intror. rewrite H5. rewrite app_comm_cons. econstructor. 
-     reflexivity. }
+     reflexivity. assert(sAct (Tid (maj, min'') tid0) M'=sAct (Tid (maj, min'') tid0) M') by auto. 
+     apply H6 in H3. inversion H3. }
    }
   }
 Qed. 
@@ -219,6 +189,7 @@ Proof.
    {subst. eapply tEraseNew. reflexivity. eapply eraseTermDiffPool; eauto. eauto. }
    {subst. eapply tEraseSpec. reflexivity. }
    {subst. eapply tEraseFork. reflexivity. eapply eraseTermDiffPool; eauto. eauto. }
+   {subst. eapply tEraseSpecRet. reflexivity. eapply eraseTermDiffPool; eauto. eauto. }
    {subst. eapply tEraseCreatedSpec. reflexivity. }
   }
   {inversion H1; subst; eauto. 
@@ -227,6 +198,7 @@ Proof.
    {eapply tEraseWrite; eauto. eapply eraseTermDiffPool; eauto. }
    {eapply tEraseNew; eauto. eapply eraseTermDiffPool; eauto. }
    {eapply tEraseFork; eauto. eapply eraseTermDiffPool; eauto. }
+   {eapply tEraseSpecRet; eauto. eapply eraseTermDiffPool; eauto. }
   }
 Qed. 
 
@@ -275,6 +247,7 @@ Proof.
   {eapply tEraseNew. reflexivity. eapply eraseTermStrengthenNil. eauto. eauto. }
   {eapply tEraseSpec. reflexivity. }
   {eapply tEraseFork. reflexivity. eapply eraseTermStrengthenNil. eauto. eauto. }
+  {eapply tEraseSpecRet. reflexivity. eapply eraseTermStrengthenNil. eauto. eauto. }
   {eapply tEraseCreatedSpec. reflexivity. }
 Qed. 
 
@@ -287,7 +260,7 @@ Proof.
        |H:eraseTerm ?M ?T ?M' |- _ => eapply eraseTermStrengthen in H; eauto
    end]. 
   {econstructor. reflexivity. }
-  {econstructor. reflexivity. }
+  {eapply tEraseCreatedSpec. reflexivity. }
 Qed. 
 
 Theorem eraseThreadWeakening : forall t t' T T', 
@@ -301,6 +274,7 @@ Proof.
   {eapply tEraseNew; eauto. apply eraseTermWeakening; eauto. }
   {eapply tEraseSpec; eauto. }
   {eapply tEraseFork; eauto. apply eraseTermWeakening; eauto. }
+  {eapply tEraseSpecRet; eauto. apply eraseTermWeakening; eauto. }
   {eapply tEraseCreatedSpec; eauto. }
 Qed. 
 
@@ -309,37 +283,31 @@ Theorem eraseExists : forall T t T',
 Proof.
   intros. eapply erasePoolEraseThread. eassumption. apply Union_intror. constructor. Qed. 
 
-Theorem eraseBasicAction2 : forall a b s1' s2 M M' tid tid' T,
-                              basicAction a M' tid' ->
-                              erasePoolAux(tAdd T (tid, a::b::s1', s2, M)) = 
-                              erasePoolAux(tAdd T (tid', b::s1', s2, M')). 
+Theorem eraseBasicAction2 : forall a b s1' s2 M M' T i j l j',
+                              basicAction a M' j' ->
+                              erasePoolAux(tAdd T (Tid(i,j) l, a::b::s1', s2, M)) = 
+                              erasePoolAux(tAdd T (Tid(i,j') l, b::s1', s2, M')). 
 Proof.
   intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
   {inversion H0; subst. inversion H1; subst. inversion H5; subst; clear H5. inversion H4; subst. 
    {econstructor. econstructor. econstructor. eassumption. reflexivity. 
-    assert(exists y, erasePool (tAdd T (tid, a::b::s1', s2, M)) y). eauto. invertExists. 
+    assert(exists y, erasePool (tAdd T (Tid (i, j) l, a :: b :: s1', s2, M)) y). eauto. invertExists. 
     apply eraseExists in H7. invertExists. eapply eraseThreadDiffPool. Focus 3. 
     eassumption. eassumption. eapply eraseTwoActs. eassumption. assumption. }
-   {destruct tid'. destruct p. econstructor. econstructor. apply Union_intror. econstructor. 
-    reflexivity. Focus 2. eassumption. inversion H5; subst; clear H5. inversion H; subst;
-     try solve[match goal with
-       |H:eraseThread ?t ?T ?M |- eraseThread(?tid, ?s1,?s2,?Masd') ?T' ?N => 
-        assert(C:actionIDs t) by apply ConsistentIDs; inversion C; subst
-     end; copy H2; apply eraseTwoActs with(tid0:= Tid(n,n0) l) (M:=M')in H2; 
-                       eapply eraseThreadDiffPool; eauto]. 
+   {econstructor. econstructor. apply Union_intror. econstructor. 
+    reflexivity. Focus 2. eassumption. inversion H5; subst; clear H5. inversion H; subst; 
+    copy H2; apply eraseTwoActs with(tid0:= Tid(maj,j') tid) (M:=M')in H2; 
+    eapply eraseThreadDiffPool; eauto. 
    }
   }
   {inversion H0; subst. inversion H1; subst. inversion H5; subst; clear H5. inversion H4; subst. 
    {econstructor. econstructor. econstructor. eassumption. reflexivity. 
-    assert(exists y, erasePool(tAdd T (tid', b :: s1', s2, M')) y); eauto. invertExists. 
+    assert(exists y, erasePool(tAdd T (Tid(i,j')l, b :: s1', s2, M')) y); eauto. invertExists. 
     apply eraseExists in H7. invertExists. eapply eraseThreadDiffPool. eapply eraseTwoActs. 
     eassumption. eassumption. eassumption. assumption. }
-   {destruct tid. destruct p. econstructor. econstructor. apply Union_intror. econstructor. 
+   {econstructor. econstructor. apply Union_intror. econstructor. 
     reflexivity. inversion H5; subst; clear H5. inversion H; subst; try solve[ 
-     match goal with
-         |H:eraseThread ?t ?T ?M |- eraseThread (?tid,?s1,?s2,?N) ?T' ?M' =>
-          assert(C:actionIDs (tid,s1,s2,N)) by apply ConsistentIDs; inversion C; subst
-     end; eapply eraseTwoActs; eapply eraseThreadDiffPool; [eapply eraseTwoActs; eauto|eauto|eauto]]. 
+         eapply eraseTwoActs; eapply eraseThreadDiffPool; [eapply eraseTwoActs; eauto|eauto|eauto]]. 
     assumption. }
   }
 Qed. 
@@ -360,40 +328,38 @@ Proof.
    eassumption. eassumption. }
 Qed. 
   
-Theorem eraseBasicAction1 : forall a M M' s2 tid tid' T,
-                               basicAction a M' tid' ->
-                               erasePoolAux(tAdd T (tid, [a], s2, M)) = 
-                               erasePoolAux(tAdd T (tid', nil, s2, M')). 
+Theorem eraseBasicAction1 : forall a M M' s2 i j j' l T,
+                               basicAction a M' j' ->
+                               erasePoolAux(tAdd T (Tid(i,j)l, [a], s2, M)) = 
+                               erasePoolAux(tAdd T (Tid(i,j')l, nil, s2, M')). 
 Proof.
   intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
   {inversion H0; subst. inversion H1; subst. inversion H5; subst; clear H5. inversion H4; subst. 
    {econstructor. econstructor. econstructor. eassumption. reflexivity. 
     rewrite appNil in H2. eapply eraseThreadStrengthen in H2. apply eraseThreadWeakening. 
-    eassumption. intros. intros c. inversion H; subst; inversion H6. assumption. }
-   {destruct tid'. destruct p. econstructor. econstructor. eapply Union_intror. econstructor. 
-    reflexivity. inversion H5; subst; clear H5. inversion H; subst; try solve[
+    eassumption. intros. intros c. inversion H; subst; inversion H7. assumption. }
+   {econstructor. econstructor. eapply Union_intror. econstructor. 
+    reflexivity. inversion H5; subst; clear H5. inversion H; subst;
+    try solve[
     match goal with
-         |H:eraseThread ?t ?T ?t' |- _ => assert(C:actionIDs t) by apply ConsistentIDs;
-                                         inversion C; subst; eapply eraseLastAct; eauto;
-                                         rewrite appNil in H; eapply eraseThreadStrengthen in H;
-                                         [idtac|intros;intros c; inversion c]; eapply eraseThreadWeakening;
-                                         eauto
-                                         
-                                         
-     end]. 
-    auto. }
+         |H:eraseThread ?t ?T ?t' |- _ => 
+           erewrite <- eraseLastAct; [idtac|eauto]; rewrite appNil in H;  eapply eraseThreadStrengthen in H;
+           [eapply eraseThreadWeakening;eassumption|intros;intros c; inversion c];
+           eapply eraseThreadWeakening 
+     end]. auto.  
+   }
   }
   {inversion H0; subst. inversion H1; subst. inversion H5; subst; clear H5. inversion H4; subst. 
    {econstructor. econstructor. econstructor. eassumption. reflexivity. 
     apply eraseThreadStrengthenNil in H2. eapply eraseThreadWeakening. eassumption. assumption. }
-   {destruct tid. destruct p. econstructor. econstructor. apply Union_intror. econstructor. 
-    reflexivity. inversion H5; subst; clear H5. inversion H; subst; try solve[
+   {econstructor. econstructor. apply Union_intror. econstructor. 
+    reflexivity. inversion H5; subst; clear H5. inversion H; subst;
     match goal with
          |H:eraseThread ?t ?T ?m |- eraseThread ?t' ?T' ?m' =>
-          assert(C:actionIDs t') by apply ConsistentIDs; inversion C; subst;
-          eapply eraseLastAct; [econstructor|idtac]; apply eraseThreadStrengthenNil in H;
+          erewrite eraseLastAct;[idtac|eauto]; eapply eraseThreadStrengthenNil in H;
           apply eraseThreadWeakening; eauto
-     end]. assumption. }
+    end. auto. 
+   }
   }
 Qed. 
   
@@ -405,36 +371,36 @@ Proof.
   intros. generalize dependent H''. generalize dependent T''.
   induction H0; intros; subst. {split; auto. }
   {destruct s1'. 
-   {eapply IHrollback. inversion H5; subst. 
-    erewrite eraseBasicAction1. econstructor. econstructor. eapply eraseHeapRBRead; eauto. }
-   {eapply IHrollback. inversion H5; subst. erewrite eraseBasicAction2. econstructor. 
-    constructor. eapply eraseHeapRBRead; eauto. }
+   {eapply IHrollback. inversion H6; subst. 
+    erewrite eraseBasicAction1. econstructor. econstructor. eassumption. eapply eraseHeapRBRead; eauto. }
+   {eapply IHrollback. inversion H6; subst. erewrite eraseBasicAction2. econstructor. 
+    econstructor. eassumption. eapply eraseHeapRBRead; eauto. }
   }
   {destruct s1'. 
-   {eapply IHrollback. inversion H5; subst. rewrite appNil with (x:=specAct). rewrite erasePoolCSpec. 
-    erewrite eraseBasicAction1. econstructor. constructor. assumption. }
-   {eapply IHrollback. inversion H5; subst. rewrite appNil. rewrite erasePoolCSpec. 
-    erewrite eraseBasicAction2; eauto. constructor. assumption. }
+   {eapply IHrollback. inversion H6; subst. rewrite appNil with (x:=specAct). rewrite erasePoolCSpec. 
+    erewrite eraseBasicAction1; eauto. econstructor. eauto. assumption. }
+   {eapply IHrollback. inversion H6; subst. rewrite appNil. rewrite erasePoolCSpec. 
+    erewrite eraseBasicAction2; eauto. econstructor. eassumption. assumption. }
   }
   {destruct s1'. 
-   {eapply IHrollback. inversion H5; subst. erewrite eraseBasicAction1. 
-    econstructor. constructor. eapply eraseHeapRBWrite; eauto. }
-   {eapply IHrollback. inversion H5; subst. erewrite eraseBasicAction2; eauto. 
-    constructor. eapply eraseHeapRBWrite; eauto. }
+   {eapply IHrollback. inversion H6; subst. erewrite eraseBasicAction1. 
+    econstructor. econstructor. eassumption. eapply eraseHeapRBWrite; eauto. }
+   {eapply IHrollback. inversion H6; subst. erewrite eraseBasicAction2; eauto. 
+    econstructor. eassumption. eapply eraseHeapRBWrite; eauto. }
   }
   {destruct s1'. 
-   {eapply IHrollback. inversion H5; subst. erewrite eraseBasicAction1. 
-    econstructor. constructor. eapply eraseHeapRBNew; eauto. }
-   {eapply IHrollback. inversion H5; subst. erewrite eraseBasicAction2; eauto. 
-    constructor. eapply eraseHeapRBNew; eauto. }
+   {eapply IHrollback. inversion H6; subst. erewrite eraseBasicAction1. 
+    econstructor. econstructor. eassumption. eapply eraseHeapRBNew; eauto. }
+   {eapply IHrollback. inversion H6; subst. erewrite eraseBasicAction2; eauto. 
+    econstructor. eassumption. eapply eraseHeapRBNew; eauto. }
   }
   {destruct s1'. 
-   {eapply IHrollback. inversion H5; subst. 
+   {eapply IHrollback. inversion H6; subst. 
     replace [sAct tid2 N'; specAct] with ([sAct tid2 N']++[specAct]). rewrite erasePoolCSpec. 
-    erewrite eraseBasicAction1. econstructor. constructor. auto. assumption. }
-   {eapply IHrollback. inversion H5; subst. 
+    erewrite eraseBasicAction1. econstructor. econstructor. eassumption. auto. assumption. }
+   {eapply IHrollback. inversion H6; subst. 
     replace [sAct tid2 N';specAct] with ([sAct tid2 N']++[specAct]). rewrite erasePoolCSpec. 
-    erewrite eraseBasicAction2. econstructor. constructor. auto. assumption. }
+    erewrite eraseBasicAction2. econstructor. econstructor. eauto. auto. assumption. }
   }
 Qed. 
 

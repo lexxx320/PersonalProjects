@@ -90,13 +90,12 @@ Proof.
    end. }
   {inversion H4. inversion H6. subst. inversion H10. }
   {eapply Heap.heapUpdateNeq in H10. exfalso. apply H10. eassumption. intros c. inversion c. 
-   apply listNeq in H21. assumption. }
+   invertListNeq. }
   { eapply Heap.heapUpdateNeq in H10. exfalso. apply H10. eassumption. intros c. inversion c. }
   {apply AddEqSingleton in H4. apply AddEqSingleton in H6. inversion H4. inversion H6.
-   rewrite <- H17 in H21. symmetry in H21. apply listNeq in H21. inversion H21. }
-  {inversion H4. apply listNeq in H10. inversion H10. }
-
-  {inversion H8. subst. inversion H7. destruct s1'; inversion H11. }
+   rewrite <- H18 in H22. symmetry in H22. invertListNeq. }
+  {inversion H7. invertListNeq. }
+  {inversion H7. subst. inversion H8. invertListNeq. }
   {apply decomposeEq in H6. inversion H8. subst. inversion H7. subst. destruct E; simpl in *; 
    match goal with
        |H:ret ?N = ?x |- _ => inversion H

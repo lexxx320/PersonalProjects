@@ -10,6 +10,6 @@ coqc erasure.v
 coqc Independence.v
 coqc nonspeculativeImpliesSpeculative.v
 coqc NonSpecPureStep.v
-
+coqc eraseRollbackIdempotent.v 
 
 
