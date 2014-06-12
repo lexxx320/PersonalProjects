@@ -95,6 +95,9 @@ Proof.
   {inversion H4; eauto. }
   {inversion H4; eauto. }
   {inversion H4; eauto. }
+  {inversion H4; eauto. }
+  {inversion H4; eauto. }
+  {inversion H4; eauto. }
   {clear H12. eapply heapUpdateNeq in H8. exfalso. apply H8. eauto. intros c. inversion c. 
    invertListNeq. }
   {clear H12. subst. eapply addSpecAction in H0. inversion H0. eassumption. }
@@ -475,7 +478,7 @@ Proof.
 
 
 Theorem ForkInd : forall h h' T T' tid tid' s1 s2 E t t' M i j l,
-                    decompose t = (E, fork M) -> tid = Tid(i, j) l -> tid' = Tid(1,1) ((i,j)::l) ->
+                    decompose t E (fork M) -> tid = Tid(i, j) l -> tid' = Tid(1,1) ((i,j)::l) ->
                     t' = (bump tid, fAct tid' j t::s1, s2, fill E(ret unit)) ->
                     step h T (tSingleton (tid, s1, s2, t)) (OK h T (tCouple t' (extendTid tid, [specAct], nil, M))) ->
                     multistep h (tCouple t' (tid', [specAct], nil, M)) T (OK h'

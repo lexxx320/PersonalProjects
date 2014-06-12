@@ -50,12 +50,46 @@ Proof.
   intros. induction l. 
   {inversion H. }{inversion H. apply IHl in H2. assumption. }Qed. 
 
-Theorem pdecomposeDecomposed : forall E e, pdecompose e = (pholeCtxt, e) -> pdecompose (pfill E e) = (E, e).
+Theorem openErase : forall e1 e1' e2 e2' n T, eraseTerm e1 T e1' -> eraseTerm e2 T e2' ->
+                                              eraseTerm (open n e1 e2) T (popen n e1' e2').
+Admitted. 
+
+Theorem eraseVal : forall e T e', eraseTerm e T e' -> pval e' = true -> val e = true.
 Proof.
-  induction E; eauto. 
-  {intros. apply IHE in H. simpl. destruct (pdecompose(pfill E e)). inversion H; auto. }
-  {intros. apply IHE in H. simpl. destruct (pdecompose(pfill E e)). inversion H; auto. }
+  intros. induction H; auto. 
+  {simpl. simpl in H0. apply andb_true_iff in H0. inversion H0. apply IHeraseTerm1 in H2. 
+   rewrite H2. auto. }
 Qed. 
+
+Theorem pdecomposeVal : forall e, pval e = true -> pdecompose e = (pholeCtxt, e).
+Proof.
+  induction e; intros; auto; try solve[simpl in H; inversion H].
+  {simpl in *. apply andb_true_iff in H. inversion H; subst. rewrite H0. rewrite H1. auto. }
+Qed. 
+ 
+Theorem pdecomposedWF : forall E e, pctxtWF e E -> pdecompose (pfill E e) = (E, e).
+Proof.
+  induction E; intros; try solve[ 
+  inversion H; subst; simpl; apply IHE in H2; rewrite H2; auto]; try solve[ 
+  inversion H; subst; apply IHE in H3; simpl; rewrite H4; rewrite H3; auto]. 
+  {inversion H; subst. apply IHE in H2. simpl. rewrite H4. rewrite H5. rewrite H2. auto. }
+  {inversion H; subst. simpl. apply pdecomposeVal in H0. auto. }
+Qed. 
+
+Theorem eraseWF : forall E e E' e' T, eraseContext E T E' -> eraseTerm e T e' ->
+                                      pctxtWF e' E' -> ctxtWF e E. 
+Proof.
+  intros. generalize dependent e. generalize dependent e'. induction H; intros;try solve[
+  match goal with
+      |H:pctxtWF ?e ?E |- _ => inversion H; constructor; subst; eapply IHeraseContext; eauto
+  end]. 
+  {inversion H1; subst. constructor. eapply IHeraseContext; eauto. rewrite <- H7.  
+   eapply eraseVal. eapply eraseFill; eauto. apply pdecomposedWF. assumption. }
+  {inversion H1; subst. constructor. eapply IHeraseContext. eassumption. assumption. 
+   rewrite <- H7. eapply eraseVal.  eassumption. }
+ 
+
+
 
 Theorem NonSpecPureStep : forall h sh pt pt' tid tid' s1 s2 M M' T T',
                             step h T (tSingleton (tid,s1,s2,M)) (OK h T (tSingleton(tid',s1,s2,M'))) ->
@@ -69,7 +103,18 @@ Proof.
      match goal with
          |H:?y = ?x::?y |- _ => apply listNeq in H; inversion H
          |H:?x::?y = ?y |- _ => symmetry in H; apply listNeq in H; inversion H
-     end]. 
+     end].
+  {(*copy H1. apply decomposeErase in H1. invertHyp.  apply decomposeEq in H8. subst. 
+   eapply decomposeErase in H0. invertHyp. inversion H6; subst.
+   apply openErase with(e1:=N)(e1':=x2)(e2:= e)(e2':=N')(n:=0) in H0. 
+   apply termErasureDeterminism with(M2:=popen 0 x2 N')in H1. subst. constructor. simpl. 
+   apply eraseVal in H10. simpl in H10. rewrite <- H10. destruct (pdecompose (pfill E' x2)) eqn:eq. *) admit. }
+  {copy H1. apply decomposeErase in H1. invertHyp. copy H6. apply decomposeEq in H6. subst. 
+   apply decomposeErase in H0. invertHyp. inversion H6; subst. inversion H0; subst.
+   eapply termErasureDeterminism in H1. rewrite <- H1. eapply pProjectL. 
+   eapply ctxtErasureDeterminism in H11. rewrite <- H11. apply pdecomposeDecomposed. 
+   apply decomposeWF in H7. 
+
   {subst. cleanup. copy H1. apply decomposeErase in H1. invertHyp. inversion H1; subst. 
    apply decomposeEq in H8. subst. eapply decomposeErase in H0. invertHyp. inversion H0. 
    subst. apply PBind. inversion H6. subst. invertHyp. apply pdecomposeDecomposed. auto. }

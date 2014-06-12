@@ -37,6 +37,19 @@ Inductive trm : Type :=
   |snd : trm -> trm
 .
 
+Fixpoint val (t:trm) :=
+  match t with
+      |pair_ e1 e2 => andb (val e1) (val e2)
+      |app e1 e2 => false
+      |bind e1 e2 => false
+      |handle M N => false
+      |fst e => false 
+      |snd e => false
+      |specReturn M N => false
+      |_ => true
+  end. 
+
+
 Fixpoint open (k:nat) (u:trm) (t:trm) : trm :=
   match t with
       |bvar i => if beq_nat k i then u else t
@@ -122,6 +135,17 @@ Inductive ptrm : Type :=
 |pfst : ptrm -> ptrm
 |psnd : ptrm -> ptrm
 .
+
+Fixpoint pval (t:ptrm) :=
+  match t with
+      |ppair e1 e2 => andb (pval e1) (pval e2)
+      |papp e1 e2 => false
+      |pbind e1 e2 => false
+      |phandle M N => false
+      |pfst e => false 
+      |psnd e => false
+      |_ => true
+  end. 
 
 Fixpoint popen (k:nat) (u:ptrm) (t:ptrm) : ptrm :=
   match t with

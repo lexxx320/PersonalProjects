@@ -1,5 +1,5 @@
 Require Import AST.  
-Require Import NonSpec. 
+Require Import NonSpec.  
 Require Import Spec. 
 Require Import Coq.Sets.Ensembles. 
 Require Import SfLib. 
@@ -88,23 +88,23 @@ Inductive eraseThread : thread -> pool -> pPool -> Prop :=
                                      eraseThread (tid, nil, s2, M) T (pSingleton  M')
 |tEraseRead : forall T tid min s1 s1' s2 x M M' M'' E,
                s1 = s1' ++ [rAct x min M'] -> eraseTerm M' T M'' ->
-               decompose M' = (E,get (fvar x)) -> 
+               decompose M' E (get (fvar x)) -> 
                eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseWrite : forall tid min M M' M'' x s1 s2 s1' T E N,
                 s1 = s1' ++ [wAct x min M'] -> eraseTerm M' T M'' ->
-                decompose M' = (E,put (fvar x) N) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
+                decompose M' E (put (fvar x) N) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseNew : forall tid min M M' M'' x s1 s2 s1' T E,
               s1 = s1' ++ [cAct x min M'] -> eraseTerm M' T M'' ->
-              decompose M' =(E, new) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
+              decompose M' E new -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseSpec : forall tid tid' M M' s1 s2 s1' T,
                s1 = s1' ++ [sAct tid' M'] -> 
                eraseThread (tid, s1, s2, M) T (Empty_set ptrm)
 |tEraseFork : forall tid tid' min M M' M'' s1 s2 s1' T E N,
                 s1 = s1' ++ [fAct tid' min M'] -> eraseTerm M' T M'' ->
-                decompose M' = (E,fork N) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
+                decompose M' E (fork N) -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseSpecRet : forall tid tid' min M M' M'' s1 s2 s1' T E N N',
                 s1 = s1' ++ [specRetAct tid' min M'] -> eraseTerm M' T M'' ->
-                decompose M' = (E,spec N N') -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
+                decompose M' E (spec N N') -> eraseThread (tid, s1, s2, M) T (pSingleton M'')
 |tEraseCreatedSpec : forall tid M s1 s1' s2 T,
                        s1 = s1' ++ [specAct] ->  eraseThread (tid, s1, s2, M) T (Empty_set ptrm)
 .
@@ -308,7 +308,6 @@ Proof.
 Qed. 
 
 Inductive eraseContext : ctxt -> pool -> pctxt -> Prop :=
-|eraseCtxtHole : forall T, eraseContext holeCtxt T pholeCtxt
 |eraseCtxtBind : forall T N N' E E', eraseTerm N T N' -> eraseContext E T E' ->
                                      eraseContext (bindCtxt E N) T (pbindCtxt E' N')
 |eraseCtxtSpec : forall T M M' M'' E E' t maj min min' min'' s1 s2,
@@ -316,25 +315,43 @@ Inductive eraseContext : ctxt -> pool -> pctxt -> Prop :=
                    thread_lookup T (Tid(maj,min) t) (Tid(maj,min')t, s1 ++ [sAct (Tid(maj,min'')t) M'], s2, M) ->
                    eraseTerm M' T M'' ->
                    eraseContext (specReturnCtxt E (threadId (Tid(maj,min)t))) T 
-                                (pbindCtxt E' (plambda (pbind (incBV 1 M'') (plambda (pret (ppair (pbvar 0)(pbvar 1)))))))
+                        (pbindCtxt E' (plambda (pbind (incBV 1 M'') (plambda (pret (ppair (pbvar 0)(pbvar 1)))))))
 |eraseCtxtHandle : forall T N N' E E',
                      eraseTerm N T N' -> eraseContext E T E' ->
                      eraseContext (handleCtxt E N) T (phandleCtxt E' N')
+|eraseCtxtApp : forall T N N' E E',
+                  eraseTerm N T N' -> eraseContext E T E' -> 
+                  eraseContext (appCtxt E N) T (pappCtxt E' N')
+|eraseCtxtValApp : forall T N N' E E',
+                  eraseTerm N T N' -> eraseContext E T E' -> 
+                  eraseContext (appValCtxt E N) T (pappValCtxt E' N')
+|eraseCtxtPair : forall T N N' E E',
+                  eraseTerm N T N' -> eraseContext E T E' -> 
+                  eraseContext (pairCtxt E N) T (ppairCtxt E' N')
+|eraseCtxtValPair : forall T N N' E E',
+                  eraseTerm N T N' -> eraseContext E T E' -> 
+                  eraseContext (pairValCtxt E N) T (ppairValCtxt E' N')
+|eraseCtxtFst : forall T E E', eraseContext E T E' -> eraseContext (fstCtxt E) T (pfstCtxt E')
+|eraseCtxtSnd : forall T E E', eraseContext E T E' -> eraseContext (sndCtxt E) T (psndCtxt E')
+|eraseCtxtHole : forall T, eraseContext holeCtxt T pholeCtxt
 .
  
 Theorem ctxtErasureDeterminism : forall E T E1 E2, eraseContext E T E1 -> eraseContext E T E2 ->
                                                    E1 = E2. 
 Proof.
-  intros. generalize dependent E2. induction H; intros. 
-  {inversion H0; subst. reflexivity. }
-  {inversion H1; subst. apply IHeraseContext in H7. subst. eapply termErasureDeterminism in H. 
-   rewrite <- H. reflexivity. assumption. }
+  intros. generalize dependent E2. induction H; intros; try solve[
+  inversion H1; subst; 
+   match goal with
+       H:eraseContext ?E ?T ?E', H':eraseTerm ?N ?T ?N' |- _ =>
+       apply IHeraseContext in H; eapply termErasureDeterminism in H'; eauto; subst; auto
+   end]. 
   {inversion H2; subst. apply IHeraseContext in H9. subst. 
    apply uniqueThreadPool with (t' := (Tid (maj, min'0) t, s0 ++ [sAct (Tid (maj, min''0) t) M'0], s3, M0)) in H0. 
    inversion H0; subst. apply lastElementEq in H5. inversion H5; subst. 
    eapply termErasureDeterminism in H11. rewrite <- H11. reflexivity. assumption. assumption. }
-  {inversion H1; subst. apply IHeraseContext in H7. subst. eapply termErasureDeterminism in H. 
-   rewrite <- H. reflexivity. assumption. }
+  {inversion H0; subst. apply IHeraseContext in H2. subst. auto. }
+  {inversion H0; subst. apply IHeraseContext in H2. subst. auto. } 
+  {inversion H0; subst; auto. }
 Qed. 
 
 Ltac invertHyp :=
@@ -353,7 +370,7 @@ Theorem decomposeErase : forall E e T t',
                            exists E' e', eraseContext E T E' /\ eraseTerm e T e' /\ t' = pfill E' e'.
  Proof. 
   intros. remember (fill E e). generalize dependent E. generalize dependent e. induction H; intros;
-       try solve[destruct E; inversion Heqt; simpl in *; subst; econstructor; econstructor; eauto]; 
+       try solve[destruct E; inversion Heqt; simpl in *; subst; repeat econstructor; eauto]; 
        try solve[destruct E; inversion Heqt; simpl in *; repeat (match goal with
        |H:forall e0 E, ?e = fill E e0 -> ?X |- _ => 
         assert(Z:e = fill holeCtxt e) by reflexivity; apply H in Z;
@@ -362,14 +379,33 @@ Theorem decomposeErase : forall E e T t',
    end); econstructor; econstructor; eauto].
   {destruct E; inversion Heqt; simpl in *. 
    {apply IHeraseTerm1 in H2. invertHyp. econstructor. econstructor. eauto. } 
+   {apply IHeraseTerm2 in H3. invertHyp. econstructor. econstructor. eauto. }
    {subst. econstructor. econstructor. eauto. }
   }
   {destruct E; inversion Heqt; simpl in *. 
    {apply IHeraseTerm1 in H2. invertHyp. econstructor. econstructor. eauto. }
+   {apply IHeraseTerm2 in H3; invertHyp. repeat econstructor; eauto. }
    {subst. econstructor. econstructor. eauto. }
   }
   {destruct E; inversion Heqt; simpl in *. 
-   {apply IHeraseTerm1 in H4. invertHyp. econstructor. econstructor. eauto. }
+   {apply IHeraseTerm1 in H2. invertHyp. repeat econstructor; eauto. }
+   {subst. econstructor. econstructor. eauto. }
+  }
+  {destruct E; inversion Heqt; simpl in *. 
+   {apply IHeraseTerm1 in H2. invertHyp. repeat econstructor; eauto. }
+   {subst. econstructor. econstructor. eauto. }
+  }
+  {destruct E; inversion Heqt; simpl in *. 
+   {apply IHeraseTerm in H1. invertHyp. repeat econstructor; eauto. }
+   {subst. econstructor. econstructor. eauto. }
+  }
+  {destruct E; inversion Heqt; simpl in *. 
+   {apply IHeraseTerm in H1. invertHyp. repeat econstructor; eauto. }
+   {subst. econstructor. econstructor. eauto. }
+  }
+  {destruct E; inversion Heqt; simpl in *. 
+   {apply IHeraseTerm1 in H4. invertHyp. econstructor. econstructor. split. econstructor. eassumption. 
+    eassumption. eassumption. split. eassumption. simpl. auto. }
    {subst. econstructor. econstructor. eauto. }
   }
 Qed. 
@@ -403,13 +439,8 @@ Qed.
 
 Theorem eCtxt : forall E T, exists E', eraseContext E' T E. 
 Proof.
-  induction E; eauto. 
-  {intros. specialize (IHE T). inversion IHE. assert(exists N, eraseTerm N T p). 
-   apply eTerm. inversion H0. exists (bindCtxt x0 x1). constructor; assumption. }
-  {intros. specialize (IHE T). inversion IHE. assert(exists N, eraseTerm N T p). 
-   apply eTerm. inversion H0. exists (handleCtxt x0 x1). econstructor; assumption. }
-Qed.  
-
+  induction E; eauto; intros; specialize(IHE T); inversion IHE; 
+  try (assert(EX:exists N, eraseTerm N T p) by apply eTerm; invertHyp); eauto. Qed. 
 
 Theorem termEraseDifferentPools : forall T M M1 M2, eraseTerm M tEmptySet M1 -> 
                                             eraseTerm M T M2 -> M1 = M2. 
@@ -489,22 +520,30 @@ Theorem eraseFillHelper : forall E e E' e' T, eraseTerm e T e' -> eraseContext E
 Proof.
   induction E; intros; inversion H0; subst; simpl; eauto. Qed. 
 
-Theorem eraseFill : forall E e pt E' e' T, 
-                      pdecompose pt = (E', e') -> eraseContext E T E' -> eraseTerm e T e' ->
-                      eraseTerm (fill E e) T pt. 
-Proof.
-  intros. generalize dependent e'. generalize dependent pt. generalize dependent e. induction H0; intros. 
-  {apply pdecomposeEq in H. simpl in *. subst. assumption. }
-  {simpl in *. apply pdecomposeEq in H1. subst. simpl. constructor. apply eraseFillHelper; eauto. 
-   assumption. }
-  {simpl. apply pdecomposeEq in H2. subst. simpl. econstructor. apply eraseFillHelper; eauto. 
-   reflexivity. eassumption. eassumption. }
-  {simpl. apply pdecomposeEq in H1. subst; simpl. econstructor. apply eraseFillHelper; eauto. 
-   eauto. }
+
+Theorem eraseFill : forall E e E' e' T, eraseContext E T E' -> eraseTerm e T e' ->
+                                           eraseTerm (fill E e) T (pfill E' e'). 
+Proof. 
+  intros. generalize dependent e'. generalize dependent e. induction H; intros;
+   try solve[simpl; econstructor; auto].                                 
+  {simpl. econstructor. apply IHeraseContext. assumption. auto. eassumption. eassumption. }
+  {simpl. assumption. }
 Qed. 
 
-
-
+(*
+Theorem eraseFill : forall E e pt E' e' T, 
+                      pdecompose pt E' e' -> eraseContext E T E' -> eraseTerm e T e' ->
+                      eraseTerm (fill E e) T pt. 
+Proof.
+  intros. generalize dependent e'. generalize dependent pt. generalize dependent e.
+  induction H0; intros; simpl; try solve[ 
+  inversion H1; subst; constructor;[eapply IHeraseContext; eauto|auto]];
+  try solve[
+  match goal with
+      |H:pdecompose ?p ?E ?e |- _ => inversion H; subst; econstructor; eauto
+  end]. 
+  inversion H; subst. auto. 
+Qed.  *)
 
 
 
