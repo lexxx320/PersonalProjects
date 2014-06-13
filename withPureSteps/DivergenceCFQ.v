@@ -140,7 +140,7 @@ Inductive uneraseThread : ptrm -> thread -> Prop :=
                                                ~Ensembles.In specStack L2 s2 ->
                                                uneraseThread M' (t,nil,s2,M))
 . 
-
+ 
 Inductive unerasePool (T:pPool) : pool :=
 |unerase_pool : forall M' t, Ensembles.In ptrm T M' -> uneraseThread M' t ->
                                Ensembles.In thread (unerasePool T) t. 
