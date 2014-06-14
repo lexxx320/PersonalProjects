@@ -159,5 +159,19 @@ Theorem AddEqSingleton : forall T S e e', Add T S e = Singleton T e' -> e = e'.
 Proof.
   intros. unfold Add in H. apply UnionEqSingleton in H. assumption. Qed. 
 
+Theorem pullOut : forall X T t, Ensembles.In X T t -> T = Union X (Subtract X T t) (Singleton X t). 
+Proof.
+  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
+  {unfold Subtract. assert(x=t \/ x<>t). apply classic. inversion H1; subst. 
+   {apply Union_intror. constructor. }
+   {apply Union_introl. constructor. assumption. intros c. inversion c. symmetry in H3. 
+    contradiction. }
+  }
+  {inversion H0; subst.
+   {inversion H1; subst. assumption. }
+   {inversion H1; subst. assumption. }
+  }
+Qed. 
+
 End Ensembles.
 

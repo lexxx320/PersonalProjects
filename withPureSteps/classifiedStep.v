@@ -8,21 +8,21 @@ Require Import sets.
 (*progressive step that extends the commit frontier*)
 Inductive progress_step : sHeap -> pool -> pool -> config -> Prop :=
 |CBetaRed : forall E e N tid s2 h T t, 
-             decompose t (appValCtxt E (lambda e)) N -> val N = true ->                  
+             decompose t E (AST.app (lambda e) N) ->              
              progress_step h T (tSingleton(tid,nil,s2,t)) (OK h T (tSingleton(tid,nil,s2,fill E (open 0 N e)))) 
 |CProjL : forall tid s2 E V1 V2 h T t, 
-           decompose t (fstCtxt E) (pair_ V1 V2) -> val V1 = true -> val V2 = true ->
+           decompose t E (fst (pair_ V1 V2)) ->
            progress_step h T (tSingleton(tid,nil,s2,t)) (OK h T (tSingleton(tid,nil,s2,fill E V1)))
 |CProjR : forall tid s2 E V1 V2 h T t, 
-           decompose t (sndCtxt E) (pair_ V1 V2) -> val V1 = true -> val V2 = true ->
+           decompose t E (snd (pair_ V1 V2)) ->
            progress_step h T (tSingleton(tid,nil,s2,t)) (OK h T (tSingleton(tid,nil,s2,fill E V2)))
-|CBind : forall tid h E T N M s2 t, decompose t (bindCtxt E N) (ret M) ->
+|CBind : forall tid h E T N M s2 t, decompose t E (bind (ret M) N) ->
   progress_step h T (tSingleton (tid, nil, s2, t)) (OK h T (tSingleton (tid,nil,s2,fill E(AST.app N M))))
-|CBindRaise : forall tid h E T N M s2 t, decompose t (bindCtxt E N) (raise M) ->
+|CBindRaise : forall tid h E T N M s2 t, decompose t E (bind (raise M) N) ->
   progress_step h T (tSingleton (tid,nil,s2,t)) (OK h T (tSingleton (tid,nil,s2,fill E (raise M))))
-|CHandle : forall tid h E T N M s2 t, decompose t (handleCtxt E N) (raise M) ->
+|CHandle : forall tid h E T N M s2 t, decompose t E (handle (raise M) N) ->
   progress_step h T (tSingleton (tid,nil,s2,t)) (OK h T (tSingleton (tid,nil,s2,fill E (AST.app  N M))))
-|CHandleRet : forall tid h E T N M s2 t, decompose t (handleCtxt E N) (ret M) ->
+|CHandleRet : forall tid h E T N M s2 t, decompose t E (handle (ret M) N)->
   progress_step h T (tSingleton (tid,nil,s2,t)) (OK h T (tSingleton (tid,nil,s2,fill E (ret M))))
 |CTerminate : forall tid h T M s2, 
                progress_step h T (tSingleton (tid, nil, s2, ret M)) (OK h T tEmptySet)
@@ -62,23 +62,21 @@ Inductive progress_step : sHeap -> pool -> pool -> config -> Prop :=
                 (tid'' : tid) (T : pool) (h : sHeap)
                 (t1 t2 : tid * list action * specStack * trm)
                 (s1 s1' : list action) (s2 s2' : specStack),
-              decompose t (specReturnCtxt E (threadId (Tid (maj, min) tid')))
-                (ret N1) ->
+              decompose t E (specReturn (ret N1) (threadId (Tid (maj, min) tid'))) -> 
               s1 = s1' ++ [sAct tid'' M] ->
-              t1 =
-              (tid0, [], s2,
+              t1 = (tid0, [], s2,
               fill E (specReturn (ret N1) (threadId (Tid (maj, min) tid')))) ->
               t2 = (Tid (maj, min') tid', s1, s2', ret N2) ->
               progress_step h T (tCouple t1 t2)
                 (OK h T
                    (tCouple t1 (Tid (maj, S min') tid', s1', s2', ret N2)))
 |CSpecJoin : forall E h s2 s2' tid tid' N1 N2 maj min min' T t1 t2 t,
-              decompose t (specReturnCtxt E (threadId(Tid(maj,min) tid'))) (ret N1) ->
+              decompose t E (specReturn (ret N1) (threadId(Tid(maj,min) tid'))) ->
               t1 = (tid, nil, s2, fill E(specReturn (ret N1) (threadId (Tid (maj, min) tid')))) ->
               t2 = (Tid (maj, min') tid', nil, s2', ret N2) ->
               progress_step h T (tCouple t1 t2) (OK h T (tSingleton (tid, nil, s2, ret(pair_ N1 N2))))
 |CSpecRB : forall t E' h h' tid tid' maj min  min'' T T' E M' s2 s1' a s2' t1 t2 TRB, 
-            decompose t (specReturnCtxt E' (threadId(Tid(maj,min'') tid'))) (raise E) ->
+            decompose t E' (specReturn (raise E) (threadId(Tid(maj,min'') tid'))) ->
             t1 = (tid, nil, s2, fill E'(specReturn (raise E) (threadId (Tid (maj, min'') tid')))) ->
             t2 = (Tid (maj, min) tid', s1' ++ [a], s2', M') -> 
             ~ (exists p, thread_lookup TRB tid p) -> thread_lookup TRB (Tid (maj, min) tid') t2 -> 
@@ -86,7 +84,7 @@ Inductive progress_step : sHeap -> pool -> pool -> config -> Prop :=
             rollback (Tid (maj, min) tid') [a] h (tAdd TRB t2) h' T' ->
             progress_step h T (tAdd TRB t1) (OK h' T (tAdd T' (tid, nil, s2, fill E'(raise E))))
 |CSpecRaise : forall E' N h tid tid' maj min' min'' s2 s2' T E t1 t2 t,
-               decompose t (specReturnCtxt E' (threadId(Tid(maj,min'') tid'))) (ret N) ->
+               decompose t E' (specReturn (ret N) (threadId(Tid(maj,min'') tid'))) ->
                t1 = (tid, nil, s2, t) -> 
                t2 = (Tid (maj, min') tid', nil, s2', raise E) ->
                progress_step h T (tCouple t1 t2) (OK h T (tSingleton (tid, nil, s2, fill E' (raise E))))
@@ -115,21 +113,21 @@ Inductive progress_step : sHeap -> pool -> pool -> config -> Prop :=
 
 Inductive spec_step : sHeap -> pool -> pool -> config -> Prop :=
 |BetaRed : forall E e N tid s2 h T t a b, 
-             decompose t (appValCtxt E (lambda e)) N -> val N = true ->                  
+             decompose t E (AST.app (lambda e) N) ->               
              spec_step h T (tSingleton(tid,a::b,s2,t)) (OK h T (tSingleton(tid,a::b,s2,fill E (open 0 N e))))
 |ProjL : forall tid s2 E V1 V2 h T t a b, 
-           decompose t (fstCtxt E) (pair_ V1 V2) -> val V1 = true -> val V2 = true ->
+           decompose t E (fst (pair_ V1 V2)) -> 
            spec_step h T (tSingleton(tid,a::b,s2,t)) (OK h T (tSingleton(tid,a::b,s2,fill E V1)))
 |ProjR : forall tid a b s2 E V1 V2 h T t, 
-           decompose t (sndCtxt E) (pair_ V1 V2) -> val V1 = true -> val V2 = true ->
+           decompose t E (snd (pair_ V1 V2)) -> 
            spec_step h T (tSingleton(tid,a::b,s2,t)) (OK h T (tSingleton(tid,a::b,s2,fill E V2)))
-|Bind : forall tid h E T N M a b s2 t, decompose t (bindCtxt E N) (ret M) ->
+|Bind : forall tid h E T N M a b s2 t, decompose t E (bind (ret M) N) ->
   spec_step h T (tSingleton (tid, a::b, s2, t)) (OK h T (tSingleton (tid,a::b,s2,fill E(AST.app N M))))
-|BindRaise : forall tid h E T N M a b s2 t, decompose t (bindCtxt E N) (raise M) ->
+|BindRaise : forall tid h E T N M a b s2 t, decompose t E (bind (raise M) N) ->
   spec_step h T (tSingleton (tid,a::b,s2,t)) (OK h T (tSingleton (tid,a::b,s2,fill E (raise M))))
-|Handle : forall tid h E T N M a b s2 t, decompose t (handleCtxt E N) (raise M) ->
+|Handle : forall tid h E T N M a b s2 t, decompose t E (handle (raise M) N) ->
   spec_step h T (tSingleton (tid,a::b,s2,t)) (OK h T (tSingleton (tid,a::b,s2,fill E (AST.app  N M))))
-|HandleRet : forall tid h E T N M a b s2 t, decompose t (handleCtxt E N) (ret M) ->
+|HandleRet : forall tid h E T N M a b s2 t, decompose t E (handle (ret M) N) ->
   spec_step h T (tSingleton (tid,a::b,s2,t)) (OK h T (tSingleton (tid,a::b,s2,fill E (ret M))))
 |Terminate : forall tid h T M s2, 
                spec_step h T (tSingleton (tid, nil, s2, ret M)) (OK h T tEmptySet)

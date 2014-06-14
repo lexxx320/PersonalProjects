@@ -9,38 +9,39 @@ Inductive pctxt : Type :=
 |pbindCtxt : pctxt -> ptrm -> pctxt
 |phandleCtxt : pctxt -> ptrm -> pctxt
 |pappCtxt : pctxt -> ptrm -> pctxt 
-|pappValCtxt : pctxt -> ptrm -> pctxt 
-|ppairCtxt : pctxt -> ptrm -> pctxt 
-|ppairValCtxt : pctxt -> ptrm -> pctxt
 |pfstCtxt : pctxt -> pctxt 
 |psndCtxt : pctxt -> pctxt  
 |pholeCtxt : pctxt
 .
 
+Inductive pval : ptrm -> Prop :=
+|pretVal : forall M, pval (pret M)
+|praiseVal : forall M, pval (praise M)
+|plamVal : forall M, pval (plambda M)
+|ppairVal : forall M N, pval (ppair M N).
+
 Inductive pdecompose : ptrm -> pctxt -> ptrm -> Prop :=
-|pdecompBind : forall M N E M', pdecompose M E M' -> pdecompose (pbind M N) (pbindCtxt E N) M'
-|pdecompHandle : forall M M' N E, pdecompose M E M' -> pdecompose (phandle M N) (phandleCtxt E N) M'
-|pdecompApp : forall M N M' E, pval M = false -> pdecompose M E M' -> 
-                              pdecompose (papp M N) (pappCtxt E N) M'
-|pdecompAppVal : forall M N N' E, pval M = true -> pdecompose N E N' ->
-                                 pdecompose (papp M N) (pappValCtxt E M) N'
-|pdecompPair : forall M M' E N, pval M = false -> pdecompose M E M' ->
-                               pdecompose (ppair M N) (ppairCtxt E N) M'
-|pdecompValPair : forall M N N' E, pval M = true -> pval N = false -> pdecompose N E N' ->
-                                  pdecompose (ppair M N) (ppairValCtxt E M) N'
-|pdecompFst : forall M M' E, pdecompose M E M' -> pdecompose(pfst M) (pfstCtxt E) M'
-|pdecompSnd : forall M M' E, pdecompose M E M' -> pdecompose(psnd M) (psndCtxt E) M'
-|pdecompVal : forall M, pval M = true -> pdecompose M pholeCtxt M
-. 
+|pdecompBind : forall M N E M', ~ pval M -> pdecompose M E M' -> pdecompose (pbind M N) (pbindCtxt E N) M'
+|pdecompBindVal : forall M N, pval M -> pdecompose (pbind M N) pholeCtxt (pbind M N)
+|pdecompHandle : forall M M' N E, ~pval M -> pdecompose M E M' -> pdecompose (phandle M N) (phandleCtxt E N) M'
+|pdecompHandleVal : forall M N, pval M -> pdecompose (phandle M N) pholeCtxt (phandle M N)
+|pdecompApp : forall M N M' E, ~pval M -> pdecompose M E M' -> pdecompose (papp M N) (pappCtxt E N) M'
+|pdecompAppVal : forall M N, pval M -> pdecompose (papp M N) pholeCtxt (papp M N)
+|pdecompFst : forall M E M', ~pval M -> pdecompose M E M' -> pdecompose (pfst M) (pfstCtxt E) M'
+|pdecompFstVal : forall M, pval M -> pdecompose (pfst M) pholeCtxt (pfst M)
+|pdecompSnd : forall M E M', ~pval M -> pdecompose M E M' -> pdecompose (psnd M) (psndCtxt E) M'
+|pdecompSndVal : forall M, pval M -> pdecompose (psnd M) pholeCtxt (psnd M)
+|pdecompNew : pdecompose pnew pholeCtxt pnew
+|pdecompGet : forall i, pdecompose (pget i) pholeCtxt (pget i)
+|pdecompPut : forall i M, pdecompose (pput i M) pholeCtxt (pput i M)
+|pdecompFork : forall M, pdecompose (pfork M) pholeCtxt (pfork M)
+.  
 
 Fixpoint pfill (c:pctxt) (t:ptrm) : ptrm :=
   match c with
       |pbindCtxt E N => pbind (pfill E t) N
       |phandleCtxt E N => phandle (pfill E t) N
       |pappCtxt E N => papp (pfill E t) N
-      |pappValCtxt E M => papp M (pfill E t)
-      |ppairCtxt E N => ppair (pfill E t) N
-      |ppairValCtxt E M => ppair M (pfill E t)
       |pfstCtxt E => pfst (pfill E t)
       |psndCtxt E => psnd (pfill E t)
       |pholeCtxt => t
@@ -54,19 +55,10 @@ Ltac helperTac :=
 
 Theorem pdecomposeEq : forall M E e, pdecompose M E e -> M = pfill E e. 
 Proof.
-  induction M; intros; try solve[inversion H; subst; auto].  
-  {inversion H; subst; auto. simpl. apply IHM1 in H5. subst; auto. 
-   apply IHM2 in H6; subst; auto. }
-  {inversion H; subst; auto. apply IHM1 in H5; subst; auto. apply IHM2 in H5; subst; auto. }
-  {inversion H; subst; auto. apply IHM1 in H4; subst; auto. }
-  {inversion H; subst; auto. apply IHM1 in H4; subst; auto. }
-  {inversion H; subst; auto. apply IHM in H1; subst; auto. }
-  {inversion H; subst; auto. apply IHM in H1; subst; auto. }
-Qed. 
-
-Theorem pdecomposedVal : forall t E e, pdecompose t E e -> pval e = true. 
-Proof.
-  induction t; intros; try solve[inversion H; subst; auto]; try solve[inversion H; subst; eauto]. 
+  induction M; intros; try solve[inversion H; subst; auto]; 
+  try solve[inversion H; subst; auto; simpl; apply IHM1 in H5; subst; auto]. 
+  {inversion H; subst; auto. apply IHM in H2; subst; auto. }
+  {inversion H; subst; auto. apply IHM in H2; subst; auto. }
 Qed. 
 
 Definition pPool := Ensemble ptrm. 
@@ -79,25 +71,25 @@ Inductive pconfig : Type :=
 
 Inductive pstep : pHeap -> pPool -> pPool -> pconfig -> Prop :=
 |PBetaRed : forall t E e arg h T,
-              pdecompose t (pappValCtxt E (plambda e)) arg -> pval arg = true ->
+              pdecompose t E (papp (plambda e) arg) -> 
               pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (popen 0 arg e))))
 |pProjectL : forall V1 V2 h T t E,
-               pdecompose t (pfstCtxt E) (ppair V1 V2) -> pval V1 = true -> pval V2 = true ->
+               pdecompose t E (pfst (ppair V1 V2)) -> 
                pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E V1)))
 |pProjectR : forall V1 V2 h T t E,
-               pdecompose t (psndCtxt E) (ppair V1 V2) -> pval V1 = true -> pval V2 = true ->
+               pdecompose t E (psnd (ppair V1 V2)) -> 
                pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E V2)))
 |PBind : forall E t M N h T, 
-            pdecompose t (pbindCtxt E N) (pret M) -> 
+            pdecompose t E (pbind (pret M) N) -> 
            pstep h T (pSingleton t) (pOK h T (pSingleton(pfill E(papp N M))))
 |PBindRaise : forall E t M N h T,
-                 pdecompose t (pbindCtxt E N) (praise M) -> 
+                 pdecompose t E (pbind (praise M) N) -> 
                 pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E(praise M))))
 |pHandle : forall E t M N h T,
-              pdecompose t (phandleCtxt E N) (praise M) -> 
+              pdecompose t E (phandle (praise M) N)-> 
              pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E(papp N M))))
 |pHandleRet : forall E t M N h T,
-                 pdecompose t (phandleCtxt E N) (pret M) -> 
+                 pdecompose t E (phandle (pret M) N)  -> 
                 pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E(pret M))))
 |pFork : forall E t M h T,
             pdecompose t E (pfork M) -> 
@@ -142,34 +134,35 @@ Proof.
   assumption. Qed.   
 
 
-(*Evaluation Context well formedness with respect to a particular term*)
-Inductive pctxtWF : ptrm -> pctxt -> Prop :=
-|pbindWF : forall e E N, pctxtWF e E -> pctxtWF e (pbindCtxt E N)
-|phandleCtxtWF : forall e E N, pctxtWF e E -> pctxtWF e (phandleCtxt E N)
-|pappCtxtWF : forall e E N, pctxtWF e E -> pval (pfill E e) = false -> pctxtWF e (pappCtxt E N)
-|pappValCtxtWF : forall e E N, pctxtWF e E -> pval N = true -> pctxtWF e (pappValCtxt E N)
-|ppairCtxtWF : forall e E N, pctxtWF e E -> pval (pfill E e) = false -> pctxtWF e (ppairCtxt E N)
-|ppairValCtxtWF : forall e E N, pctxtWF e E -> pval N = true -> pval (pfill E e) = false -> 
-                               pctxtWF e (ppairValCtxt E N)
-|psndCtxtWF : forall e E, pctxtWF e E -> pctxtWF e (psndCtxt E)
-|pfstCtxtWF : forall e E, pctxtWF e E -> pctxtWF e (pfstCtxt E)
-|pholeCtxtWF : forall e, pval e = true -> pctxtWF e pholeCtxt
-.
+Inductive pctxtWF (e:ptrm) : pctxt -> Prop :=
+|pbindWF : forall N E, pctxtWF e E -> ~pval (pfill E e) -> pctxtWF e (pbindCtxt E N)
+|phandleWF : forall N E, pctxtWF e E -> ~pval (pfill E e) -> pctxtWF e (phandleCtxt E N)
+|pappWF : forall N E, pctxtWF e E -> ~pval (pfill E e) -> pctxtWF e (pappCtxt E N)
+|pfstWF : forall E, pctxtWF e E -> ~pval (pfill E e) -> pctxtWF e (pfstCtxt E)
+|psndWF : forall E, pctxtWF e E -> ~pval (pfill E e) -> pctxtWF e (psndCtxt E)
+|pholEWF : pctxtWF e pholeCtxt. 
 
 Theorem pdecomposeDecomposed : forall E e, pctxtWF e E ->
-                                           pdecompose e pholeCtxt e -> 
-                                           pdecompose (pfill E e) E e.
+                                          pdecompose e pholeCtxt e -> 
+                                          pdecompose (pfill E e) E e. 
 Proof.
-  induction E; intros; auto; try solve[inversion H; subst; simpl; constructor; apply IHE; auto]; 
-  try solve[inversion H; subst; simpl; constructor; auto].  
-Qed.
+  intros. induction H; try solve[simpl; constructor; auto]. 
+  {simpl. assumption. }
+Qed. 
 
 Hint Constructors pctxtWF. 
 
+Ltac copy H :=
+  match type of H with
+      |?x => assert(x) by auto
+  end. 
+
 Theorem pdecomposeWF : forall t E e, pdecompose t E e -> pctxtWF e E. 
 Proof.
-  intros. induction H; auto. 
-  {constructor. assumption. apply pdecomposeEq in H0. rewrite <- H0. auto. }
-  {constructor. assumption. apply pdecomposeEq in H0. rewrite <- H0. auto. }
-  {constructor. assumption. assumption. apply pdecomposeEq in H1. rewrite <- H1. auto. }
+  induction t; intros; try solve[inversion H];
+  try solve[inversion H; subst; auto; copy H5; apply IHt1 in H5; constructor; auto; 
+   apply pdecomposeEq in H0; subst; auto]. 
+  inversion H; subst; auto. constructor. apply IHt. auto. apply pdecomposeEq in H2; subst; auto.
+  inversion H; subst; auto. constructor. apply IHt. auto. apply pdecomposeEq in H2; subst; auto.
 Qed. 
+

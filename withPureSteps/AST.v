@@ -37,18 +37,43 @@ Inductive trm : Type :=
   |snd : trm -> trm
 .
 
+Inductive val : trm -> Prop :=
+|threadIdVal : forall tid, val (threadId tid)
+|fvarVal : forall i, val (fvar i)
+|bvarVal : forall i, val (bvar i)
+|unitVal : val unit
+|pairVal : forall e1 e2, val (pair_ e1 e2)
+|lamVal : forall e, val (lambda e)
+|appVal : forall e a, val (app (lambda e) a)
+|retVal : forall e, val (ret e)
+|bindVal : forall M N, val (bind (ret M) N)
+|bindVal2 : forall M N, val (bind (raise M) N)
+|forkVal : forall M, val (fork M)
+|newVal : val new
+|putVal : forall i M, val (put (fvar i) M)
+|getVal : forall i, val (get (fvar i))
+|raiseVal : forall M, val (raise M)
+|handleVal : forall M N, val (handle (ret M) N)
+|handleVal2 : forall M N, val (handle (raise M) N)
+|doneVal : forall M, val (done M)
+|specVal : forall M N, val (spec M N)
+|specRetVal : forall M N, val (specReturn (ret M) N)
+|specRetVal2 : forall M N, val (specReturn (raise M) N)
+|fstVal : forall e1 e2, val (fst (pair_ e1 e2))
+|sndVal : forall e1 e2, val (snd (pair_ e1 e2)). 
+
+(*
 Fixpoint val (t:trm) :=
   match t with
-      |pair_ e1 e2 => andb (val e1) (val e2)
       |app e1 e2 => false
       |bind e1 e2 => false
       |handle M N => false
-      |fst e => false 
-      |snd e => false
       |specReturn M N => false
+      |fst e => false
+      |snd e => false
       |_ => true
   end. 
-
+*)
 
 Fixpoint open (k:nat) (u:trm) (t:trm) : trm :=
   match t with
@@ -138,11 +163,10 @@ Inductive ptrm : Type :=
 
 Fixpoint pval (t:ptrm) :=
   match t with
-      |ppair e1 e2 => andb (pval e1) (pval e2)
       |papp e1 e2 => false
       |pbind e1 e2 => false
       |phandle M N => false
-      |pfst e => false 
+      |pfst e => false
       |psnd e => false
       |_ => true
   end. 
