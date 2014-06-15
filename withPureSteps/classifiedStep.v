@@ -167,7 +167,7 @@ Inductive spec_multistep : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Pro
                        (P2' : pool) (h h' H'' : sHeap),
                   T2 = tUnion P1 P2 ->
                  Disjoint thread P1 P2 ->
-                 step h (tUnion P1 T1) P2 (OK h' (tUnion P1 T1) P2') ->
+                 spec_step h (tUnion P1 T1) P2 (OK h' (tUnion P1 T1) P2') ->
                  spec_multistep h' T1 (tUnion P1 P2') H'' T1'' T2'' -> spec_multistep h T1 T2 H'' T1'' T2''
 .
                                                                

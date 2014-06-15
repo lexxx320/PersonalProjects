@@ -1,4 +1,4 @@
-Require Import AST.     
+Require Import AST.      
 Require Import NonSpec.  
 Require Import Spec. 
 Require Import Coq.Sets.Ensembles. 
@@ -6,7 +6,26 @@ Require Import Heap.
 Require Import sets. 
 Require Import erasure. 
 Require Import classifiedStep. 
- 
+Require Import Powerset_facts. 
+
+Theorem eraseUnionComm : forall T1 T2, erasePoolAux (tUnion T1 T2) (tUnion T1 T2) = 
+                                       Union ptrm (erasePoolAux T1 (tUnion T1 T2))(erasePoolAux T2 (tUnion T1 T2)).
+Proof.
+  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
+  {inversion H; subst. inversion H0; subst. cleanup. inversion H4; subst. 
+   {constructor. econstructor. econstructor. eassumption. reflexivity. constructor. auto. 
+    eassumption. assumption. }
+   {apply Union_intror. econstructor. econstructor. eassumption. auto. unfold tUnion. 
+    rewrite Union_commutative. constructor. auto. eassumption. assumption. }
+  }
+  {inversion H; subst. 
+   {inversion H0; subst. inversion H1; subst. cleanup. econstructor. econstructor. 
+    econstructor. eassumption. reflexivity. unfold Included. intros; auto.  eassumption. auto. }
+   {inversion H0; subst. inversion H1; subst. cleanup. econstructor. econstructor. 
+    apply Union_intror. eassumption. auto. unfold Included. auto. eassumption. auto. }
+  }
+Qed. 
+
 CoInductive ParDiverge : pHeap -> pPool -> Prop :=
 |divergeStep : forall T1 T2 T2' H H',
                  Disjoint ptrm T1 T2 -> pstep H T1 T2 (pOK H' T1 T2') -> 
@@ -18,6 +37,20 @@ CoInductive SpecDiverge : sHeap -> pool-> Prop :=
                  spec_multistep H tEmptySet T H' tEmptySet (tUnion T1 T2) -> Disjoint thread T1 T2 ->
                  progress_step H T1 T2 (OK H' T1 T2') -> SpecDiverge H' (tUnion T1 T2') ->
                  SpecDiverge H T.
+
+Theorem termErasePoolErase : forall tid M M' s2 T,
+                               eraseTerm M T M' -> Included thread (tSingleton (tid, [], s2, M)) T ->
+                               erasePoolAux (tSingleton(tid,nil,s2,M)) T = (pSingleton M'). 
+Proof.
+  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
+  {inversion H1; subst. inversion H2; subst. cleanup. inversion H6; subst. clear H6. 
+   inversion H4; subst; try invertListNeq. inversion H5; subst. 
+   eapply termErasureDeterminism in H. rewrite <- H. econstructor. assumption. }
+  {inversion H1; subst. clear H1. inversion H; subst; destruct tid; destruct p; try solve[
+   econstructor; [econstructor; auto; econstructor; eauto|auto|auto|econstructor; eauto]]; try solve[ 
+   econstructor;[econstructor; eauto; econstructor; eauto|auto|econstructor; eauto|constructor]]. 
+  }
+Qed. 
 
 Theorem inErase : forall T T1 t, 
                     erasePoolAux T T = Union ptrm T1 (pSingleton t) ->
@@ -201,14 +234,6 @@ Theorem eraseWF : forall E e E' e' T, pctxtWF e' E' -> eraseContext E T E' ->
                                       eraseTerm e T e' -> ctxtWF e E. 
 Admitted. 
 
-Theorem eraseCommitTrm : forall t t' E' e' T, commitTrm t' -> eraseTerm t T t' -> pdecompose t' E' e' ->
-                                                  exists E e, eraseTerm e T e' /\
-                                                              decompose t E e. 
-Proof.
-  intros. inversion H; subst. 
-  {
-
-
 
 Theorem eraseCommitTrm : forall t t' E' e' T, eraseTerm t T t' -> pdecompose t' E' e' ->
                                                   exists E e, eraseTerm e T e' /\
@@ -234,25 +259,7 @@ Proof.
   {inversion H1; subst. apply IHeraseTerm1 in H7. invertHyp. 
    Admitted. 
 
-Require Import Powerset_facts. 
 
-Theorem eraseUnionComm : forall T1 T2, erasePoolAux (tUnion T1 T2) (tUnion T1 T2) = 
-                                       Union ptrm (erasePoolAux T1 (tUnion T1 T2))(erasePoolAux T2 (tUnion T1 T2)).
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
-  {inversion H; subst. inversion H0; subst. cleanup. inversion H4; subst. 
-   {constructor. econstructor. econstructor. eassumption. reflexivity. constructor. auto. 
-    eassumption. assumption. }
-   {apply Union_intror. econstructor. econstructor. eassumption. auto. unfold tUnion. 
-    rewrite Union_commutative. constructor. auto. eassumption. assumption. }
-  }
-  {inversion H; subst. 
-   {inversion H0; subst. inversion H1; subst. cleanup. econstructor. econstructor. 
-    econstructor. eassumption. reflexivity. unfold Included. intros; auto.  eassumption. auto. }
-   {inversion H0; subst. inversion H1; subst. cleanup. econstructor. econstructor. 
-    apply Union_intror. eassumption. auto. unfold Included. auto. eassumption. auto. }
-  }
-Qed. 
 
 Theorem erasePoolUnion : forall T T' t t', 
           eraseThread t (Union thread T (tSingleton t)) t' ->
@@ -261,8 +268,6 @@ Theorem erasePoolUnion : forall T T' t t',
 Proof.
   intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
   {Admitted. 
-
-
 
 Theorem ParDivergeSpecDiverge : forall H H' T T', eraseHeap H H' -> erasePool T T' ->
                                                   ParDiverge H' T' -> SpecDiverge H T. 
@@ -281,3 +286,6 @@ Proof.
         (tUnion (Subtract thread T (x0, [], x1, x2))
            (tSingleton (x0, [], x1, fill x3 (open 0 e2 e0))))) = (Union ptrm T1 (pSingleton (pfill E (popen 0 arg e))))). admit. rewrite H9. assumption. assumption. copy H10. apply pdecomposeEq in H10. rewrite H10. 
    econstructor. rewrite H10 in H7. eassumption. }
+
+
+
