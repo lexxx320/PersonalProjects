@@ -113,7 +113,6 @@ Inductive action : Type :=
   |rAct : id -> nat -> trm -> action  (*ivar written, step count, and current term*)
   |wAct : id -> nat -> trm -> action
   |cAct : id -> nat -> trm -> action
-  |sAct : tid -> trm -> action        (*thread executing speculative branch of a spec*)
   |specRetAct : tid -> nat -> trm -> action  (*thread executing commit branch of spec*)
   |fAct : tid -> nat -> trm -> action  (*first tid is the thread id of the forked thread*)
   |specAct : action

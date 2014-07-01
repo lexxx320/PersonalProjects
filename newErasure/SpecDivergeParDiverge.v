@@ -222,6 +222,7 @@ Proof.
   try solve[destruct (beq_nat x i); eauto; inversion H2]. 
   inversion H2. Qed. 
 
+Ltac introsInv := let n := fresh in intros; intros n; inversion n.
 
 Theorem SpecDivergeParDiverge : forall H H' T T',
                                   eraseHeap H H' -> erasePool T T' ->
@@ -230,75 +231,63 @@ Proof.
   cofix CH. intros. inversion H2; subst. 
   apply spec_multistepErase with (H'':=H')(T'':=T')in H4; auto. 
   inversion H4; subst. clear H4. inversion H6; subst.
-  {inversion H8; subst. rewrite eraseUnionComm.  
-   assert(exists t', eraseTerm t t'). apply erasureTotal. 
-   invertExists. erewrite termErasePoolErase. Focus 2. eassumption. 
-   eraseExists E. eraseExists e. eraseExists N. econstructor.  
-   apply PBetaRed. eapply eraseDecomp. Focus 2. eassumption. intros. intros c. 
-   inversion c. eassumption. constructor. constructor. eauto. eauto. auto. 
-   eapply CH. eassumption. Focus 2. eapply H7. 
-   erewrite <- eraseUnion. constructor. constructor. apply eraseFill; auto. 
-   apply eraseOpen; auto. } 
+  {inversion H8; subst; rewrite eraseUnionComm;  
+   assert(exists t', eraseTerm t t') by apply erasureTotal; 
+   invertExists; erewrite termErasePoolErase; eauto; 
+   eraseExists E; eraseExists e; eraseExists N; econstructor;[
+   apply PBetaRed; eapply eraseDecomp; eauto; introsInv|eapply CH; eauto; 
+   erewrite <- eraseUnion; auto; constructor; apply eraseFill; auto; apply eraseOpen; auto]. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists V1. eraseExists V2. econstructor.  
-   eapply pProjectL. eapply eraseDecomp; eauto. intros. intros c; inversion c. 
-   eapply CH. eauto. Focus 2. eapply H7. erewrite <- eraseUnion. 
-   constructor. constructor. apply eraseFill; auto. }
+   eapply pProjectL. eapply eraseDecomp; eauto. introsInv. 
+   eapply CH; eauto.  erewrite <- eraseUnion. constructor. constructor. apply eraseFill; auto. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists V1. eraseExists V2. econstructor.
-   eapply pProjectR. eapply eraseDecomp; eauto. intros. intros c; inversion c. 
-   eapply CH. eauto. Focus 2. eapply H7. erewrite <- eraseUnion. 
-   constructor. constructor. apply eraseFill; auto. }
+   eapply pProjectR. eapply eraseDecomp; eauto. introsInv. 
+   eapply CH; eauto. erewrite <- eraseUnion. constructor. constructor. apply eraseFill; auto. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists M. eraseExists N. econstructor. 
-   eapply PBind. eapply eraseDecomp; eauto. intros. intros c; inversion c. 
-   eapply CH. eauto. Focus 2. eapply H7. erewrite <- eraseUnion. 
-   constructor. constructor. apply eraseFill; auto. }
+   eapply PBind. eapply eraseDecomp; eauto. introsInv. 
+   eapply CH; eauto. erewrite <- eraseUnion. constructor. constructor. apply eraseFill; auto. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists M. eraseExists N. econstructor. 
-   eapply PBindRaise. eapply eraseDecomp; eauto. intros. intros c; inversion c. 
-   eapply CH. eauto. Focus 2. eapply H7. erewrite <- eraseUnion. 
-   constructor. constructor. apply eraseFill; auto. }
+   eapply PBindRaise. eapply eraseDecomp; eauto. introsInv. eapply CH; eauto. 
+   erewrite <- eraseUnion. constructor. constructor. apply eraseFill; auto. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists M. eraseExists N. econstructor. 
-   eapply pHandle. eapply eraseDecomp; eauto. intros. intros c; inversion c. 
-   eapply CH. eauto. Focus 2. eapply H7. erewrite <- eraseUnion. 
-   constructor. constructor. apply eraseFill; auto. }
+   eapply pHandle. eapply eraseDecomp; eauto. introsInv. eapply CH; eauto. 
+   erewrite <- eraseUnion. constructor. constructor. apply eraseFill; auto. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists M. eraseExists N. econstructor.  
-   eapply pHandleRet. eapply eraseDecomp; eauto. intros. intros c; inversion c. 
-   eapply CH. eauto. Focus 2. eapply H7. erewrite <- eraseUnion. 
-   constructor. constructor. apply eraseFill; auto. }
+   eapply pHandleRet. eapply eraseDecomp; eauto. introsInv. eapply CH; eauto. 
+   erewrite <- eraseUnion. constructor. constructor. apply eraseFill; auto. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm M t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
-   econstructor. apply PTerminate. 
-   eapply CH. eauto. Focus 2. eapply H7. unfold tUnion. 
+   econstructor. apply PTerminate. eapply CH; eauto. unfold tUnion. 
    unfold tEmptySet. repeat rewrite union_empty. constructor. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists M. econstructor. apply pFork. 
-   eapply eraseDecomp; eauto. intros. intros c. inversion c. eapply CH. 
-   eauto. Focus 2. eapply H7. rewrite coupleEqUnion. erewrite <- eraseUnionCouple. 
+   eapply eraseDecomp; eauto. introsInv. eapply CH; eauto.
+   rewrite coupleEqUnion. erewrite <- eraseUnionCouple. 
    constructor. constructor. apply eraseFill; eauto. constructor. auto. }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists N. econstructor. 
    eapply PGet. eapply lookupCommit. eapply H3. eapply H13. eassumption. 
-   eapply eraseDecomp; eauto. intros. intros c. inversion c. 
-   eapply CH. eauto. Focus 2. eapply H7. erewrite <- eraseUnion. 
+   eapply eraseDecomp; eauto. introsInv. eapply CH; eauto. erewrite <- eraseUnion. 
    constructor. constructor. apply eraseFill; auto. apply decomposeEq in H10. 
    subst. assumption.  }
   {inversion H8; subst. rewrite eraseUnionComm. assert(exists t', eraseTerm t t'). 
    apply erasureTotal. invertHyp. erewrite termErasePoolErase; eauto. 
    eraseExists E. eraseExists N. econstructor. eapply PPut.  
-   eapply eraseDecomp; eauto. intros. intros c. inversion c. Focus 3. 
-   eapply CH. Focus 3. eap
+   eapply eraseDecomp; eauto. introsInv. 
 
 
 

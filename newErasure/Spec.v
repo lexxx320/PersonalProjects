@@ -162,10 +162,10 @@ RBDone : forall T maj min h min' M tid s1 s2 t1,
            h' = remove h x -> ~(tIn T t1) -> t1 = (Tid(i,j)l, s1, s2, M) ->
            rollback tid SRoll h' (tAdd T (Tid(i,j')l, s1', s2, M')) h'' T' ->
            rollback tid SRoll h (tAdd T t1) h'' T'
-|RBSpec : forall s1 s1' s2 s2' tid tid2 tid''' M M' M'' N'' N N' E T T' h h' t1 t2 SRoll i j j' l,
+|RBSpec : forall s1 s1' s2 s2' tid tid2 tid''' M M' M'' N'' N E T T' h h' t1 t2 SRoll i j j' l,
             s1 = specRetAct tid2 j' M'::s1' -> decompose M' E (spec M'' N'') ->
             ~(tIn T t1) -> ~(tIn T t2) ->
-            t1 = (Tid(i,j)l, s1, s2, M) -> t2 = (tid''', [sAct tid2 N'; specAct], s2', N) ->
+            t1 = (Tid(i,j)l, s1, s2, M) -> t2 = (tid''', [specAct], s2', N) ->
             rollback tid SRoll h (tAdd T (Tid(i,j')l, s1', s2, M')) h' T' ->
             rollback tid SRoll h (tAdd (tAdd T t1) t2) h' T'
 .
@@ -195,7 +195,6 @@ Fixpoint wrapActs acts N :=
       |rAct x i M::acts' => rAct x i (specJoin N M)::wrapActs acts' N
       |wAct x i M::acts' => wAct x i (specJoin N M)::wrapActs acts' N
       |cAct x i M::acts' => cAct x i (specJoin N M)::wrapActs acts' N
-      |sAct i M::acts' => sAct i (specJoin N M)::wrapActs acts' N
       |specRetAct tid i M::acts' => specRetAct tid i (specJoin N M)::
                                                wrapActs acts' N
       |fAct x i M::acts' => fAct x i (specJoin N M)::wrapActs acts' N
@@ -264,10 +263,10 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
           decompose t E (spec M N) -> tid' = extendTid tid -> tid = Tid(i, j) l ->
           step h T (tSingleton (tid, s1, s2, fill E (spec M N))) (OK h T
                (tCouple (bump tid, specRetAct tid' j (fill E (spec M N))::s1, s2,fill E(specReturn M tid' N))
-                        (tid', [sAct tid' N], nil, N)))
-|SpecJoin : forall t E M M' N0 N1 tid maj min min' tid' tid'' T h t1 t2 s1 s1' s2 s2',
+                        (tid', [specAct], nil, N)))
+|SpecJoin : forall t E M M' N0 N1 tid maj min min' tid' T h t1 t2 s1 s1' s2 s2',
               decompose t E (specReturn (ret N1) (Tid(maj,min) tid') N0) ->
-              s1 = s1' ++ [sAct tid'' M] ->
+              s1 = s1' ++ [specAct] ->
               t1 = (tid,nil,s2, t) -> t2 = (Tid(maj,min')tid',s1,s2',M') ->
               step h T (tCouple t1 t2) 
                    (OK h T (tSingleton(tid,wrapActs s1' N1, s2,
@@ -312,12 +311,12 @@ Hint Constructors step.
 Inductive multistep : sHeap -> pool -> pool -> config -> Prop :=
 |multi_refl : forall h p1 p2, multistep h p1 p2 (OK h p1 p2)
 |multi_step : forall c T1 T2 P1 P2 P2' h h',
-                T2 = tUnion P1 P2 -> Disjoint thread P1 P2 ->
+                T2 = tUnion P1 P2 ->
                 step h (tUnion P1 T1) P2 (OK h' (tUnion P1 T1) P2') ->
                 multistep h' T1 (tUnion P1 P2') c ->
                 multistep h T1 T2 c
 |multi_error1 : forall T1 T2 P1 P2 h, 
-                  T2 = tUnion P1 P2 -> Disjoint thread P1 P2 ->
+                  T2 = tUnion P1 P2 ->
                   step h (tUnion P1 P2) P2 Error ->
                   multistep h T1 T2 Error
 . 
@@ -361,10 +360,6 @@ Inductive unspecThread : thread -> option thread -> Prop :=
                   s1 = s1' ++ [cAct i min' t] ->
                   unspecThread (Tid (maj, min) tid, s1, s2, M) 
                                (Some(Tid (maj, min') tid, nil, s2, (fill c new)))
-|unspecSpec : forall tid s1 s1' s2 M maj min min' M',
-   s1 = s1' ++ [sAct (Tid (maj, min') tid) M'] ->
-   unspecThread (Tid (maj, min) tid, s1, s2, M) 
-                (Some(Tid (maj, min') tid, [sAct (Tid (maj, min') tid) M'], s2, M'))
 |unSpecFork : forall c tid s1 s1' s2 M tid' M' maj min min' t,
                   decompose t c (fork M') -> 
                   s1 = s1' ++ [fAct tid' min' t] ->
@@ -434,7 +429,8 @@ Ltac invertListNeq :=
   match goal with
       |H:[] = ?l ++ [?x] |- _ => destruct l; inversion H
       |H:[?x] = ?l ++ [?y] |- _ => destruct l; inversion H; clear H; invertListNeq
-      |H:?s1 ++ [?e1] = ?s2 ++ [?e2] |- _ => apply lastElemNeq in H; inversion H; intros c; inversion c
+      |H:?s1 ++ [?e1] = ?s2 ++ [?e2] |- _ => 
+       let n := fresh in apply lastElemNeq in H; inversion H; intros n; inversion n
       |H:?y=?x::?y |- _ => apply consListNeq in H; inversion H
       |H:?y=?x::?y |- _ => symmetry in H; apply consListNeq in H; inversion H
   end. 
@@ -466,7 +462,6 @@ Proof.
   {intros. inversion H0. unfold commitPool in H. inversion H1. apply H in H4. 
    subst. inversion H2; try(destruct s1'; inversion H12). 
    {subst. inversion H1. assumption. } 
-   {destruct s1'; inversion H4. }
   }
 Qed. 
 
@@ -503,14 +498,14 @@ Proof.
   split. 
   {intros. remember (OK h' (tUnion t1 t2) p1'). induction H. 
    {inversion Heqc. subst. constructor. }
-   {inversion Heqc; subst. unfold tUnion in H1. rewrite Union_commutative in H1. apply stepUnusedPool in H1. 
-    econstructor.  reflexivity. assumption. unfold tUnion. rewrite Union_commutative. apply stepUnusedPool.
-    eassumption. apply IHmultistep in H3. assumption. }
+   {subst. unfold tUnion in H0. rewrite Union_commutative in H0. apply stepUnusedPool in H0. 
+    econstructor. reflexivity. unfold tUnion. rewrite Union_commutative. apply stepUnusedPool. 
+    eauto. eauto. }
    {inversion Heqc. }
   }
   {intros. remember (OK h' t2 p1'). induction H; eauto. 
    {inversion Heqc; subst. constructor. }
-   {eapply multi_step. eassumption. assumption. unfold tUnion. rewrite Union_commutative. 
+   {eapply multi_step. eassumption.  unfold tUnion. rewrite Union_commutative. 
     rewrite Union_associative. rewrite stepUnusedPool. rewrite Union_commutative. eassumption. 
     apply IHmultistep. assumption. }
    {inversion Heqc. }

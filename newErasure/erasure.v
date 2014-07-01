@@ -98,9 +98,6 @@ Inductive eraseThread : thread -> pPool -> Prop :=
 |tEraseNew : forall tid min M M' M'' x s1 s2 s1' E,
               s1 = s1' ++ [cAct x min M'] -> eraseTerm M' M'' ->
               decompose M' E new -> eraseThread (tid, s1, s2, M) (pSingleton M'')
-|tEraseSpec : forall tid tid' M M' s1 s2 s1',
-               s1 = s1' ++ [sAct tid' M'] -> 
-               eraseThread (tid, s1, s2, M) (Empty_set ptrm)
 |tEraseFork : forall tid tid' min M M' M'' s1 s2 s1' E N,
                 s1 = s1' ++ [fAct tid' min M'] -> eraseTerm M' M'' ->
                 decompose M' E (fork N) -> eraseThread (tid, s1, s2, M) (pSingleton M'')
@@ -177,7 +174,6 @@ Proof.
    }
    {inversion H1; subst; try invertListNeq. eapply tEraseWrite; eauto. decompErase. }
    {inversion H1; subst; try invertListNeq. eapply tEraseNew; eauto. decompErase. }
-   {inversion H1; subst; try invertListNeq. eapply tEraseSpec; eauto. }
    {inversion H1; subst; try invertListNeq. eapply tEraseFork; eauto. decompErase. }
    {inversion H1; subst; try invertListNeq. eapply tEraseSpecRet; eauto. }
   }
@@ -190,7 +186,6 @@ Proof.
     decompErase. inversion H2; subst. auto. }
    {do 2 econstructor; eauto. econstructor. eassumption. eapply unspecCreate; eauto.
     decompErase. inversion H2; subst. auto. }
-   {inversion H2. }
    {do 2 econstructor; eauto. econstructor. eassumption. eapply unSpecFork; eauto. 
     decompErase. inversion H2; subst; auto. }
    {do 2 econstructor; eauto. econstructor. eassumption. eapply unSpecSpecret; eauto.

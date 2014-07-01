@@ -459,7 +459,7 @@ Proof.
    {copy H. apply actionPreservation with (t1:=t1)(t2:=t2)(t2':=t2'0)(p1:=p1)(p1':=t1')(p2':=t2')
                                           (sa:=sa)(ca:=ca)(h:=h)(h':=h'0)(h'':=h') in H; auto. 
     inversion H. copy H8. apply IHsplitMultistep in H8; auto. 
-    unfold tUnion in H5. rewrite Union_commutative in H5. eapply multi_step. reflexivity. eassumption. 
+    unfold tUnion in H5. rewrite Union_commutative in H5. eapply multi_step. reflexivity.
     rewrite stepUnusedPool in H5. rewrite <- stepUnusedPool with(t1:=t1')in H5. 
     unfold tUnion in H5. rewrite Union_commutative in H5. copy H5. 
     apply specActionsFrameRule with (t2:=t2)(t2':=t2'0) in H3. inversion H3. inversion H12. 
@@ -472,6 +472,10 @@ Proof.
   {inversion Heqc. }{inversion Heqc. }
   Qed. 
 
+Ltac invertList :=
+  match goal with
+      |H:?a::?b = [?x] |- _ => destruct b; inversion H
+  end. 
 
 Theorem ForkInd : forall h h' T T' tid tid' s1 s2 E t t' M i j l,
                     decompose t E (fork M) -> tid = Tid(i, j) l -> tid' = Tid(1,1) ((i,j)::l) ->
@@ -484,11 +488,12 @@ Proof.
   intros. remember (tCouple t' (tid', [specAct], [], M)). remember (OK h' e T'). induction H4; auto.
   {inversion Heqc; subst. constructor. } 
   {inversion Heqc. apply IHmultistep in Heqe. inversion H6; subst; try(solve[eapply multi_step; eauto; eauto]).
-   {copy H. apply decomposeEq in H. inversion H3; eauto; try solve[subst; match goal with
+   {copy H. apply decomposeEq in H. inversion H3; eauto; try solve[ match goal with
                 |H:tSingleton ?x = tCouple ?y ?z |- _ =>
-                 apply SingleEqCouple in H; inversion H as [Eq1 Eq2]; try solve[inversion Eq1];
-                 try solve[inversion Eq2]
-            end]. 
+                 apply SingleEqCouple in H; inversion H as [Eq1 Eq2]; 
+                 inversion Eq1; inversion Eq2; subst; invertList
+            end].
+ 
     {eapply heapUpdateNeq in H16. exfalso. apply H16. eassumption. intros C. inversion C.  
      invertListNeq. }
     {eapply heapUpdateNeq in H16. exfalso. apply H16. eassumption. intros C. inversion C. }

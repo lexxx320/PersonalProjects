@@ -18,68 +18,39 @@ Proof.
   }
 Qed. 
 
-Inductive actionIDs : thread -> Prop :=
-|nilAct : forall tid s2 M, actionIDs (tid, nil, s2, M)
-|consRead : forall maj min min' E tid s1 s2 M N x,
-              decompose N = (E, get (fvar x)) ->
-              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, rAct x (Tid(maj,min') tid) N::s1, s2, M)
-|consWrite : forall maj min min' E tid s1 s2 M N x N',
-               decompose N = (E, put (fvar x) N') ->
-               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-               actionIDs(Tid(maj,min)tid, wAct x (Tid(maj,min') tid) N::s1, s2, M)
-|consNew : forall maj min min' E tid s1 s2 M N x,
-             decompose N = (E, new) ->
-             actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-             actionIDs(Tid(maj,min)tid, cAct x (Tid(maj,min') tid) N::s1, s2, M)
-|consSpec : forall maj min min' tid s1 s2 M N,
-              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, sAct (Tid(maj,min') tid) N::s1, s2, M)
-|consFork : forall maj min min' tid s1 s2 M N N' E x,
-              decompose N = (E, fork N') -> 
-              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, fAct x (Tid(maj,min') tid) N::s1, s2, M)
-|consCSpec : forall maj min tid s1 s2 M,
-              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, specAct::s1, s2, M)
-.
-
-Axiom ConsistentIDs : forall T, actionIDs T. 
 
 Ltac copy H := 
   match type of H with
       |?x => assert(x) by assumption
   end. 
 
-Theorem lastActionConsistent : forall tid x a s N,
-                                 actionIDs(tid, x++[a], s, N) -> 
-                                 actionIDs(tid, [a], s, N).
-Proof.
-  induction x; intros. 
-  {simpl in H. assumption. }
-  {simpl in *. inversion H; subst; auto. }
-Qed. 
+Inductive actionIDs : thread -> Prop :=
+|nilAct : forall tid s2 M, actionIDs (tid, nil, s2, M)
+|consRead : forall maj min min' E tid s1 s2 M N x,
+              decompose N E (get (fvar x)) ->
+              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
+              actionIDs(Tid(maj,min)tid, rAct x min' N::s1, s2, M)
+|consWrite : forall maj min min' E tid s1 s2 M N x N',
+               decompose N E (put (fvar x) N') ->
+               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
+               actionIDs(Tid(maj,min)tid, wAct x min' N::s1, s2, M)
+|consNew : forall maj min min' E tid s1 s2 M N x,
+             decompose N E new ->
+             actionIDs(Tid(maj,min)tid, s1, s2, M) ->
+             actionIDs(Tid(maj,min)tid, cAct x min' N::s1, s2, M)
+|consSpec : forall maj min min' tid s1 s2 M N,
+              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
+              actionIDs(Tid(maj,min)tid, sAct (Tid(maj,min') tid) N::s1, s2, M)
+|consFork : forall maj min min' tid s1 s2 M N N' E x,
+              decompose N E (fork N') -> 
+              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
+              actionIDs(Tid(maj,min)tid, fAct x min' N::s1, s2, M)
+|consCSpec : forall maj min tid s1 s2 M,
+              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
+              actionIDs(Tid(maj,min)tid, specAct::s1, s2, M)
+.
 
-Theorem unspecLastAct : forall tid tid' A s2 M M' t,
-                         basicAction A M' tid' ->
-                         (unspecThread (tid, [A], s2, M) t <->
-                          unspecThread (tid', nil, s2, M') t). 
-Proof.
-  intros. split; intros. 
-  {inversion H0; subst; try solve[
-   match goal with
-        |H:[?A]=?s++[?a], H':basicAction ?ac ?m ?t |- _ => 
-         destruct s; inversion H; subst; try invertListNeq; inversion H'; subst
-    end; apply decomposeEq in H6; subst; constructor]. 
-  }
-  {destruct tid. destruct p. destruct tid'. destruct p. inversion H0; subst; try invertListNeq. 
-   inversion H; subst; try solve[
-   match goal with
-       | |- unspecThread ?t ?t' => 
-         assert(C:actionIDs t) by apply ConsistentIDs; inversion C; subst
-   end; copy H3; apply decomposeEq in H3; subst; econstructor;[eassumption|rewrite app_nil_l; auto]]. 
-  }
-Qed. 
+Axiom ConsistentIDs : forall T, actionIDs T. 
 
 Hint Resolve app_comm_cons. 
 
