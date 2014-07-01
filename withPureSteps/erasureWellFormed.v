@@ -21,24 +21,24 @@ Qed.
 Inductive actionIDs : thread -> Prop :=
 |nilAct : forall tid s2 M, actionIDs (tid, nil, s2, M)
 |consRead : forall maj min min' E tid s1 s2 M N x,
-              decompose N = (E, get (fvar x)) ->
+              decompose N E (get (fvar x)) ->
               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, rAct x (Tid(maj,min') tid) N::s1, s2, M)
+              actionIDs(Tid(maj,min)tid, rAct x min' N::s1, s2, M)
 |consWrite : forall maj min min' E tid s1 s2 M N x N',
-               decompose N = (E, put (fvar x) N') ->
+               decompose N E (put (fvar x) N') ->
                actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-               actionIDs(Tid(maj,min)tid, wAct x (Tid(maj,min') tid) N::s1, s2, M)
+               actionIDs(Tid(maj,min)tid, wAct x min' N::s1, s2, M)
 |consNew : forall maj min min' E tid s1 s2 M N x,
-             decompose N = (E, new) ->
+             decompose N E new ->
              actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-             actionIDs(Tid(maj,min)tid, cAct x (Tid(maj,min') tid) N::s1, s2, M)
+             actionIDs(Tid(maj,min)tid, cAct x min' N::s1, s2, M)
 |consSpec : forall maj min min' tid s1 s2 M N,
               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
               actionIDs(Tid(maj,min)tid, sAct (Tid(maj,min') tid) N::s1, s2, M)
 |consFork : forall maj min min' tid s1 s2 M N N' E x,
-              decompose N = (E, fork N') -> 
+              decompose N E (fork N') -> 
               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
-              actionIDs(Tid(maj,min)tid, fAct x (Tid(maj,min') tid) N::s1, s2, M)
+              actionIDs(Tid(maj,min)tid, fAct x min' N::s1, s2, M)
 |consCSpec : forall maj min tid s1 s2 M,
               actionIDs(Tid(maj,min)tid, s1, s2, M) ->
               actionIDs(Tid(maj,min)tid, specAct::s1, s2, M)
@@ -60,24 +60,25 @@ Proof.
   {simpl in *. inversion H; subst; auto. }
 Qed. 
 
-Theorem unspecLastAct : forall tid tid' A s2 M M' t,
-                         basicAction A M' tid' ->
-                         (unspecThread (tid, [A], s2, M) t <->
-                          unspecThread (tid', nil, s2, M') t). 
+Theorem unspecLastAct : forall tid maj min min' A s2 M M' t,
+                         basicAction A M' min' ->
+                         (unspecThread (Tid (maj,min) tid, [A], s2, M) t <->
+                          unspecThread (Tid (maj,min') tid, nil, s2, M') t). 
 Proof.
   intros. split; intros. 
   {inversion H0; subst; try solve[
    match goal with
         |H:[?A]=?s++[?a], H':basicAction ?ac ?m ?t |- _ => 
          destruct s; inversion H; subst; try invertListNeq; inversion H'; subst
-    end; apply decomposeEq in H6; subst; constructor]. 
+    end; apply decomposeEq in H8; subst; constructor]. 
   }
-  {destruct tid. destruct p. destruct tid'. destruct p. inversion H0; subst; try invertListNeq. 
+  {inversion H0; subst; try invertListNeq. 
    inversion H; subst; try solve[
    match goal with
        | |- unspecThread ?t ?t' => 
          assert(C:actionIDs t) by apply ConsistentIDs; inversion C; subst
-   end; copy H3; apply decomposeEq in H3; subst; econstructor;[eassumption|rewrite app_nil_l; auto]]. 
+   end; copy H1; apply decomposeEq in H1; subst; econstructor;eauto;
+   rewrite app_nil_l; auto]. 
   }
 Qed. 
 
@@ -86,16 +87,17 @@ Hint Resolve app_comm_cons.
 Theorem unspecTwoActs : forall tid tid' A1 A2 As s2 M M' t,
                          unspecThread (tid', (A1::A2::As), s2, M') t <->
                          unspecThread (tid, (A2 :: As), s2, M) t. 
-Proof.
+Proof.(*
   intros. split; intros. 
-  {destruct tid. destruct p. inversion H; subst; try solve[
+  {destruct tid. destruct p. inversion H; subst. ; try solve[
    match goal with
        |H:?A1::?A2::?As=?s++[?a] |- _ =>
         apply listAlign in H; inversion H as[Ex1 Ex2]; rewrite Ex2
    end; match goal with
        | |- unspecThread ?t ?t' => assert(C:actionIDs t) by apply ConsistentIDs; 
                                   apply lastActionConsistent in C; inversion C; subst
-   end; solve[eauto|copy H5; apply decomposeEq in H5; subst; econstructor; [eassumption| reflexivity]]]. 
+   end; solve[eauto|copy H5; apply decomposeEq in H5; subst; econstructor; eauto ]].  
+   copy H5. apply decomposeEq in H5; subst. 
   }
   {inversion H; subst; destruct tid'; destruct p; try solve[ 
    match goal with
@@ -104,8 +106,8 @@ Proof.
         rewrite app_comm_cons in C; apply lastActionConsistent in C; inversion C; subst 
    end; solve[eauto|copy H5; apply decomposeEq in H5; subst; eauto]]. 
   }
-Qed. 
-
+Qed. *)
+Admitted. 
 (*Helper theorems for reasoning about the erasure of heaps being rolled back*)
 Theorem unspecHeapRBNew : forall H H' x S A,
                            unspecHeap H H' ->
@@ -152,11 +154,12 @@ Theorem appNil : forall (T:Type) (x:T), [x] = nil ++ [x].
 Proof.
   intros. auto. Qed. 
 
-Theorem unspecBasicAction1 : forall a M M' s2 tid tid' T,
-                               basicAction a M' tid' ->
-                               unspecPoolAux(tAdd T (tid, [a], s2, M)) = 
-                               unspecPoolAux(tAdd T (tid', nil, s2, M')). 
+Theorem unspecBasicAction1 : forall a M M' s2 tid maj min min' T,
+                               basicAction a M' min' ->
+                               unspecPoolAux(tAdd T (Tid(maj,min)tid, [a], s2, M)) = 
+                               unspecPoolAux(tAdd T (Tid(maj,min')tid, nil, s2, M')). 
 Proof.
+(*
   intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
   {inversion H0; subst. inversion H1; subst. inversion H4; subst; clear H4. inversion H3; subst. 
    {econstructor. econstructor. econstructor. eassumption. reflexivity. assumption. }
@@ -169,13 +172,13 @@ Proof.
     reflexivity. inversion H4; subst; clear H4. eapply unspecLastAct; eauto. }
   }
 Qed. 
+*) Admitted. 
 
-
-Theorem unspecBasicAction2 : forall a b s1' s2 M M' tid tid' T,
-                              basicAction a M' tid' ->
-                              unspecPoolAux(tAdd T (tid, a::b::s1', s2, M)) = 
-                              unspecPoolAux(tAdd T (tid', b::s1', s2, M')). 
-Proof.
+Theorem unspecBasicAction2 : forall a b s1' s2 M M' tid maj min min' T,
+                    basicAction a M' min' ->
+                    unspecPoolAux(tAdd T (Tid(maj,min)tid, a::b::s1', s2, M)) = 
+                    unspecPoolAux(tAdd T (Tid(maj,min')tid, b::s1', s2, M')). 
+Proof. (*
   intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
   {inversion H0; subst. inversion H1; subst. inversion H4; subst; clear H4. inversion H3; subst. 
    {econstructor. econstructor. econstructor. eassumption. reflexivity. assumption. }
@@ -187,7 +190,7 @@ Proof.
    {destruct tid. destruct p. econstructor. econstructor. apply Union_intror. econstructor. 
     reflexivity. inversion H4; subst; clear H4. eapply unspecTwoActs. eassumption. }
   }
-Qed. 
+Qed.*) Admitted.  
 
 Theorem rollbackWellFormed : forall tid As H T H' T', 
                                wellFormed H T -> rollback tid As H T H' T' ->
@@ -195,7 +198,9 @@ Theorem rollbackWellFormed : forall tid As H T H' T',
 Proof.
   intros. induction H1; subst. 
   {assumption. }
-  {apply IHrollback. inversion H0; subst. inversion H2; subst. destruct s1'. 
+  {apply IHrollback. inversion H0; subst. 
+
+apply IHrollback. inversion H0; subst. inversion H2; subst. destruct s1'. 
    {eapply wf with (T' := (unspecPoolAux (tAdd T (tid', [rAct x tid'' M'], s2, M)))). 
     erewrite unspecBasicAction1. econstructor. constructor. eapply unspecHeapRBRead; eauto. 
     
