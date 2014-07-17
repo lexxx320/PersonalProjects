@@ -169,8 +169,6 @@ Inductive pstep : pHeap -> pPool -> pPool -> pconfig -> Prop :=
 |PNew : forall E t h h' T x,
              pdecompose t E pnew -> (x, h') = extend pempty h ->
              pstep h T (pSingleton t) (pOK h' T (pSingleton (pfill E (pret (pfvar x)))))
-|PTerminate : forall h T M, pstep h T (pSingleton (pret M)) (pOK h T (Empty_set ptrm))
-                
 .
 
 Inductive pmultistep : pHeap -> pPool -> pPool -> pconfig -> Prop :=

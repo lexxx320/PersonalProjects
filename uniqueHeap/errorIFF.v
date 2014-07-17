@@ -10,20 +10,27 @@ Require Import AST.
 Require Import Coq.Program.Equality.
 Require Import unspec. 
 Require Import classifiedStep. 
-Require Import SpecLib. 
+Require Import SpecLib.
+
+Theorem raw_eraseFull : forall H x N tid ds,
+                          raw_heap_lookup x H = Some(sfull nil ds nil tid N) ->
+                          raw_heap_lookup x (raw_eraseHeap H) = Some(pfull (eraseTerm N)). 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {apply IHlist in H0. destruct i0. destruct a. simpl. rewrite eq. auto. 
+    auto. destruct a. destruct a0. simpl. rewrite eq. auto. simpl. 
+    rewrite eq. auto. auto. }
+  }
+Qed. 
 
 Theorem eraseFull : forall H x N tid ds,
                       heap_lookup x H = Some(sfull nil ds nil tid N) ->
                       heap_lookup x (eraseHeap H) = Some(pfull (eraseTerm N)). 
 Proof.
-  induction H; intros. 
-  {simpl in *. inversion H. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq.  
-   {inv H0. simpl. rewrite eq. auto. }
-   {apply IHlist in H0. destruct i0. destruct a. simpl. rewrite eq. auto. auto. 
-    destruct a. destruct a0. simpl. rewrite eq. auto. simpl. rewrite eq. auto. 
-    auto. }
-  }
+  intros. destruct H. simpl in *. eapply raw_eraseFull; eauto. 
 Qed. 
   
 Ltac eqSets := apply Extensionality_Ensembles; unfold Same_set; unfold Included; split; intros.
@@ -49,41 +56,57 @@ Proof.
   apply decomposeEq in H5. subst. auto. auto. simpl. auto. eauto.  
 Qed.  
 
-Axiom heapUnique : forall (T:Type)x H (v v':T), 
-                     heap_lookup x H = Some v ->
-                     heap_lookup x ((x, v')::H) = Some v' -> False. 
+Theorem ltLookup : forall T u x H v, raw_heap_lookup x H = Some v ->
+                                       monotonic u T H -> optLT x u = true. 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. inversion H1; subst. apply beq_nat_true in eq. subst; auto. }
+   {eapply IHlist; eauto. inversion H1; subst. eapply monotonicLowerUB; eauto. }
+  }
+Qed. 
+
+Theorem raw_eraseFull' : forall H x N u, 
+                       monotonic u ivar_state H ->
+                       raw_heap_lookup x (raw_eraseHeap H) = Some(pfull (eraseTerm N)) ->
+                       exists tid ds, raw_heap_lookup x H = Some(sfull nil ds nil tid N). 
+Proof.
+  induction H; intros. 
+  {inv H0. }
+  {simpl in H0. destruct a eqn:eq1. destruct i0 eqn:eq2. 
+   {destruct a0. 
+    {simpl in *. destruct (beq_nat x i). inv H1. eapply IHlist in H1. invertHyp. eauto. 
+    inversion H0; subst. eauto. }
+    {eapply IHlist in H1. invertHyp. simpl in *. destruct (beq_nat x i) eqn:eq4. 
+     {inversion H0; subst. eapply ltLookup in H1; eauto. simpl in *. 
+      destruct (lt_dec x i). apply beq_nat_true in eq4. subst. omega. inv H1. }
+     {eauto. }
+     {subst. inversion H0; subst. eauto. }
+    }
+   }
+   {destruct a0. 
+    {destruct a1. 
+     {simpl in *. destruct (beq_nat x i) eqn:eq4. inv H1. apply eraseTermUnique in H3.
+      subst; eauto. eapply IHlist in H1. auto. inversion H0; subst. eauto. }
+     {simpl in *. destruct (beq_nat x i). inv H1. eapply IHlist in H1. auto. 
+      inversion H0; subst. eauto. }
+    }
+    {simpl in *. destruct (beq_nat x i) eqn:eq. 
+     {subst. eapply IHlist in H1; eauto. invertHyp. inversion H0; subst. 
+      eapply ltLookup in H1; eauto. simpl in H1. destruct (lt_dec x i). apply beq_nat_true in eq. 
+      omega. inv H1. inversion H0; subst. eauto. }
+     {subst. eapply IHlist; eauto. inversion H0; subst. eauto. }
+    }
+   }
+  }
+Qed. 
 
 Theorem eraseFull' : forall H x N, 
                        heap_lookup x (eraseHeap H) = Some(pfull (eraseTerm N)) ->
                        exists tid ds, heap_lookup x H = Some(sfull nil ds nil tid N). 
 Proof.
-  induction H; intros. 
-  {simpl in H. inversion H. }
-  {simpl in H0. destruct a eqn:eq1. destruct i0 eqn:eq2. 
-   {destruct a0. 
-    {simpl in *. destruct (beq_nat x i). inv H0. apply IHlist in H0. invertHyp. eauto. }
-    {apply IHlist in H0. invertHyp. destruct (beq_nat x i) eqn:eq4. 
-     {assert(heap_lookup x ((i, sempty (a0 :: a1)) :: H) = Some (sempty(a0::a1))). 
-      simpl. rewrite eq4. auto. eapply heapUnique in H1. inversion H1. simpl.
-      rewrite <-beq_nat_refl. eauto. }
-     {simpl. rewrite eq4. eauto. }
-    }
-   }
-   {destruct a0. 
-    {destruct a1. 
-     {simpl in *. destruct (beq_nat x i) eqn:eq4. inv H0. apply eraseTermUnique in H2.
-      subst; eauto. apply IHlist in H0. auto. }
-     {simpl in *. destruct (beq_nat x i). inv H0. apply IHlist in H0. auto. }
-    }
-    {apply IHlist in H0. invertHyp. simpl. destruct (beq_nat x i) eqn:eq. 
-     {assert(heap_lookup x ((i, sfull (a0 :: a2) l a1 t t0) :: H) = Some ( sfull (a0 :: a2) l a1 t t0)). 
-      simpl. rewrite eq. auto. eapply heapUnique in H1; eauto. inversion H1. simpl. 
-     rewrite <- beq_nat_refl. eauto. }
-     {eauto. }
-    }
-   }
-  }
-  Grab Existential Variables. repeat constructor. repeat constructor.
+  intros. destruct H. simpl in *. eapply raw_eraseFull' in H0; eauto. 
 Qed. 
 
 Ltac eqIn H := unfoldTac; 
@@ -91,13 +114,6 @@ Ltac eqIn H := unfoldTac;
       |forall x, Ensembles.In ?X (Union ?X ?T (Singleton ?X ?t)) x -> ?y =>
        assert(Ensembles.In X(Union X T (Singleton X t)) t) by (apply Union_intror; constructor)
   end.
- 
-Theorem unspecHeapTrans : forall H H' H'', unspecHeap H H'' -> unspecHeap H' H'' -> 
-                                           unspecHeap H H''.
-Proof.
-  intros. generalize dependent H'. induction H0; intros; eauto. 
-Qed. 
-
 
 Theorem EqJMeq : forall (T:Type) (x y:T), x = y -> JMeq x y.
 Proof.
@@ -106,9 +122,6 @@ Proof.
 Axiom UnionSingletonEq : forall T T' a b, tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
                                           tIn T' a -> T = tUnion (Subtract thread T' a) (tSingleton b).
 
-Theorem xNeqSx : forall x, x <> S x. induction x; intros c; try solve[inv c]. 
-                                     inversion c. auto. 
-Qed. 
 Theorem specStepCommitFullIVar:  forall x H H' ds tid M T t t',
                                    spec_step H T t H' T t' ->
                                    heap_lookup x H = Some(sfull nil ds nil tid M) ->
@@ -117,22 +130,25 @@ Proof.
   intros. inv H0; try solve[econstructor; eauto]. 
   {destruct (beq_nat x x0) eqn:eq. 
    {apply beq_nat_true in eq. subst. eapply lookupDeterministic in H2; eauto. inv H2. 
-    exists (tid0::ds0). erewrite HeapLookupReplace; eauto. }
+    exists (Add tid ds0 TID). erewrite HeapLookupReplace; eauto. }
    {eapply lookupReplaceNeq in H1; eauto. intros c. apply beq_nat_false in eq. contradiction. }
   }
   {destruct (beq_nat x x0) eqn:eq. 
    {apply beq_nat_true in eq. subst. eapply lookupDeterministic in H2; eauto. inv H2. }
    {eapply lookupReplaceNeq in H1; eauto. apply beq_nat_false in eq. auto. }
   }
-  {destruct H; simpl in *. 
+  {destruct H; simpl in *. destruct h. 
    {inv H1. }
-   {destruct p. inv H2. destruct (beq_nat x i) eqn:eq. 
-    {inv H1. simpl. apply beq_nat_true in eq. subst. assert(i <> S i). apply xNeqSx. 
-     apply beq_nat_false_iff in H0. rewrite H0. rewrite <- beq_nat_refl. eauto. }
-    {admit. }
+   {exists ds. destruct p. simpl in *. destruct (beq_nat x i) eqn:eq. 
+    {inv H1. inversion H2; subst. simpl. inversion m; subst. clear H3. 
+     destruct (beq_nat x (S i)) eqn:eq2. apply beq_nat_true in eq. apply beq_nat_true in eq2. 
+     subst. assert(i <>  S i). omega. contradiction. rewrite eq. auto. }
+    {inversion H2; subst. simpl. inversion m; subst. copy H1. eapply ltLookup in H1; eauto. 
+     simpl in *. destruct (lt_dec x i). Focus 2. inv H1. assert(beq_nat x (S i) = false). 
+     apply beq_nat_false_iff. omega. rewrite H0. rewrite eq. auto. }
    }
   }
-Qed. 
+Qed.
 
 Theorem spec_multi_false : forall T T' tid s1 x M' E N d s2 M H H' a b c,
                              spec_multistep H (tUnion T (tSingleton(tid,nil,s2,M'))) H'
@@ -179,26 +195,34 @@ Proof.
   }
 Qed. 
 
-Theorem unspecHeapLookupFull : forall H H' x a b c,
-                                 heap_lookup x H = Some(sfull nil a nil b c) ->
-                                 unspecHeap H H' ->
-                                 heap_lookup x H' = Some(sfull nil nil nil b c).
+Theorem raw_unspecHeapLookupFull : forall H  x a b c,
+                                 raw_heap_lookup x H = Some(sfull nil a nil b c) ->
+                                 raw_heap_lookup x (raw_unspecHeap H) = Some(sfull nil (Empty_set tid) nil b c).
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. inv H1. simpl. rewrite eq. auto. }
-   {inv H1; eauto; simpl; rewrite eq; eauto. }
+   {inv H0. simpl. rewrite eq. auto. }
+   {apply IHlist in H0. destruct i0. destruct a. simpl; rewrite H0. rewrite eq. 
+    auto. auto. destruct a. destruct a1. simpl. rewrite eq; auto. simpl. rewrite eq; auto. 
+    auto. }
   }
+Qed. 
+
+Theorem unspecHeapLookupFull : forall H x a b c,
+                                 heap_lookup x H = Some(sfull nil a nil b c) ->
+                                 heap_lookup x (unspecHeap H) = Some(sfull nil (Empty_set tid) nil b c).
+Proof.
+  intros. destruct H; simpl in *. eapply raw_unspecHeapLookupFull; eauto. 
 Qed. 
 
 Theorem wfDoubleWrite : forall H T tid s1' x M' E N d s2 M a b c,
                           wellFormed H (tAdd T (tid,s1'++[wAct x M' E N d],s2,M)) ->
                           heap_lookup x H = Some(sfull nil a nil b c) -> False. 
 Proof.
-  intros. inv H0. inv H3. unfoldTac. rewrite unspecUnionComm in H5. erewrite unspecSingleton in H5.
+  intros. inv H0. inv H3. unfoldTac. rewrite unspecUnionComm in H4. erewrite unspecSingleton in H4.
   Focus 2. eapply unspecWrite. auto. eapply unspecHeapLookupFull in H1; eauto. 
-  eapply spec_multi_false in H5; eauto. 
+  eapply spec_multi_false in H4; eauto. 
 Qed. 
 
 Theorem ParErrorSpecError : forall H T t PT pt,

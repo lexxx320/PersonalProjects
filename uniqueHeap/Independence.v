@@ -101,7 +101,6 @@ Proof.
   {inversion H4; eauto. }
   {inversion H4; eauto. }
   {inversion H4; eauto. }
-  {inversion H4; eauto. }
   {clear H11. subst. eapply addSpecAction in H0; eauto. inv H0. }
   {eapply heapUpdateNeq in H11. exfalso. apply H11. eauto. intros c. inversion c. }
   {subst. eapply addSpecUnion in H0. inv H0. eauto. }

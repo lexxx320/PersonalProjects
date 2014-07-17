@@ -165,8 +165,6 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
 |HandleRet : forall tid h E T N M s1 s2 t, decompose t E (handle (ret M) N) ->
   step h T (tSingleton (tid,s1,s2,t)) 
        (OK h T (tSingleton (tid,s1,s2,fill E (ret M))))
-|Terminate : forall tid h T M s2, 
-               step h T (tSingleton (tid, nil, s2, ret M)) (OK h T tEmptySet)
 |Fork : forall tid h T M s1 s2 E t (d:decompose t E (fork M)), 
           step h T (tSingleton (tid, s1, s2,t)) 
         (OK h T(tCouple (tid, fAct t E M d ::s1, s2, fill E(ret unit)) 
@@ -197,7 +195,7 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
 |Spec : forall E M t N tid s1 s2 T h (d:decompose t E (spec M N)), 
           step h T (tSingleton (tid, s1, s2, t)) (OK h T
                (tCouple (tid, srAct t E M N d::s1, s2,fill E (specRun M N)) 
-                        (tid, [specAct;specAct], nil, N))) 
+                        (tid, [specAct], nil, N))) 
 |SpecJoin : forall t E M N0 N1 tid T h t1 t2 s1 s1' s2 s2',
               decompose t E (specRun (ret N1) N0) -> s1 = s1' ++ [specAct] ->
               t1 = (tid,nil,s2, t) -> t2 = (2::tid,s1,s2',M) ->
@@ -238,11 +236,9 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
              step h T (tCouple (tid, s1, s2, M) (1::tid, s1'', s2', N)) (OK h T 
                   (tCouple (tid, s1', fAct M' E M'' d::s2, M)
                            (1::tid, s1''', specAct::s2', N)))
-|PopSpec : forall h s1 s1' s1'' s1''' s2 s2' t tid M' M N T E d, 
-             s1 = s1' ++ [srAct t E M N d] -> s1'' = s1''' ++ [specAct] ->
-             step h T (tCouple (tid, s1, s2, M') (1::tid, s1'', s2', N)) (OK h T 
-                  (tCouple (tid, s1', srAct t E M N d::s2, M')
-                           (1::tid, s1''', specAct::s2', N)))
+|PopSpec : forall h s1 s1' s2 t tid M' M N T E d, 
+             s1 = s1' ++ [srAct t E M N d] -> 
+             step h T (tSingleton(tid, s1, s2, M')) (OK h T (tSingleton(tid, s1', srAct t E M N d::s2, M')))
 .
 
 Hint Constructors step. 

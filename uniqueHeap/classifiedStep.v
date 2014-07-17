@@ -30,8 +30,6 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
 |HandleRet : forall tid h E T N M s2 t, decompose t E (handle (ret M) N) ->
   prog_step h T (tSingleton (tid,nil,s2,t)) 
        (OK h T (tSingleton (tid,nil,s2,fill E (ret M))))
-|Terminate : forall tid h T M s2, 
-               prog_step h T (tSingleton (tid, nil, s2, ret M)) (OK h T tEmptySet)
 |Fork : forall tid h T M s2 E t (d:decompose t E (fork M)), 
           prog_step h T (tSingleton (tid, nil, s2,t)) 
         (OK h T(tCouple (tid, nil, fAct t E M d :: s2, fill E(ret unit)) 
@@ -166,3 +164,32 @@ Proof.
   intros. inv H; eauto. Qed. 
 
 
+
+
+Theorem specStepCommitFullIVar:  forall x H H' ds tid M T t t',
+                                   spec_step H T t H' T t' ->
+                                   heap_lookup x H = Some(sfull nil ds nil tid M) ->
+                                  exists ds', heap_lookup x H' = Some(sfull nil ds' nil tid M). 
+Proof. 
+  intros. inv H0; try solve[econstructor; eauto]. 
+  {destruct (beq_nat x x0) eqn:eq. 
+   {apply beq_nat_true in eq. subst. eapply lookupDeterministic in H2; eauto. inv H2. 
+    exists (Add tid ds0 TID). erewrite HeapLookupReplace; eauto. }
+   {eapply lookupReplaceNeq in H1; eauto. intros c. apply beq_nat_false in eq. contradiction. }
+  }
+  {destruct (beq_nat x x0) eqn:eq. 
+   {apply beq_nat_true in eq. subst. eapply lookupDeterministic in H2; eauto. inv H2. }
+   {eapply lookupReplaceNeq in H1; eauto. apply beq_nat_false in eq. auto. }
+  }
+  {destruct H; simpl in *. destruct h. 
+   {inv H1. }
+   {exists ds. destruct p. simpl in *. destruct (beq_nat x i) eqn:eq. 
+    {inv H1. inversion H2; subst. simpl. inversion m; subst. clear H3. 
+     destruct (beq_nat x (S i)) eqn:eq2. apply beq_nat_true in eq. apply beq_nat_true in eq2. 
+     subst. assert(i <>  S i). omega. contradiction. rewrite eq. auto. }
+    {inversion H2; subst. simpl. inversion m; subst. copy H1. eapply ltLookup in H1; eauto. 
+     simpl in *. destruct (lt_dec x i). Focus 2. inv H1. assert(beq_nat x (S i) = false). 
+     apply beq_nat_false_iff. omega. rewrite H0. rewrite eq. auto. }
+   }
+  }
+Qed. 

@@ -59,7 +59,6 @@ Proof.
    eapply pHandle. rewrite decomposeErase; eauto. rewrite eraseFill. auto. }
   {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
    eapply pHandleRet. rewrite decomposeErase; eauto. rewrite eraseFill. auto. simpl. eauto. }
-  {symmetry in H6. apply SingletonNeqEmpty in H6. inversion H6. }
   {inversion H1. inversion H2. rewrite H4 in H8. destruct s1; inversion H8. }
   {rewrite H15 in H11. invertListNeq. }
   {rewrite H16 in H12. invertListNeq. } 
