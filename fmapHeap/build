@@ -1,0 +1,15 @@
+coqc SfLib.v
+coqc SpecLib.v
+coqc hetList.v
+coqc sets.v
+coqc AST.v
+coqc Heap.v
+coqc NonSpec.v
+coqc Spec.v
+coqc classifiedStep.v
+coqc unspec.v
+coqc erasure.v
+coqc eraseRollbackIdempotent.v
+coqc NonSpecPureStep.v
+coqc errorIFF.v
+
