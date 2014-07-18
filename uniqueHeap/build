@@ -9,9 +9,7 @@ coqc Spec.v
 coqc classifiedStep.v
 coqc unspec.v
 coqc erasure.v
-coqc Independence.v
 coqc eraseRollbackIdempotent.v
 coqc NonSpecPureStep.v
-coqc nonspeculativeImpliesSpeculative.v
-
+coqc errorIFF.v
 
