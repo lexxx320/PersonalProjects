@@ -603,36 +603,6 @@ Proof.
    {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
     rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
   }
-  {split; auto. inv H1. inv H3. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-   {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
-    rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
-  }
-  {split; auto. inv H1. inv H3. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-   {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
-    rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
-  }
-  {split; auto. inv H1. inv H3. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-   {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
-    rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
-  }
-  {split; auto. inv H1. inv H3. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-   {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
-    rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
-  }
-  {split; auto. inv H1. inv H3. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-   {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
-    rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
-  }
-  {split; auto. inv H1. inv H3. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-   {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
-    rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
-  }
   {split; auto. inv H1. unfoldTac. rewrite coupleUnion. destruct b. 
    {erewrite erasePoolSingleton; eauto. erewrite eraseUnionComm. simpl. 
     repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_l. auto. }

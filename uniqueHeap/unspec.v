@@ -379,36 +379,6 @@ Proof.
    {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
     uCons a b. erewrite unspecTwoActs. eauto. }
   }
-  {inv H1; split; auto. helper. inv H3. 
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
-    uCons a b. erewrite unspecTwoActs. eauto. }
-  }
-  {inv H1; split; auto. helper. inv H3. 
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
-    uCons a b. erewrite unspecTwoActs. eauto. }
-  }
-  {inv H1; split; auto. helper. inv H3. 
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
-    uCons a b. erewrite unspecTwoActs. eauto. }
-  }
-  {inv H1; split; auto. helper. inv H3. 
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
-    uCons a b. erewrite unspecTwoActs. eauto. }
-  }
-  {inv H1; split; auto. helper. inv H3. 
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
-    uCons a b. erewrite unspecTwoActs. eauto. }
-  }
-  {inv H1; split; auto. helper. inv H3. 
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
-   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
-    uCons a b. erewrite unspecTwoActs. eauto. }
-  }
   {inv H1; split; auto. destruct b.   
    {simpl. repeat erewrite unspecSingleton; eauto. unfoldTac. rewrite coupleUnion. 
     rewrite unspecUnionComm. repeat erewrite unspecSingleton; eauto. unfoldTac. rewrite union_empty_l. 

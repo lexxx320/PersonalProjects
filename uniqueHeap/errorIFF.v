@@ -158,9 +158,11 @@ Proof.
          |H:decompose ?M ?E ?e, H' : decompose ?M' ?E' ?e' |- _ => eapply uniqueCtxtDecomp in H; eauto
      end; invertHyp; cleanup].
     {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto. 
-     inv H6. inv H10. eapply lookupDeterministic in H1; eauto. inv H1. }
+     inv H6. inv H10. }
     {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto. 
-     inv H6. cleanup. clear H11. cleanup. inv H10. }
+     invertHyp. inv H10. eapply lookupDeterministic in H1; eauto. inv H1. }
+    {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto.
+     invertHyp. inv H10. }
    }
   }
 Qed. 

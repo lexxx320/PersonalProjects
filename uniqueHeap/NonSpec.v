@@ -116,16 +116,25 @@ Inductive pconfig : Type :=
 |pError : pconfig
 |pOK : pHeap -> pPool -> pPool -> pconfig. 
 
+Inductive pbasic_step : ptrm -> ptrm -> Prop :=
+|pbasicBeta : forall t E e N,  pdecompose t E (papp(plambda e) N) ->
+                              pbasic_step t (pfill E (popen 0 N e))
+|pbasicProjL : forall t E V1 V2,
+                pdecompose t E (ppair V1 V2) -> pbasic_step t (pfill E V1)
+|pbasicProjR : forall t E V1 V2,
+                pdecompose t E (ppair V1 V2) -> pbasic_step t (pfill E V2)
+|pbasicBind : forall t E M N,
+               pdecompose t E (pbind (pret M) N) -> pbasic_step t (pfill E (papp N M))
+|pbasicBindRaise : forall t E M N,
+                    pdecompose t E (pbind (praise M) N) -> pbasic_step t (pfill E (praise M))
+|pbasicHandle : forall t E M N,
+                 pdecompose t E (phandle (praise M) N) -> pbasic_step t (pfill E (papp N M))
+|pbasicHandleRet : forall t E M N,
+                    pdecompose t E (phandle (pret M) N) -> pbasic_step t (pfill E (pret M)). 
+
 Inductive pstep : pHeap -> pPool -> pPool -> pconfig -> Prop :=
-|PBetaRed : forall t E e arg h T,
-              pdecompose t E (papp (plambda e) arg) -> 
-              pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (popen 0 arg e))))
-|pProjectL : forall V1 V2 h T t E,
-               pdecompose t E (pfst (ppair V1 V2)) -> 
-               pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E V1)))
-|pProjectR : forall V1 V2 h T t E,
-               pdecompose t E (psnd (ppair V1 V2)) -> 
-               pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E V2)))
+|PBasicStep : forall t t' h T,
+                pbasic_step t t' -> pstep h T (pSingleton t) (pOK h T (pSingleton t'))
 |pSpec : forall t M N T h E, pdecompose t E (pspec M N) ->
                            pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (pspecRun M N))))
 |pSpecRun : forall t M N T h E,
@@ -141,18 +150,6 @@ Inductive pstep : pHeap -> pPool -> pPool -> pconfig -> Prop :=
 |pSpecJoinRaise : forall t M N T h E,
                    pdecompose t E (pspecJoin (pret N) (praise M)) ->
                    pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (praise M))))
-|PBind : forall E t M N h T, 
-            pdecompose t E (pbind (pret M) N) -> 
-           pstep h T (pSingleton t) (pOK h T (pSingleton(pfill E(papp N M))))
-|PBindRaise : forall E t M N h T,
-                 pdecompose t E (pbind (praise M) N) -> 
-                pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E(praise M))))
-|pHandle : forall E t M N h T,
-              pdecompose t E (phandle (praise M) N)-> 
-             pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E(papp N M))))
-|pHandleRet : forall E t M N h T,
-                pdecompose t E (phandle (pret M) N)  -> 
-                pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E(pret M))))
 |pFork : forall E t M h T,
            pdecompose t E (pfork M) -> 
            pstep h T (pSingleton t) (pOK h T (Couple ptrm (pfill E(pret punit)) M))

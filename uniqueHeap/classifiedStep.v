@@ -1,6 +1,6 @@
 Require Import AST.   
-Require Import NonSpec.  
-Require Import Spec. 
+Require Import NonSpec.   
+Require Import Spec.  
 Require Import Heap. 
 Require Import sets. 
 Require Import Coq.Sets.Ensembles. 
@@ -10,30 +10,10 @@ Inductive SPEC : actionStack -> Prop :=
 |unlockedSpec : forall a b, SPEC(unlocked (a::b)). 
 
 Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
-|BetaRed : forall E e N tid s2 h T t, 
-             decompose t E (AST.app (lambda e) N) ->            
-             prog_step h T (tSingleton(tid,(unlocked nil),s2,t)) 
-                  (OK h T (tSingleton(tid,(unlocked nil),s2,fill E (open 0 N e))))
-|ProjL : forall tid s2 E V1 V2 h T t, 
-           decompose t E (fst (pair_ V1 V2)) ->
-           prog_step h T (tSingleton(tid,(unlocked nil),s2,t)) 
-                (OK h T (tSingleton(tid,(unlocked nil),s2,fill E V1)))
-|ProjR : forall tid s2 E V1 V2 h T t, 
-           decompose t E (snd (pair_ V1 V2)) -> 
-           prog_step h T (tSingleton(tid,(unlocked nil),s2,t)) 
-                (OK h T (tSingleton(tid,(unlocked nil),s2,fill E V2)))
-|Bind : forall tid h E T N M s2 t, decompose t E (bind (ret M) N) ->
-  prog_step h T (tSingleton (tid, (unlocked nil), s2, t)) 
-       (OK h T (tSingleton (tid,(unlocked nil),s2,fill E(AST.app N M))))
-|BindRaise : forall tid h E T N M s2 t, decompose t E (bind (raise M) N)->
-  prog_step h T (tSingleton (tid,(unlocked nil),s2,t)) 
-       (OK h T (tSingleton (tid,(unlocked nil),s2,fill E (raise M))))
-|Handle : forall tid h E T N M s2 t, decompose t E (handle (raise M) N) ->
-  prog_step h T (tSingleton (tid,(unlocked nil),s2,t)) 
-       (OK h T (tSingleton (tid,(unlocked nil),s2,fill E (AST.app  N M))))
-|HandleRet : forall tid h E T N M s2 t, decompose t E (handle (ret M) N) ->
-  prog_step h T (tSingleton (tid,(unlocked nil),s2,t)) 
-       (OK h T (tSingleton (tid,(unlocked nil),s2,fill E (ret M))))
+|BasicStep : forall tid s2 h T t t',
+               basic_step t t' ->
+               prog_step h T (tSingleton(tid,unlocked nil, s2,t))
+                         (OK h T (tSingleton(tid,unlocked nil,s2,t')))
 |Fork : forall tid h T M s2 E t (d:decompose t E (fork M)), 
           prog_step h T (tSingleton (tid, (unlocked nil), s2,t)) 
         (OK h T(tCouple (tid, (unlocked nil), fAct t E M d :: s2, fill E(ret unit)) 
@@ -114,23 +94,9 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
 .
 
 Inductive spec_step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
-|SBetaRed : forall E e N tid s2 h T t s1, 
-             decompose t E (AST.app (lambda e) N) -> SPEC s1 ->             
-             spec_step h T (tSingleton(tid,s1,s2,t)) h T (tSingleton(tid,s1,s2,fill E (open 0 N e)))
-|SProjL : forall tid s2 E V1 V2 h T t s1, 
-           decompose t E (fst (pair_ V1 V2)) -> SPEC s1 ->   
-           spec_step h T (tSingleton(tid,s1,s2,t)) h T (tSingleton(tid,s1,s2,fill E V1))
-|SProjR : forall tid s1 s2 E V1 V2 h T t, 
-           decompose t E (snd (pair_ V1 V2)) -> SPEC s1 ->   
-           spec_step h T (tSingleton (tid,s1,s2,t)) h T (tSingleton(tid,s1,s2,fill E V2))
-|SBind : forall tid h E T N M s1 s2 t, decompose t E (bind (ret M) N) -> SPEC s1 ->   
-  spec_step h T (tSingleton (tid, s1, s2, t)) h T (tSingleton (tid,s1,s2,fill E(AST.app N M)))
-|SBindRaise : forall tid h E T N M s1 s2 t, decompose t E (bind (raise M) N) -> SPEC s1 ->   
-  spec_step h T (tSingleton(tid,s1,s2,t)) h T (tSingleton (tid,s1,s2,fill E (raise M)))
-|SHandle : forall tid h E T N M s1 s2 t, decompose t E (handle (raise M) N) -> SPEC s1 ->   
-  spec_step h T (tSingleton(tid,s1,s2,t)) h T (tSingleton (tid,s1,s2,fill E (AST.app  N M)))
-|SHandleRet : forall tid h E T N M s1 s2 t, decompose t E (handle (ret M) N) -> SPEC s1 ->   
-  spec_step h T (tSingleton(tid,s1,s2,t)) h T (tSingleton (tid,s1,s2,fill E (ret M)))
+|SBasicStep : forall h T tid s1 s2 t t',
+                basic_step t t' -> SPEC s1 ->
+                spec_step h T (tSingleton(tid,s1,s2,t)) h T (tSingleton(tid,s1,s2,t'))
 |SFork : forall tid h T M b s2 E t (d:decompose t E (fork M)), 
           spec_step h T (tSingleton(tid, b, s2,t)) h T
                (tCouple (tid, aCons(fAct t E M d) b, s2, fill E(ret unit)) (1::tid, locked nil, nil, M))
@@ -154,7 +120,6 @@ Inductive spec_step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
                         (tid', locked nil, nil, N))
 
 .
-
 
 (*speculative steps cannot raise an error, so no need for config*)
 Inductive spec_multistep : sHeap -> pool -> sHeap -> pool -> Prop :=

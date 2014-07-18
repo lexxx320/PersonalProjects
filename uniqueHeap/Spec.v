@@ -149,31 +149,27 @@ Fixpoint wrapActs (acts:list action) (N:trm) :=
       |nil => nil
   end. 
 
+Inductive basic_step : trm -> trm -> Prop :=
+|basicBeta : forall t E e N,  decompose t E (AST.app(lambda e) N) ->
+                              basic_step t (fill E (open 0 N e))
+|basicProjL : forall t E V1 V2,
+                decompose t E (pair_ V1 V2) -> basic_step t (fill E V1)
+|basicProjR : forall t E V1 V2,
+                decompose t E (pair_ V1 V2) -> basic_step t (fill E V2)
+|basicBind : forall t E M N,
+               decompose t E (bind (ret M) N) -> basic_step t (fill E (AST.app N M))
+|basicBindRaise : forall t E M N,
+                    decompose t E (bind (raise M) N) -> basic_step t (fill E (raise M))
+|basicHandle : forall t E M N,
+                 decompose t E (handle (raise M) N) -> basic_step t (fill E (AST.app N M))
+|basicHandleRet : forall t E M N,
+                    decompose t E (handle (ret M) N) -> basic_step t (fill E (ret M)). 
+
+
+
 Inductive step : sHeap -> pool -> pool -> config -> Prop :=
-|BetaRed : forall E e N tid s1 s2 h T t, 
-             decompose t E (AST.app (lambda e) N) ->            
-             step h T (tSingleton(tid,s1,s2,t)) 
-                  (OK h T (tSingleton(tid,s1,s2,fill E (open 0 N e))))
-|ProjL : forall tid s1 s2 E V1 V2 h T t, 
-           decompose t E (fst (pair_ V1 V2)) ->
-           step h T (tSingleton(tid,s1,s2,t)) 
-                (OK h T (tSingleton(tid,s1,s2,fill E V1)))
-|ProjR : forall tid s1 s2 E V1 V2 h T t, 
-           decompose t E (snd (pair_ V1 V2)) -> 
-           step h T (tSingleton(tid,s1,s2,t)) 
-                (OK h T (tSingleton(tid,s1,s2,fill E V2)))
-|Bind : forall tid h E T N M s1 s2 t, decompose t E (bind (ret M) N) ->
-  step h T (tSingleton (tid, s1, s2, t)) 
-       (OK h T (tSingleton (tid,s1,s2,fill E(AST.app N M))))
-|BindRaise : forall tid h E T N M s1 s2 t, decompose t E (bind (raise M) N)->
-  step h T (tSingleton (tid,s1,s2,t)) 
-       (OK h T (tSingleton (tid,s1,s2,fill E (raise M))))
-|Handle : forall tid h E T N M s1 s2 t, decompose t E (handle (raise M) N) ->
-  step h T (tSingleton (tid,s1,s2,t)) 
-       (OK h T (tSingleton (tid,s1,s2,fill E (AST.app  N M))))
-|HandleRet : forall tid h E T N M s1 s2 t, decompose t E (handle (ret M) N) ->
-  step h T (tSingleton (tid,s1,s2,t)) 
-       (OK h T (tSingleton (tid,s1,s2,fill E (ret M))))
+|BasicStep : forall t t' tid s1 s2 h T,
+               basic_step t t' -> step h T (tSingleton(tid,s1,s2,t)) (OK h T (tSingleton(tid,s1,s2,t')))
 |Fork : forall tid h T M s1 s2 E t (d:decompose t E (fork M)), 
           step h T (tSingleton (tid, s1, s2,t)) 
         (OK h T(tCouple (tid, aCons (fAct t E M d)s1, s2, fill E(ret unit)) 
@@ -244,11 +240,11 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
                   h' = replace i (sempty (unlocked nil)) h -> 
                  step h T (tSingleton (tid, s1, s2, M))
                       (OK h T (tSingleton (tid, unlocked s1', nAct M' E d i::s2, M)))
-|PopFork : forall h s1 s1' s2 s2' tid M' M N T M'' E d, 
+|PopFork : forall h s1 s1' s2 tid M' M N T M'' E d, 
              s1 = unlocked(s1' ++ [fAct M' E M'' d]) -> 
-             step h T (tCouple (tid, s1, s2, M) (1::tid, locked s1', s2', N)) (OK h T 
+             step h T (tCouple (tid, s1, s2, M) (1::tid, locked s1', nil, N)) (OK h T 
                   (tCouple (tid, unlocked s1', fAct M' E M'' d::s2, M)
-                           (1::tid, unlocked s1', s2', N)))
+                           (1::tid, unlocked s1', nil, N)))
 |PopSpec : forall h s1 s1' s2 t tid M' M N T E d, 
              s1 = unlocked (s1' ++ [srAct t E M N d]) -> 
              step h T (tSingleton(tid, s1, s2, M')) 

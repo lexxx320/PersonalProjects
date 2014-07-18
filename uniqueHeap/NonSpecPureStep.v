@@ -38,27 +38,26 @@ Proof.
   intros. destruct H; simpl in *. eapply raw_heapLookupSomeReplace; eauto. 
 Qed. 
 
+Hint Constructors pbasic_step. 
+
+Theorem simBasicStep : forall t t',
+                         basic_step t t' -> pbasic_step (eraseTerm t) (eraseTerm t'). 
+Proof.
+  intros. inv H; try solve[
+    match goal with
+       |H:decompose ?t ?E ?e |- _ => rewrite <- decomposeErase in H; eauto; 
+                                     rewrite eraseFill; simpl; eauto
+    end].      
+  {rewrite <- decomposeErase in H0; eauto. rewrite eraseFill; simpl. rewrite eraseOpenComm. eauto. }
+Qed. 
+
 Theorem NonSpecPureStep : forall h sh tid s1 s2 M M' T T',
                             step h T (tSingleton (tid,s1,s2,M)) (OK h T (tSingleton(tid,s1,s2,M'))) ->
                             erasePool T T' -> eraseHeap h = sh ->
                             pstep sh T' (pSingleton (eraseTerm M)) (pOK sh T' (pSingleton (eraseTerm M'))).
 Proof.
-  intros. inversion H; cleanup. 
-  {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
-   rewrite eraseOpenComm. eapply PBetaRed. rewrite decomposeErase; eauto. rewrite eraseFill. 
-   auto. }
-  {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
-   eapply pProjectL. rewrite decomposeErase; eauto. rewrite eraseFill. auto. simpl. eauto. }
-  {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
-   eapply pProjectR. rewrite decomposeErase; eauto. rewrite eraseFill. auto. simpl. eauto. }
-  {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
-   eapply PBind. rewrite decomposeErase; eauto. rewrite eraseFill. auto. }
-  {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
-   eapply PBindRaise. rewrite decomposeErase; eauto. rewrite eraseFill. auto. simpl. eauto. }
-  {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
-   eapply pHandle. rewrite decomposeErase; eauto. rewrite eraseFill. auto. }
-  {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
-   eapply pHandleRet. rewrite decomposeErase; eauto. rewrite eraseFill. auto. simpl. eauto. }
+  intros. inversion H; cleanup.
+  {apply simBasicStep in H6. eapply PBasicStep. auto. }
   {inversion H1. inversion H2. rewrite H4 in H8. destruct s1; inversion H8. }
   {rewrite H15 in H11. destruct s1. simpl in H11. inversion H11. invertListNeq. 
    simpl in H11. inversion H11. invertListNeq. }

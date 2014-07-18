@@ -9,7 +9,7 @@ Require Import Powerset_facts.
 Require Import unspec. 
 Require Import erasure. 
 Require Import eraseRollbackIdempotent. 
-
+Require Import classifiedStep. 
 
 Theorem AddSingleton : forall T t, Add T (Empty_set T) t = Singleton T t. 
 Proof.
@@ -28,67 +28,46 @@ Qed.
 Ltac pSingleStep := erewrite erasePoolSingleton; eauto; erewrite erasePoolSingleton; eauto;
                         unfold pSingleton; rewrite <- AddSingleton; econstructor; try introsInv.
 
- 
-Theorem eraseHeapDependentRead : forall H H' x sc ds s w N t,
-             eraseHeap H = H' ->
-             heap_lookup x H = Some(sfull sc ds s w N) ->
-             eraseHeap (replace x (sfull sc (t::ds) s w N) H) = H'. 
-Proof.
-  induction H; intros. 
-  {inv H0. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H1. apply beq_nat_true in eq. subst. destruct sc; auto. }
-   {simpl. destruct i0. 
-    {destruct a. inv H0. erewrite IHlist; eauto. erewrite IHlist; eauto. }
-    {destruct a. destruct a0. erewrite IHlist; eauto. erewrite IHlist; eauto. 
-     erewrite IHlist; eauto. }
-   }
-  }
-Qed. 
 
-Theorem eraseHeapWrite : forall x H a b tid N,
-                           heap_lookup x H = Some(sempty nil) ->
-                           eraseHeap (replace x (sfull nil nil (a::b) tid N) H) = (eraseHeap H). 
+Theorem raw_lookupEraseSpecFull : forall x H ds a b tid N, 
+                                raw_heap_lookup x H = Some(sfull (unlocked nil) ds (aCons a b) tid N) ->
+                                raw_heap_lookup x (raw_eraseHeap H) = Some pempty. 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. simpl. apply beq_nat_true in eq. subst. auto. }
-   {destruct i0; destruct a; simpl;  rewrite IHlist; eauto. }
-  }
-Qed.  
-
-
-Theorem lookupEraseSpecFull : forall x H ds a b tid N, 
-                                heap_lookup x H = Some(sfull nil ds (a::b) tid N) ->
-                                heap_lookup x (eraseHeap H) = Some pempty. 
-Proof.
-  induction H; intros. 
-  {inv H. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. simpl. rewrite eq. auto. }
-   {destruct i0. destruct a. simpl; rewrite eq; eauto. eauto. 
-    destruct a. destruct a1. simpl. rewrite eq. eauto. simpl. rewrite eq. 
+   {inv H0. simpl. unfold commit. destruct b; simpl; rewrite eq; auto. }
+   {destruct i0. destruct (commit a). simpl; rewrite eq; eauto. eauto. 
+    destruct (commit a). destruct (commit a1). simpl. rewrite eq. eauto. simpl. rewrite eq. 
     eauto. eauto. }
   }
 Qed. 
 
-Theorem eraseReplaceCommitFull : forall x H tid N ds S A tid' N',
-                                   heap_lookup x H = Some (sfull [] ds (S :: A) tid' N') ->
-                                   eraseHeap(replace x (sfull nil nil nil tid N) H) = 
-                                   replace x (pfull (eraseTerm N)) (eraseHeap H). 
+Theorem lookupEraseSpecFull : forall x H ds a b tid N, 
+                                heap_lookup x H = Some(sfull (unlocked nil) ds (aCons a b) tid N) ->
+                                heap_lookup x (eraseHeap H) = Some pempty. 
 Proof.
-  induction H; intros. 
-  {auto. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. simpl. rewrite eq. auto. }
-   {destruct i0. destruct a. simpl. rewrite eq. erewrite IHlist; eauto. 
-    simpl. erewrite IHlist; eauto. destruct a. destruct a0. simpl. rewrite eq. 
-    erewrite IHlist; eauto. simpl. rewrite eq. erewrite IHlist; eauto. 
-    simpl. erewrite IHlist; eauto. }
-  }
+  intros. destruct H. simpl. eapply raw_lookupEraseSpecFull. eauto. 
+Qed.  
+
+Hint Constructors pbasic_step. 
+
+Theorem simBasicStep : forall t t',
+                         basic_step t t' -> pbasic_step (eraseTerm t) (eraseTerm t'). 
+Proof.
+  intros. inv H; try solve[
+    match goal with
+       |H:decompose ?t ?E ?e |- _ => rewrite <- decomposeErase in H; eauto; 
+                                     rewrite eraseFill; simpl; eauto
+    end].      
+  {rewrite <- decomposeErase in H0; eauto. rewrite eraseFill; simpl. rewrite eraseOpenComm. eauto. }
 Qed. 
 
+Ltac repEmpty :=
+       match goal with
+           | |- pmultistep ?H ?T ?t (pOK ?H' ?T' ?t')  => 
+             replace t with (Union ptrm (Empty_set ptrm) t) by (rewrite union_empty_l; auto)
+       end.
 
 Theorem specImpliesNonSpec : forall H H' T t t' PT pt, 
                                erasePool T PT -> erasePool t pt -> 
@@ -97,131 +76,88 @@ Theorem specImpliesNonSpec : forall H H' T t t' PT pt,
                                                eraseHeap H' = PH' /\ erasePool t' pt'. 
 Proof.
   intros. inversion H2; subst. 
-  {exists (eraseHeap H'). econstructor. destructLast s1. 
-   {split; auto. inv H1. pSingleStep.  eapply PBetaRed. eapply decomposeErase in H8; eauto. 
-    simpl; auto. unfold pUnion. rewrite union_empty_l. rewrite eraseFill.
-    rewrite eraseOpenComm. constructor. }
-   {invertHyp. inv H1. split. pZeroStep. auto. }
+  {exists (eraseHeap H'). econstructor. split; auto. destruct s1. 
+   {inv H1. repeat erewrite erasePoolSingleton; eauto. constructor. }
+   {destructLast l. 
+    {inv H1. repeat erewrite erasePoolSingleton; eauto. apply simBasicStep in H8. 
+      repEmpty. econstructor. eapply PBasicStep; eauto. unfold pUnion. rewrite union_empty_l.
+      constructor. }
+    {invertHyp. inv H1. pZeroStep. }
+   }
   }
-  {exists (eraseHeap H'). econstructor. destructLast s1. 
-   {split; auto. inv H1. pSingleStep. eapply pProjectL. eapply decomposeErase in H8; eauto. 
-    simpl; auto. rewrite eraseFill. unfold pUnion. rewrite union_empty_l. constructor. }
-   {invertHyp. inv H1. split. pZeroStep. auto. }
-  }
-  {exists (eraseHeap H'). econstructor. destructLast s1. 
-   {split; auto. inv H1. pSingleStep. eapply pProjectR. eapply decomposeErase in H8; eauto. 
-    simpl; auto. rewrite eraseFill. unfold pUnion. rewrite union_empty_l. constructor. }
-   {invertHyp. inv H1. split. pZeroStep. auto. }
-  }
-  {exists (eraseHeap H'). econstructor. destructLast s1. 
-   {split; auto. inv H1. pSingleStep. eapply PBind. eapply decomposeErase in H8; eauto. 
-    simpl; auto. rewrite eraseFill. unfold pUnion. rewrite union_empty_l. constructor. }
-   {invertHyp. inv H1. split. pZeroStep. auto. }
-  }
-  {exists (eraseHeap H'). econstructor. destructLast s1. 
-   {split; auto. inv H1. pSingleStep. eapply PBindRaise. eapply decomposeErase in H8; eauto. 
-    simpl; auto. rewrite eraseFill. unfold pUnion. rewrite union_empty_l. constructor. }
-   {invertHyp. inv H1. split. pZeroStep. auto. }
-  }
-  {exists (eraseHeap H'). econstructor. destructLast s1. 
-   {split; auto. inv H1. pSingleStep. eapply pHandle. eapply decomposeErase in H8; eauto. 
-    simpl; auto. rewrite eraseFill. unfold pUnion. rewrite union_empty_l. constructor. }
-   {invertHyp. inv H1. split. pZeroStep. auto. }
-  }
-  {exists (eraseHeap H'). econstructor. destructLast s1. 
-   {split; auto. inv H1. pSingleStep. eapply pHandleRet. eapply decomposeErase in H8; eauto. 
-    simpl; auto. rewrite eraseFill. unfold pUnion. rewrite union_empty_l. constructor. }
-   {invertHyp. inv H1. split. pZeroStep. auto. }
-  }
-  {exists (eraseHeap H'). exists (Empty_set ptrm). split. inv H1. erewrite erasePoolSingleton; eauto. 
-   simpl. unfold pSingleton. rewrite <- AddSingleton. econstructor. apply PTerminate. 
-   unfold pUnion. rewrite union_empty_l. constructor. split; auto. 
-   replace (Empty_set ptrm) with (erasePoolAux tEmptySet). constructor.
-   apply Extensionality_Ensembles. constructor. intros a b. inv b. inv H. inv H6. 
-   intros a b. inv b. }
-  {exists (eraseHeap H'). destructLast s1.   
-   {econstructor. split; auto. inv H1. unfold tCouple. rewrite coupleUnion. 
-    repeat rewrite eraseUnionComm. repeat erewrite erasePoolSingleton; eauto.
-    rewrite union_empty_r. constructor. }
-   {econstructor. split; eauto. unfold tCouple. rewrite coupleUnion. 
-    repeat rewrite eraseUnionComm. invertHyp. inv H1. 
-    assert(exists t', eraseThread (tid,x0++[x],s2,t0) t'). apply eraseThreadTotal. 
-    invertHyp. repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. 
-    constructor. rewrite app_comm_cons. eapply eraseSpecSame; eauto. }
-  }
-  {exists (eraseHeap H). destructLast s1. 
-   {econstructor. split. inv H1. erewrite erasePoolSingleton; eauto. constructor. split. 
-    eapply eraseHeapDependentRead; eauto. erewrite <- erasePoolSingleton; eauto. }
-   {invertHyp. econstructor. split. constructor. split. eapply eraseHeapDependentRead; eauto. 
-    inv H1. assert(exists t', eraseThread(tid, x1 ++ [x0], s2, t0) t'). apply eraseThreadTotal. 
-    invertHyp. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
-    rewrite app_comm_cons. eapply eraseSpecSame; eauto. }
-  }
-  {exists (eraseHeap H). destructLast s1. 
-   {econstructor. split. constructor. split. eapply eraseHeapWrite; eauto. inv H1. 
-    erewrite <- erasePoolSingleton. econstructor. erewrite erasePoolSingleton; eauto. }
-   {invertHyp. econstructor. split. constructor. split. eapply eraseHeapWrite; eauto. 
-    inv H1. assert(exists t', eraseThread(tid, x1 ++ [x0], s2, t0) t'). apply eraseThreadTotal. 
-    invertHyp. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
-    rewrite app_comm_cons. eapply eraseSpecSame; eauto. }
-  }
-  {exists (eraseHeap H). eapply rollbackIdempotent in H10; eauto. 
-   invertHyp. inv H1. econstructor. split. constructor. split. 
-
-
-
-
-
-unfold tAdd. unfold Add. rewrite eraseUnionComm. 
-   erewrite erasePoolSingleton; eauto. eapply pmulti_step. rewrite eraseFill. 
-   simpl. eapply PPut. copy d. eapply decomposeErase in H1; eauto. apply decomposeEq in H1. 
-   subst. rewrite eraseFill. auto. simpl. auto. eapply lookupEraseSpecFull; eauto. 
-   auto. simpl. constructor. split; eauto. rewrite <- H4. admit. unfold tAdd. unfold Add. inv H5.
-   replace (pSingleton (pfill (eraseCtxt E) (pret punit))) with
-   (erasePoolAux(Singleton thread (tid, [wAct x t0 E N d], s2, fill E (ret uni))). 
-   rewrite <- eraseUnionComm. constructor. erewrite erasePoolSingleton; eauto. 
-   replace (pret punit) with (eraseTerm (ret unit)). rewrite <- eraseFill. 
-   eapply tEraseWrite. copy d. apply decomposeEq in H1. subst. auto.  eauto. 
-
-
- eauto. constructor. auto. }
-  {admit. }
-  {exists (eraseHeap H'). destructLast s1. 
-   {econstructor. split; auto. inv H1. unfold tCouple. rewrite coupleUnion. rewrite eraseUnionComm. 
+  {exists (eraseHeap H'). econstructor. split; auto. inv H1. destruct s1. 
+   {simpl. unfoldTac. rewrite coupleUnion. rewrite eraseUnionComm. 
     repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. constructor. }
-   {econstructor. split. constructor. split; eauto. inv H1. 
-    assert(exists t', eraseThread (tid,s1,s2,t0) t'). apply eraseThreadTotal. invertHyp. 
-    erewrite erasePoolSingleton; eauto. unfold tCouple. rewrite coupleUnion. 
-    rewrite eraseUnionComm. repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r.
-    eauto. rewrite app_comm_cons. eapply eraseSpecSame; eauto. }
+   {destructLast l. 
+    {simpl. unfoldTac. rewrite coupleUnion. rewrite eraseUnionComm. 
+     repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. constructor.
+     eraseThreadTac. rewrite app_nil_l. auto. }
+    {invertHyp. assert(exists t', eraseThread(tid,unlocked (x0++[x]),s2,t0) t'). 
+     apply eraseThreadTotal. invertHyp. unfoldTac. rewrite coupleUnion. rewrite eraseUnionComm. 
+     repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. constructor. 
+     simpl. rewrite app_comm_cons. eapply eraseSpecSame; eauto. }
+   }
   }
-  {exists (eraseHeap H'). destructLast s1'. 
-   {econstructor. split; eauto. simpl. inv H1. unfold tCouple. rewrite coupleUnion. 
-    rewrite eraseUnionComm. repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. 
-    unfold pSingleton. rewrite <- AddSingleton. econstructor. eapply pSpecRun. 
-    eapply decomposeErase; eauto. simpl. auto. unfold pUnion. rewrite union_empty_l. 
-    rewrite eraseFill. simpl. (*Catch up*) admit. }
-   {admit. }
+  {exists (eraseHeap H). destruct s1. 
+   {econstructor. split. constructor. split. erewrite eraseHeapDependentRead; eauto.
+    simpl. inv H1. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
+   {destructLast l. 
+    {econstructor. split. constructor. erewrite eraseHeapDependentRead; eauto. split; auto. 
+     inv H1. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
+     simpl. eraseThreadTac. rewrite app_nil_l. auto. }
+    {invertHyp. econstructor. split. constructor. split. erewrite eraseHeapDependentRead; eauto. 
+     inv H1. assert(exists t', eraseThread(TID,unlocked(x1++[x0]), s2, t0) t'). apply eraseThreadTotal. 
+     invertHyp. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto.
+     simpl. rewrite app_comm_cons. eapply eraseSpecSame; eauto. }         
+   }
   }
+  {exists (eraseHeap H). econstructor. split. constructor. split. erewrite eraseHeapWrite; auto.
+   inv H1. destruct s1. 
+   {simpl. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
+   {destructLast l. 
+    {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. simpl. 
+     eraseThreadTac. rewrite app_nil_l. auto. }
+    {simpl. invertHyp. assert(exists t', eraseThread(TID,unlocked(x1++[x0]), s2, t0) t'). 
+     apply eraseThreadTotal. invertHyp. erewrite erasePoolSingleton; eauto. 
+     erewrite erasePoolSingleton; eauto. rewrite app_comm_cons. eapply eraseSpecSame; eauto. }
+   }
+  }  
+  {exists (eraseHeap H). eapply rollbackIdempotent in H7; eauto. 
+   invertHyp. inv H1. econstructor. split. constructor. split. 
+   replace (unlocked[wAct x t0 E N d]) with (aCons (wAct x t0 E N d) (unlocked nil)); auto.  
+   erewrite eraseHeapWrite; auto. inv H5. unfoldTac. rewrite eraseUnionComm. rewrite <- H8. 
+   erewrite erasePoolSingleton. rewrite <- eraseUnionComm. constructor. 
+   erewrite erasePoolSingleton; eauto. copy d. apply decomposeEq in H1. subst. 
+   eraseThreadTac. rewrite app_nil_l. auto. }
+  {admit. }
+  {exists (eraseHeap H'). econstructor. split; auto. inv H1. unfoldTac. rewrite coupleUnion. 
+   rewrite eraseUnionComm. destruct s1; simpl.
+   {repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. constructor. }
+   {destructLast l. 
+    {repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. constructor. 
+     eraseThreadTac. rewrite app_nil_l. auto. } 
+    {invertHyp. assert(exists t', eraseThread(tid,unlocked(x0++[x]), s2, t0) t'). 
+     apply eraseThreadTotal. invertHyp. repeat erewrite erasePoolSingleton; eauto.
+     rewrite union_empty_r. constructor. rewrite app_comm_cons. eapply eraseSpecSame. eauto. }
+   }
+  }
+  {admit. }
   {exists (eraseHeap H). eapply rollbackIdempotent in H15; eauto. 
    invertHyp. inv H1. econstructor. split. unfold tAdd. unfold Add. rewrite eraseUnionComm. 
    erewrite erasePoolSingleton; eauto. eapply pmulti_step. eapply pSpecRunRaise. 
-   eapply decomposeErase in H6; eauto. simpl. auto. constructor. split; auto.
-   unfold tAdd in *. unfold Add in *. rewrite eraseUnionComm in H5.
-   erewrite erasePoolSingleton in H5; eauto. rewrite union_empty_r in H5. inv H5. 
-   replace (praise (eraseTerm E)) with (eraseTerm (raise E)); auto. rewrite <- eraseFill.
+   eapply decomposeErase in H6; eauto. simpl. auto. constructor. split; auto. unfoldTac. 
+   inv H5.  replace (praise (eraseTerm E)) with (eraseTerm (raise E)); auto. rewrite <- eraseFill.
    replace (pSingleton (eraseTerm (fill E' (raise E)))) with
-   (erasePoolAux(Singleton thread (tid, [], s2, fill E' (raise E)))). 
+   (erasePoolAux(Singleton thread (tid, unlocked [], s2, fill E' (raise E)))). 
    rewrite <- eraseUnionComm. constructor. erewrite erasePoolSingleton; eauto. }
   {exists (eraseHeap H'). econstructor. split; eauto. inv H1.
    repeat erewrite erasePoolSingleton; eauto. unfold pSingleton. rewrite <- AddSingleton. 
    econstructor. eapply pSpecJoinRaise. eapply decomposeErase in H9; eauto. simpl. auto. 
    unfold pUnion. rewrite union_empty_l. rewrite eraseFill. constructor. }
-  {exists (replace x (pfull (eraseTerm N)) (eraseHeap H)). destructLast s1'.  
-   {inv H1.  econstructor. repeat split; eauto. erewrite erasePoolSingleton; eauto. 
-    erewrite erasePoolSingleton; eauto. inv H3. inv H4. rewrite unspecUnionComm in H6. 
-    erewrite unspecSingleton in H6. Focus 2. unspecThreadTac. auto. simpl in H6. 
-    
+  {exists (eraseHeap H). econstructor. split. Focus 2. split; auto. 
+   erewrite eraseHeapDependentRead. auto. eauto. destructLast s1'.  
+   {erewrite erasePoolSingleton; eauto. inv H1. simpl. erewrite erasePoolSingleton; eauto.
+    Focus 2. eraseThreadTac. rewrite app_nil_l. auto. inv H3. 
 
 
 
