@@ -11,6 +11,7 @@ Require Import sets.
 Require Import Heap. 
 Require Import classifiedStep. 
 Require Import Coq.Sets.Powerset_facts.
+Require Import ForkIndependence. 
 
 Theorem destructEnd : forall (T:Type) (l : list T), l = [] \/ exists (a:T) l', l = l' ++ [a]. 
 Proof.
@@ -57,47 +58,48 @@ Ltac replaceWithEmpty :=
   end. 
 
 Theorem raw_unspecHeapSpecWrite : forall H x s s1 M a c d TID tid' M',
-                            raw_heap_lookup x H = Some (sfull nil s (c::d) tid' M')->
-                            raw_unspecHeap (raw_replace x (sfull nil (Empty_set tid) (a::s1) TID M) H) = 
-                            raw_unspecHeap H.
+                raw_heap_lookup x H = Some (sfull (unlocked nil) s (aCons c d) tid' M')->
+                raw_unspecHeap (raw_replace x (sfull (unlocked nil) (Empty_set tid) (aCons a s1) TID M) H) = 
+                raw_unspecHeap H.
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. simpl. apply beq_nat_true in eq. subst; auto. }
+   {inv H0. simpl. apply beq_nat_true in eq. subst. destruct s1; simpl. destruct d; simpl. 
+    auto. auto. destruct d; simpl; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
 Qed. 
 
 Theorem unspecHeapSpecWrite : forall H x s s1 M a c d TID tid' M',
-                            heap_lookup x H = Some (sfull nil s (c::d) tid' M')->
-                            unspecHeap (replace x (sfull nil (Empty_set tid) (a::s1) TID M) H) =
+                            heap_lookup x H = Some (sfull (unlocked nil) s (aCons c d) tid' M')->
+                            unspecHeap (replace x (sfull (unlocked nil) (Empty_set tid) (aCons a s1) TID M) H) =
                             unspecHeap H.
 Proof.
   intros. destruct H. apply rawHeapsEq. eapply raw_unspecHeapSpecWrite; eauto.
 Qed. 
 
 Theorem raw_lookupUnspecFull : forall H x ds t N, 
-                             raw_heap_lookup x H = Some(sfull nil ds nil t N) ->
-                             raw_heap_lookup x (raw_unspecHeap H) = Some(sfull nil (Empty_set tid) nil t N).
+                             raw_heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) t N) ->
+                             raw_heap_lookup x (raw_unspecHeap H) =
+                             Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) t N).
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
    {inv H0. simpl. rewrite eq. auto. }
-   {destruct i0. destruct a; eauto. simpl. rewrite eq. eauto. destruct a; eauto.
-    destruct a0. simpl. rewrite eq. eauto. simpl. rewrite eq; eauto. }
+   {destruct i0. destruct (commit a); eauto. simpl. rewrite eq. eauto. destruct (commit a); eauto.
+    destruct (commit a0). simpl. rewrite eq. eauto. simpl. rewrite eq; eauto. }
   }
 Qed. 
 
 Theorem lookupUnspecFull : forall H x ds t N, 
-                             heap_lookup x H = Some(sfull nil ds nil t N) ->
-                             heap_lookup x (unspecHeap H) = Some(sfull nil (Empty_set tid) nil t N).
+                             heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) t N) ->
+                             heap_lookup x (unspecHeap H) = 
+                             Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) t N).
 Proof.
   intros. destruct H. simpl. eapply raw_lookupUnspecFull; eauto.
 Qed. 
-
-(*lookupNeq --> lookupReplaceNeq in Heap.v*)
 
 Theorem listAlign2 : forall (T:Type) b a, exists (c : list T) d, a::b = c++[d]. 
 Proof.
@@ -107,17 +109,6 @@ Proof.
 Qed. 
 
 Ltac alignTac a b := assert(exists c d, a::b = c++[d]) by apply listAlign2; invertHyp.
-
-Theorem unspecSpecSame : forall tid a b s2 M M' t, 
-                          unspecThread(tid, a::b, s2, M) t ->
-                          unspecThread(tid, a::b, s2, M') t.
-Proof.
-  intros. alignTac a b. rewrite H0 in *. 
-  destruct x0; inv H; try solve[invertListNeq]; 
-  match goal with
-      |H:?x++[?a]=?y++[?b] |- _ => apply lastElementEq in H; inv H; unspecThreadTac; auto
-  end. 
-Qed. 
 
 Ltac eUnspec :=
   match goal with
@@ -181,7 +172,9 @@ Qed.
 
 Ltac foldTac := fold Add in *; fold tAdd in *; fold tUnion in *; fold tSingleton in *; fold tCouple in *.
 
-
+Ltac rUnspec := erewrite unspecSingleton; eauto.
+Ltac rUnspecIn H := erewrite unspecSingleton in H; eauto.
+Ltac rUnspecAll := erewrite unspecSingleton in *; eauto. 
 
 Theorem stepWF : forall H T t H' t', 
                    wellFormed H (tUnion T t) -> step H T t (OK H' T t') ->
@@ -189,153 +182,186 @@ Theorem stepWF : forall H T t H' t',
 Proof.
   intros. inversion H1; subst.    
   {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. apply spec_multi_unused in H3. 
-    rewrite spec_multi_unused. auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
+   {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
+    rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
+    econstructor. eapply SBetaRed. eauto. constructor. constructor. }
+   {destruct l. 
+    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
+     apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
+    {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
     rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. econstructor. 
-    eauto. rewriteEmpty HNil. eapply SBetaRed; eauto. constructor. eapply unspecTwoActs. eauto. }
+    eauto. rewriteEmpty HNil. eapply SBetaRed; eauto. constructor. constructor. 
+    uCons a l. eapply unspecTwoActs. eauto. }
+   }
   }
   {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. apply spec_multi_unused in H3. 
-    rewrite spec_multi_unused. auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
+   {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
+    rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
+    econstructor. eapply SProjL. eauto. constructor. constructor. }
+   {destruct l. 
+    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
+     apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
+    {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
     rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. econstructor. 
-    eauto. rewriteEmpty HNil. eapply SProjL; eauto. constructor. eapply unspecTwoActs. eauto. }
+    eauto. rewriteEmpty HNil. eapply SProjL; eauto. constructor. constructor. 
+    uCons a l. eapply unspecTwoActs. eauto. }
+   }
   }
   {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. apply spec_multi_unused in H3. 
-    rewrite spec_multi_unused. auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
+   {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
+    rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
+    econstructor. eapply SProjR. eauto. constructor. constructor. }
+   {destruct l. 
+    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
+     apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
+    {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
     rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. econstructor. 
-    eauto. rewriteEmpty HNil. eapply SProjR; eauto. constructor. eapply unspecTwoActs. eauto. }
+    eauto. rewriteEmpty HNil. eapply SProjR; eauto. constructor. constructor. 
+    uCons a l. eapply unspecTwoActs. eauto. }
+   }
   }
   {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. apply spec_multi_unused in H3. 
-    rewrite spec_multi_unused. auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
+   {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
+    rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
+    econstructor. eapply SBind. eauto. constructor. constructor. }
+   {destruct l. 
+    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
+     apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
+    {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
     rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. econstructor. 
-    eauto. rewriteEmpty HNil. eapply SBind; eauto. constructor. eapply unspecTwoActs. eauto. }
+    eauto. rewriteEmpty HNil. eapply SBind; eauto. constructor. constructor. 
+    uCons a l. eapply unspecTwoActs. eauto. }
+   }
   }
   {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. apply spec_multi_unused in H3. 
-    rewrite spec_multi_unused. auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
+   {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
+    rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
+    econstructor. eapply SBindRaise. eauto. constructor. constructor. }
+   {destruct l. 
+    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
+     apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
+    {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
     rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. econstructor. 
-    eauto. rewriteEmpty HNil. eapply SBindRaise; eauto. constructor. eapply unspecTwoActs. eauto. }
+    eauto. rewriteEmpty HNil. eapply SBindRaise; eauto. constructor. constructor. 
+    uCons a l. eapply unspecTwoActs. eauto. }
+   }
   }
   {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. apply spec_multi_unused in H3. 
-    rewrite spec_multi_unused. auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
+   {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
+    rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
+    econstructor. eapply SHandle. eauto. constructor. constructor. }
+   {destruct l. 
+    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
+     apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
+    {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
     rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. econstructor. 
-    eauto. rewriteEmpty HNil. eapply SHandle; eauto. constructor. eapply unspecTwoActs. eauto. }
+    eauto. rewriteEmpty HNil. eapply SHandle; eauto. constructor. constructor. 
+    uCons a l. eapply unspecTwoActs. eauto. }
+   }
   }
   {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. apply spec_multi_unused in H3. 
-    rewrite spec_multi_unused. auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
+   {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
+    rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
+    econstructor. eapply SHandleRet. eauto. constructor. constructor. }
+   {destruct l. 
+    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
+     apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
+    {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
     rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. econstructor. 
-    eauto. rewriteEmpty HNil. eapply SHandleRet; eauto. constructor. eapply unspecTwoActs. eauto. }
+    eauto. rewriteEmpty HNil. eapply SHandleRet; eauto. constructor. constructor. 
+    uCons a l. eapply unspecTwoActs. eauto. }
+   }
   }
-  {destruct s1. 
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    unfold tCouple. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
-    erewrite unspecSingleton;try unspecThreadTac; auto. erewrite unspecSingleton; eauto. 
-    unfold tUnion. rewrite union_empty_r. eapply spec_multi_trans. copy d. apply decomposeEq in H. subst. 
-    erewrite unspecSingleton in H3; eauto. copy d. apply decomposeEq in H. rewrite <- H.  
-    econstructor. auto. unfold tUnion. eapply SFork. rewrite <- coupleUnion. unfoldTac. 
-    constructor. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    unfold tCouple. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
-    assert(exists t', unspecThread (tid, fAct t0 E M d :: a :: s1, s2, fill E (ret unit)) t'). 
+  {inv H0. inv H2. econstructor; eauto. destruct s1.
+   {simpl. unfoldTac. rewrite coupleUnion in *. repeat rewrite unspecUnionComm in *. 
+    repeat rUnspecAll. unfoldTac. repeat rewrite union_empty_r in *. eapply spec_multi_trans.
+    eassumption. econstructor. eapply SFork. rewrite <- coupleUnion. constructor. }
+   {destruct l. 
+    {unfoldTac. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
+     erewrite unspecSingleton;try unspecThreadTac; auto. erewrite unspecSingleton; eauto. 
+     unfold tUnion. rewrite union_empty_r. eapply spec_multi_trans. copy d. apply decomposeEq in H. subst. 
+     erewrite unspecSingleton in H3; eauto. copy d. apply decomposeEq in H. rewrite <- H.  
+     econstructor. auto. unfold tUnion. eapply SFork. rewrite <- coupleUnion. unfoldTac. 
+     constructor. simpl. copy d. apply decomposeEq in H; subst. eapply unspecFork.
+     rewrite app_nil_l. auto. }
+   {unfoldTac. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
+    assert(exists t', unspecThread (tid, unlocked(a :: l), s2, t0) t'). 
     apply unspecThreadTotal. invertHyp. erewrite unspecSingleton; eauto. 
     erewrite unspecSingleton; eauto. unfold tUnion. rewrite union_empty_r. 
     erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption. 
-    econstructor. eapply SFork. rewrite <- coupleUnion. constructor. 
-    rewrite <-unspecTwoActs'; eauto. }
+    econstructor. eapply SFork. rewrite <- coupleUnion. constructor. uCons a l.
+    rewrite unspecTwoActs'. eauto. }
+   }
   }
-  {inversion H0; subst. econstructor; eauto. erewrite unspecHeapRBRead; eauto. destruct s1.  
-   {inversion H3; subst. unfold tUnion in *. rewrite unspecUnionComm in *.
-    erewrite unspecSingleton; try unspecThreadTac; eauto. copy d. apply decomposeEq in H2; subst. 
-    erewrite unspecSingleton in H4; auto. eapply spec_multi_trans. eassumption. econstructor. 
-    eapply SGet; eauto. simpl. constructor. }
-   {inversion H3; subst. rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H4. Focus 2. rewrite <- unspecTwoActs'. eauto. eapply spec_multi_trans. 
-    eassumption. econstructor. eapply SGet; eauto. constructor. }
+  {inv H0. inv H3. econstructor; eauto. erewrite unspecHeapRBRead; eauto. destruct s1.  
+   {rewrite unspecUnionComm in *. simpl. rUnspecAll. unfoldTac. rewrite union_empty_r in *. 
+    eapply spec_multi_trans. eassumption. econstructor. eapply SGet; eauto. constructor. }
+   {destruct l.
+    {unfoldTac. rewrite unspecUnionComm in *. simpl. rUnspecAll. eapply spec_multi_trans. 
+     eassumption. econstructor. eapply SGet; eauto. constructor. eapply unspecRead. 
+     rewrite app_nil_l. auto. }
+   {rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
+    erewrite unspecSingleton in H4. Focus 2. uCons a l. rewrite <- unspecTwoActs'. eauto. 
+    eapply spec_multi_trans. eassumption. econstructor. eapply SGet; eauto. constructor. }
+   }
   }
-  {inversion H0; subst. econstructor; eauto. erewrite unspecHeapAddWrite; eauto. destruct s1.  
-   {inversion H3; subst. unfold tUnion in *. rewrite unspecUnionComm in *.
-    erewrite unspecSingleton; try unspecThreadTac; eauto. copy d. apply decomposeEq in H2; subst. 
-    erewrite unspecSingleton in H5; auto. eapply spec_multi_trans. eassumption. econstructor. 
-    eapply SPut; eauto. constructor. }
-   {inversion H3; subst. rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H5. Focus 2. rewrite <- unspecTwoActs'. eauto. eapply spec_multi_trans. 
-    eassumption. econstructor. eapply SPut; eauto. constructor. 
+  {inv H0. inv H3. econstructor; eauto. erewrite unspecHeapAddWrite; eauto. destruct s1.  
+   {rewrite unspecUnionComm in *. simpl. rUnspecAll. unfoldTac. rewrite union_empty_r in *. 
+    eapply spec_multi_trans. eassumption. econstructor. eapply SPut; eauto. constructor. }
+   {destruct l. 
+    {unfold tUnion in *. rewrite unspecUnionComm in *. simpl. rUnspecAll. Focus 2. 
+     unspecThreadTac. rewrite app_nil_l; auto. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SPut; eauto. constructor. }
+    {rewrite unspecUnionComm in *. eUnspec. rUnspecAll. eapply spec_multi_trans. 
+     eassumption. econstructor. eapply SPut; eauto. constructor. uCons a l.
+     rewrite <- unspecTwoActs'. eauto. uCons a l. rewrite <- unspecTwoActs'; eauto. }
    }
   }   
-  {inversion H0; subst. inversion H3; subst. copy H5. eapply rollbackIdempotent in H5; eauto.
-   apply rollbackWF with(T:=T)in H2. econstructor; eauto. inv H5. erewrite unspecHeapAddWrite; eauto. 
-   unfoldTac. repeat rewrite unspecUnionComm in *. 
-   erewrite unspecSingleton. Focus 2. eapply unspecWrite; eauto. erewrite unspecSingleton in H6; eauto.
-   admit. admit.  }
-  {inversion H0; subst. inversion H3; subst. econstructor; eauto. erewrite unspecHeapExtend; eauto. 
-   destruct s1. 
-   {unfoldTac. rewrite unspecUnionComm in *. erewrite unspecSingleton. Focus 2.
-    eapply unspecCreate; auto. erewrite unspecSingleton in H4; eauto. eapply spec_multi_trans. 
-    copy d. apply decomposeEq in H2. subst. eassumption. copy d. apply decomposeEq in H2. subst. 
+  {admit.  }
+  {inv H0. inv H3. econstructor; eauto. erewrite unspecHeapExtend; eauto. destruct s1. 
+   {rewrite unspecUnionComm in *. simpl. rUnspecAll. unfoldTac. rewrite union_empty_r in *. 
+    eapply spec_multi_trans. eassumption. copy d. apply decomposeEq in H0; subst. 
     econstructor. eapply SNew; eauto. constructor. }
-   {rewrite unspecUnionComm in *. eUnspec. erewrite unspecSingleton; eauto.
-    erewrite unspecSingleton in H4. Focus 2. rewrite <- unspecTwoActs'. eauto. eapply spec_multi_trans. 
-    eassumption. copy d. apply decomposeEq in H2. subst. econstructor. eapply SNew; eauto. constructor. }
-  }
-  {destruct s1.  
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. 
-    unfold tCouple. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
-    erewrite unspecSingleton. Focus 2. eapply unSpecSpecret. eauto. copy d. apply decomposeEq in H. 
-    subst. auto. erewrite unspecSingleton; eauto. unfoldTac. rewrite union_empty_r. 
-    erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. eassumption.  
-    econstructor. eapply SSpec; eauto. unfold tUnion. rewrite <- coupleUnion. constructor. 
-    eapply unspecCreatedSpec with (s1':=[specAct]); auto. }
-   {inversion H0; subst. inversion H2; subst. econstructor; eauto. unfoldTac. rewrite coupleUnion. 
-    repeat rewrite unspecUnionComm in *. foldTac. eUnspec. erewrite unspecSingleton in H3; eauto. 
-    repeat erewrite unspecSingleton; eauto. unfoldTac. rewrite union_empty_r. eapply spec_multi_trans. 
-    eassumption. econstructor. eapply SSpec. rewrite <- coupleUnion. constructor.
-    eapply unspecCreatedSpec with (s1':=[specAct]); auto. rewrite unspecTwoActs'. eauto. }
-  }
-  {inversion H0; subst. inversion H2; subst. econstructor; eauto. destruct s1'. 
-   {simpl in *. unfoldTac.  rewrite coupleUnion in H3. 
-    repeat rewrite unspecUnionComm in *. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton in H3; eauto. erewrite unspecSingleton in H3; eauto. unfoldTac. 
-    rewrite union_empty_r in H3.  admit. }
-   {admit. }
+   {destruct l. 
+    {unfold tUnion in *. rewrite unspecUnionComm in *. simpl. rUnspecAll. Focus 2. 
+     unspecThreadTac. rewrite app_nil_l; auto. copy d. apply decomposeEq in H0; subst. 
+     eapply spec_multi_trans. eassumption. econstructor. eapply SNew; eauto. constructor. }
+    {copy d. apply decomposeEq in H0; subst. rewrite unspecUnionComm in *. eUnspec. 
+     rUnspecAll. eapply spec_multi_trans. eassumption. econstructor. eapply SNew; eauto. 
+     constructor. uCons a l. rewrite <- unspecTwoActs'. eauto. uCons a l. 
+     rewrite <- unspecTwoActs'; eauto. }
+   }
   }   
+  {inv H0. inv H2. econstructor; eauto. destruct s1.  
+   {unfoldTac. rewrite coupleUnion in *. repeat rewrite unspecUnionComm in *. simpl. 
+    repeat rUnspecAll. unfoldTac. repeat rewrite union_empty_r in *. eapply spec_multi_trans. 
+    eassumption. econstructor. eapply SSpec; eauto. rewrite <- coupleUnion. constructor. }
+   {destruct l.
+    {unfold tCouple. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
+     erewrite unspecSingleton. Focus 2. eapply unspecSpecret. rewrite app_nil_l. simpl. auto. 
+     copy d. apply decomposeEq in H. subst. auto. erewrite unspecSingleton; eauto. unfoldTac. 
+     rewrite union_empty_r.  erewrite unspecSingleton in H3; eauto. eapply spec_multi_trans. 
+     eassumption. econstructor. eapply SSpec; eauto. unfold tUnion. rewrite <- coupleUnion. 
+     constructor. }
+    {unfoldTac. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. foldTac. eUnspec. 
+     erewrite unspecSingleton in H3; eauto. repeat erewrite unspecSingleton; eauto. unfoldTac. 
+     rewrite union_empty_r. eapply spec_multi_trans. eassumption. econstructor. eapply SSpec. 
+     rewrite <- coupleUnion. constructor. uCons a l. rewrite unspecTwoActs'. eauto. }
+   }
+  }
+  {admit. }   
   {copy H13. unfoldTac. rewrite <- Union_associative. rewrite wfFrame. Focus 2. 
    unfold commitPool. intros. inv H3. auto. rewrite <- Union_associative in H0. 
    rewrite wfFrame in H0. Focus 2. unfold commitPool; intros. inv H3. auto.
    eapply rollbackWF; eauto. }
-  {inversion H0; subst. inversion H2; subst. econstructor; eauto. rewrite unspecUnionComm in *. 
-   erewrite unspecSingleton; eauto. erewrite unspecSingleton in H3; eauto. 
+  {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
    rewrite spec_multi_unused in H3. rewrite spec_multi_unused. auto. }
   {inversion H0; subst. inversion H3; subst. econstructor; eauto. erewrite unspecHeapRBRead; eauto. 
    rewrite unspecUnionComm in *. admit. (*insert read ind here*) }
@@ -344,8 +370,8 @@ Proof.
   {admit. }
   {inv H0. inv H2. econstructor; eauto. unfoldTac. rewrite coupleUnion in *.
    repeat rewrite unspecUnionComm in *. erewrite unspecSingleton in H3. Focus 2. 
-   eapply unSpecFork; auto. erewrite unspecSingleton in H3. Focus 2. 
-   eapply unspecCreatedSpec; auto. unfoldTac. rewrite union_empty_r in H3. 
+   eapply unspecFork; auto. erewrite unspecSingleton in H3. Focus 2. 
+   eapply unspecLocked; eauto. unfoldTac. rewrite union_empty_r in H3. 
    rewrite <- coupleUnion in H3. apply forkInd' in H3. unfoldTac. rewrite coupleUnion in H3. 
    rewrite unspecUnionComm in H3. eauto. }
 

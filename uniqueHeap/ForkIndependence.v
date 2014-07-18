@@ -54,10 +54,16 @@ Proof.
   }
 Qed. 
 
+Definition alength l :=
+  match l with
+      |locked l' => length l'
+      |unlocked l' => length l'
+  end. 
+
 Theorem monotonicActions : forall H tid H' T T' s1 s1' s2 s2' M M',
                              spec_multistep H T H' T' ->
                              tIn T (tid,s1,s2,M) -> tIn T' (tid,s1',s2',M') ->
-                             length s1 + length s2 <= length s1' + length s2'. 
+                             alength s1 + length s2 <= alength s1' + length s2'. 
 Proof.
   intros. genDeps{tid; s1; s1'; s2; s2'; M; M'}. dependent induction H0. 
   {intros. assert(thread_lookup p2 tid (tid,s1,s2,M)). econstructor. auto. 
@@ -74,16 +80,16 @@ Proof.
     {inv H3. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
     {inv H3. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
     {inv H3. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
-    {inv H3. eapply IHspec_multistep with(s4 := (fAct M E M0 d::s1))(s3:=s2) in H2. 
-     simpl in H2. omega. apply Union_intror. apply Couple_l. }
-    {inv H3. eapply IHspec_multistep with(s4:=rAct x M E d::s1)(s3:=s2) in H2. 
-     simpl in H2. omega. apply Union_intror. constructor. }
-    {inv H3. eapply IHspec_multistep with(s4:=wAct x M E N d::s1)(s3:=s2) in H2. 
-     simpl in H2. omega. apply Union_intror. constructor. }
-    {inv H3. eapply IHspec_multistep with(s4:=nAct M E d x::s1)(s3:=s2) in H2. 
-     simpl in H2. omega. apply Union_intror. constructor. }
-    {inv H3. eapply IHspec_multistep with(s4:=srAct M E M0 N d::s1)(s3:=s2) in H2. 
-     simpl in H2. omega. apply Union_intror. constructor. }
+    {inv H3. eapply IHspec_multistep with(s4 := aCons (fAct M E M0 d)s1)(s3:=s2) in H2. 
+     destruct s1; simpl in *; omega. apply Union_intror. apply Couple_l. }
+    {inv H3. eapply IHspec_multistep with(s4:=aCons (rAct x M E d)s1)(s3:=s2) in H2. 
+     destruct s1; simpl in *; omega. apply Union_intror. constructor. }
+    {inv H3. eapply IHspec_multistep with(s4:=aCons (wAct x M E N d)s1)(s3:=s2) in H2. 
+     destruct s1; simpl in *; omega. apply Union_intror. constructor. }
+    {inv H3. eapply IHspec_multistep with(s4:=aCons(nAct M E d x)s1)(s3:=s2) in H2. 
+     destruct s1; simpl in *; omega.  apply Union_intror. constructor. }
+    {inv H3. eapply IHspec_multistep with(s4:=aCons(srAct M E M0 N d)s1)(s3:=s2) in H2.
+     destruct s1; simpl in *; omega. apply Union_intror. constructor. }
    }
   }
 Qed. 
@@ -106,19 +112,19 @@ Proof.
     inversion H1; subst; try solve[unfoldTac; invertHyp; cleanup; eauto].
     {unfoldTac; invertHyp; cleanup. eapply monotonicActions with (s1' := s1) in H0.
      Focus 2. apply Union_intror. apply Couple_l. simpl in H0. Focus 2. 
-     apply Union_intror. constructor. omega. }
+     apply Union_intror. constructor. destruct s1; simpl in *; omega. }
     {unfoldTac; invertHyp; cleanup. eapply monotonicActions in H0. Focus 2. 
      apply Union_intror; constructor. Focus 2. apply Union_intror. constructor. 
-     simpl in H0. omega. }
+     simpl in H0. destruct s1; simpl in *; omega. }
     {unfoldTac; invertHyp; cleanup. eapply monotonicActions in H0. Focus 2. 
      apply Union_intror; constructor. Focus 2. apply Union_intror. constructor. 
-     simpl in *. omega. }
+     simpl in *. destruct s1; simpl in *; omega. }
     {unfoldTac; invertHyp; cleanup. eapply monotonicActions in H0. Focus 2. 
      apply Union_intror; constructor. Focus 2. apply Union_intror. constructor. 
-     simpl in *. omega. }
+     simpl in *. destruct s1; simpl in *; omega. }
     {unfoldTac; invertHyp; cleanup. eapply monotonicActions in H0. Focus 2. 
      apply Union_intror; constructor. Focus 2. apply Union_intror. constructor. 
-     simpl in *. omega. }
+     simpl in *. destruct s1; simpl in *; omega. }
    }
   }
 Qed.  
@@ -130,61 +136,49 @@ Qed.
 
 Theorem forkInd : forall H H' TID s2 M N E d T T' s t,
                     spec_multistep H
-                                   (tUnion T (tSingleton (TID,nil,s2,t))) H'
-                                   (tUnion T' (tSingleton(TID,s++[fAct M E N d], s2, M))) ->
+                                   (tUnion T (tSingleton (TID,unlocked nil,s2,t))) H'
+                                   (tUnion T' (tSingleton(TID,(unlocked(s++[fAct M E N d])), s2, M))) ->
                     spec_multistep H
-                                   (tUnion T (tSingleton(TID,nil,fAct M E N d::s2,t))) H'
-                                   (tUnion T' (tSingleton(TID,s,fAct M E N d::s2,M))).
+                                   (tUnion T (tSingleton(TID,unlocked nil,fAct M E N d::s2,t))) H'
+                                   (tUnion T' (tSingleton(TID,unlocked s,fAct M E N d::s2,M))).
 Proof.
 Admitted. 
 
-Theorem destructUnspecThread : forall tid s1 s2 M t', 
-                   unspecThread (tid,s1,s2,M) t' ->
-                   t' = tEmptySet \/ exists s2' M',  t' = tSingleton (tid, nil, s2', M'). 
+Theorem unspecUnlocked : forall tid s1 s2 M t', 
+                   unspecThread (tid,unlocked s1,s2,M) t' ->
+                   exists M',  t' = tSingleton (tid, unlocked nil, s2, M'). 
 Proof.
   intros. inv H; eauto. 
 Qed. 
 
-Theorem forkInd' : forall H H' T T' tid M M' M'' N s1' s1''' s2 s2' E d,
-                    spec_multistep H (tUnion T (tSingleton(tid, [], s2, M'))) H'
-                                   (tUnion T' (tCouple(tid, s1' ++ [fAct M' E M'' d], s2, M)
-                                                      (1 :: tid, s1''' ++ [specAct], s2', N))) ->
-                    spec_multistep H (tUnion T (unspecPoolAux (tCouple (tid,s1',fAct M' E M'' d::s2, M)
-                                                                       (1::tid,s1''', specAct::s2', N))))
-                                   H' (tUnion T' (tCouple(tid,s1',fAct M' E M'' d::s2, M)
-                                                         (1::tid,s1''', specAct::s2', N))).
+Theorem forkInd' : forall H H' T T' tid M M' M'' N s1 s1' s2 s2' E d,
+                    spec_multistep H (tUnion T (tSingleton(tid, unlocked [], s2, M'))) H'
+                                   (tUnion T' (tCouple(tid, unlocked(s1 ++ [fAct M' E M'' d]), s2, M)
+                                                      (1 :: tid, locked s1', s2', N))) ->
+                    spec_multistep H (tUnion T (unspecPoolAux (tCouple (tid,unlocked s1',fAct M' E M'' d::s2, M)
+                                                                       (1::tid,unlocked s1', s2', N))))
+                                   H' (tUnion T' (tCouple(tid,unlocked s1,fAct M' E M'' d::s2, M)
+                                                         (1::tid,unlocked s1', s2', N))).
 Proof.
-  intros. assert(exists t', unspecThread(tid,s1',fAct M' E M'' d::s2, M) t'). 
-  apply unspecThreadTotal. invertHyp. copy H2. apply destructUnspecThread in H2. inv H2. 
-  {inversion H1; subst; try solve[match goal with
-               |H:tSingleton ?t = tEmptySet |- _ => apply SingletonNeqEmpty in H; inv H
-                     end]. 
-   admit. }
-  {invertHyp. assert(exists t', unspecThread(1::tid, s1''', specAct::s2', N) t').  
-   apply unspecThreadTotal. invertHyp. copy H3. apply destructUnspecThread in H3. inv H3. 
-   {admit. }
-   {invertHyp. unfoldTac. rewrite coupleUnion. rewrite unspecUnionComm.
-    repeat erewrite unspecSingleton; eauto. 
-
-
-Theorem forkInd' : forall H N TID s2 M E d T T' s,
+  intros. 
+Admitted. 
+(*
+Theorem forkInd'' : forall H N TID s2 M E d T T' s,
                     spec_multistep (unspecHeap H)
-                                   (tUnion T (unspecPoolAux(tSingleton (TID,s++[fAct M E N d],s2,M)))) H
-                                   (tUnion T' (tSingleton(TID,s++[fAct M E N d], s2, M))) ->
+                                   (tUnion T (unspecPoolAux(tSingleton (TID,unlocked(s++[fAct M E N d]),s2,M)))) H
+                                   (tUnion T' (tSingleton(TID,unlocked(s++[fAct M E N d]), s2, M))) ->
                     spec_multistep (unspecHeap H) 
-                                   (tUnion T (unspecPoolAux(tSingleton(TID,s,fAct M E N d::s2,M))))
-                                   H (tUnion T' (tSingleton(TID,s,fAct M E N d::s2,M))).
+                                   (tUnion T (unspecPoolAux(tSingleton(TID,unlocked s,fAct M E N d::s2,M))))
+                                   H (tUnion T' (tSingleton(TID,unlocked s,fAct M E N d::s2,M))).
 Proof.
-  intros. erewrite unspecSingleton in H0. Focus 2. eapply unSpecFork; eauto. 
-  assert(exists t', unspecThread(TID,s,fAct M E N d::s2, M) t'). apply unspecThreadTotal. 
-  invertHyp. erewrite unspecSingleton; eauto. inversion H2; subst. 
-  {eapply forkInd; eauto. }
-  {eapply forkInd; eauto. 
+  intros. erewrite unspecSingleton in H0. Focus 2. unspecThreadTac. auto.  
+  assert(exists t', unspecThread(TID,unlocked s,fAct M E N d::s2, M) t'). apply unspecThreadTotal. 
+  invertHyp. copy H2. apply unspecUnlocked in H2. invertHyp. erewrite unspecSingleton; eauto. 
+  
 
 
 
 
 
 
-
-asdlkfh
+asdlkfh*)

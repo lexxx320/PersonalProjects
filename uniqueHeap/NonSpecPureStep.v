@@ -60,12 +60,13 @@ Proof.
   {copy H6. apply decomposeEq in H6. subst. rewrite eraseFill. simpl. rewrite eraseFill. 
    eapply pHandleRet. rewrite decomposeErase; eauto. rewrite eraseFill. auto. simpl. eauto. }
   {inversion H1. inversion H2. rewrite H4 in H8. destruct s1; inversion H8. }
-  {rewrite H15 in H11. invertListNeq. }
-  {rewrite H16 in H12. invertListNeq. } 
+  {rewrite H15 in H11. destruct s1. simpl in H11. inversion H11. invertListNeq. 
+   simpl in H11. inversion H11. invertListNeq. }
+  {rewrite H16 in H12. destruct s1; inversion H12; invertListNeq. } 
   {apply AddEqSingleton in H4. apply AddEqSingleton in H2. inv H2. inv H4. }
-  {invertListNeq. }
+  {destruct s0; inversion H3; invertListNeq. }
   {inv H2. inv H1. }
-  {inversion H1. inversion H5. rewrite H7 in H10. invertListNeq. }
+  {inversion H1. inversion H5. }
   {subst. apply AddEqSingleton in H4. inv H4. apply AddEqSingleton in H2. inv H2. 
    rewrite eraseFill. simpl. eapply pSpecRunRaise. eapply decomposeErase in H5; eauto. 
    simpl. eauto. }
@@ -75,8 +76,8 @@ Proof.
   {invertListNeq. }
   {invertListNeq. }
   {invertListNeq. }
-  {inv H3. inv H2. inv H8. inv H9. }
-  {inv H1. inversion H4. apply lastElementEq in H6. inv H6. }
+  {inv H3. inv H2. inv H8. }
+  {destruct s1'; inversion H3; invertListNeq. }
 Qed. 
 
 

@@ -177,10 +177,11 @@ Inductive action : Type :=
 |nAct : forall t E, decompose t E new -> id -> action  (*id is the name of the ivar created*)
 |fAct : forall t E M, decompose t E (fork M) -> action
 |srAct : forall t E M N, decompose t E (spec M N) -> action
-|specAct : action
 .
 
-Definition actionStack := list action. 
+Inductive actionStack : Type := 
+|locked : list action -> actionStack
+|unlocked : list action -> actionStack.  
  
 Inductive pivar_state : Type :=
 |pempty : pivar_state

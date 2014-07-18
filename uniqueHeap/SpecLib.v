@@ -18,6 +18,8 @@ Require Export Arith.
 Require Export Arith.EqNat.  (* Contains [beq_nat], among other things *)
 Require Import sets. 
 Require Import Coq.Sets.Ensembles. 
+Require Import AST.
+
 (** * From Basics.v *)
 
 Definition admit {T: Type} : T.  Admitted.
@@ -122,6 +124,10 @@ Ltac invertListNeq :=
        let n := fresh in apply lastElemNeq in H; inversion H; intros n; inversion n
       |H:?y=?x::?y |- _ => apply consListNeq in H; inversion H
       |H:?x::?y=?y |- _ => symmetry in H; apply consListNeq in H; inversion H
+      |H:locked ?x = unlocked ?y |- _ => inv H
+      |H:unlocked ?x = locked ?y |- _ => inv H
+      |H:locked ?x = locked ?y |- _ => inv H; invertListNeq
+      |H:unlocked ?x = unlocked ?y |- _ => inv H; invertListNeq
   end. 
 
 Theorem listAlign : forall (T:Type) l (x y :T) l' (e:T),
