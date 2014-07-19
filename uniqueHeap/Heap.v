@@ -4,6 +4,7 @@ Require Export SpecLib.
 Require Export AST. 
 Require Import Coq.Logic.ProofIrrelevance.
 Require Import Coq.Sets.Ensembles. 
+Require Import Coq.Sets.Powerset_facts. 
 
 Definition rawHeap (T:Type) := list (id * T). 
 
@@ -27,31 +28,76 @@ Definition heap_lookup {T:Type} (i:id) (h:heap T) :=
   end. 
 
 Definition raw_extend {T : Type} (x:id) v (heap : rawHeap T) := ((x, v)::heap). 
-
-Theorem extendPreservesMonotonicity : forall S T h v x, 
-                             raw_heap_lookup x h = None -> 
-                             unique T S h ->
-                             unique T S (raw_extend x v h). 
+ 
+Theorem AddUnique : forall T x H S, 
+                 raw_heap_lookup x H = None ->
+                 unique T S H -> unique T (Add id S x) H. 
+Proof.
+  induction H; intros. 
+  {constructor. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. inv H0. inv H1. 
+   constructor. intros c. inv c. contradiction. inv H1. apply beq_nat_false in eq. 
+   apply eq. auto. rewrite Add_commutative. apply IHlist; auto. }
+Qed. 
+  
+Theorem extendPreservesUniqueness : forall T h v x prf, 
+                             heap_lookup x (heap_ T h prf) = None -> 
+                             unique T (Empty_set id) h ->
+                             unique T (Empty_set id) (raw_extend x v h). 
 Proof.
   induction h; intros. 
-  {constructor. 
-
-
-  {simpl in *. inv H. constructor. intros c. inv c. constructor. }
-  {simpl in *. destruct a. inv H. constructor. intros c. inv c. 
-   constructor. intros c. inv c. inv H. inversion H. symmetry in H0. 
-   apply n_Sn in H0. auto. apply IHh. 
-
-
-   constructor. simpl. assert(i < S i) by apply lt_n_Sn. destruct (lt_dec i (S i)). 
-   auto. contradiction. auto. }
+  {inv H0. inv H. constructor. intros c. inv c. constructor. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. inv H. inv H0. 
+   constructor. intros c. inv c. constructor. intros c. inv c. 
+   inv H0. inv H0. apply beq_nat_false in eq. apply eq. auto. 
+   rewrite Add_commutative. apply AddUnique; auto. }
 Qed. 
 
-Definition extend {T:Type} v (h : heap T) :=
+
+Definition getRawHeap {T:Type} (h:heap T) := 
   match h with
-      |heap_ h prf => let res := raw_extend v h
-                      in (FST res, heap_ T (SND res) (extendPreservesMonotonicity T h v prf))
+      heap_ h p => h
   end. 
+
+Inductive listn : nat -> Type :=
+|nNil : listn 0
+|nCons : forall n, nat -> listn n -> listn (S n).
+
+Definition lengthn (n:nat) (l:listn n) := n. 
+
+Fixpoint concatN (n:nat) (m:nat) (l1 : listn n) (l2 : listn m) : listn (n + m) :=
+  match l1 in listn n return listn (n+m) with
+      |nCons n' hd tl => nCons (n'+m) hd (concatN n' m tl l2)
+      |nNil => l2
+  end. 
+
+Definition trans {T:Type} (h:heap T) :=
+  match h as y return (h = y) with
+      |heap_ h' prf => (fun H:(h = heap_ T h' prf) => H)
+  end.  
+
+(match x as y return (x = y -> _) with
+Coq <   | 0 => fun H : x = 0 -> t
+Coq <   | S n => fun H : x = S n -> u
+Coq <   end) (eq_refl n).
+
+Theorem asdf : forall (T:Type) (x:T), x = x. 
+Proof. auto. 
+Qed. 
+
+Theorem lookupImpliesRawLookup : forall T x (H:heap T) v, 
+                                   heap_lookup x H = v -> 
+                                   raw_heap_lookup x (getRawHeap H) = v. 
+Proof.
+  intros. destruct H. simpl in *. auto. 
+Qed. 
+
+Definition extend {T:Type} x v (h : heap T) (p:heap_lookup x h = None) :=
+  match h with
+      |heap_ h' prf => heap_ T (raw_extend x v h')
+             (extendPreservesUniqueness T (getRawHeap h) v x prf (lookupImpliesRawLookup T x h None p) prf)
+  end.
+
 
 Fixpoint raw_replace {T:Type} i v (h : rawHeap T) :=
   match h with
@@ -69,7 +115,7 @@ Proof.
   {simpl. constructor. }
   {inv H. simpl. destruct (beq_nat x m) eqn:eq. 
    {apply beq_nat_true in eq; subst. constructor. auto. assumption. }
-   {constructor. auto. apply IHh. auto. }
+   {constructor. auto. apply Hh. auto. }
   }
 Qed. 
 

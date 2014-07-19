@@ -69,6 +69,34 @@ Ltac repEmpty :=
              replace t with (Union ptrm (Empty_set ptrm) t) by (rewrite union_empty_l; auto)
        end.
 
+Axiom uniqueTP : forall T1 T2 t, tIn (tUnion T1 T2) t -> tIn T1 t -> tIn T2 t -> False. 
+
+Theorem UnionEqTID : forall T T' tid s1 s2 M s1' s2' M',
+                       tUnion T (tSingleton(tid,s1,s2,M)) = tUnion T' (tSingleton(tid,s1',s2',M')) ->
+                       T = T' /\ s1 = s1' /\ s2 = s2' /\ M = M'. 
+Proof. 
+  intros. unfoldSetEq H. assert(tIn (tUnion T (tSingleton(tid,s1,s2,M)))(tid,s1,s2,M)). 
+  apply Union_intror. constructor. copy H.  apply H0 in H. inversion H.  
+  {assert(thread_lookup (tUnion T' (tSingleton(tid,s1',s2',M'))) tid (tid,s1,s2,M)). 
+   econstructor. econstructor. eauto. auto. 
+   assert(thread_lookup (tUnion T' (tSingleton(tid,s1',s2',M'))) tid (tid,s1',s2',M')). 
+   econstructor. apply Union_intror. constructor. auto. eapply uniqueThreadPool in H5; eauto. 
+   inv H5. repeat constructor; auto. eqSets. 
+   {assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) x). constructor. auto. copy H5. apply H0 in H5. 
+    inversion H5; subst. auto. inv H8. exfalso. eapply uniqueTP; eauto. constructor. }
+   {assert(tIn (tUnion T' (tSingleton(tid,s1,s2,M))) x). constructor. auto. copy H5. 
+    apply H1 in H5. inversion H5; subst. auto. inv H8. exfalso. eapply uniqueTP; eauto. 
+    constructor. }
+  }
+  {subst. inv H3. repeat constructor; auto. eqSets. 
+   {assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) x). constructor. auto. copy H4. apply H0 in H4. 
+    inversion H4; subst. auto. inv H6. exfalso. eapply uniqueTP; eauto. constructor. }
+   {assert(tIn (tUnion T' (tSingleton(tid,s1,s2,M))) x). constructor. auto. copy H4. 
+    apply H1 in H4. inversion H4; subst. auto. inv H6. exfalso. eapply uniqueTP; eauto. 
+    constructor. }
+  }
+Qed. 
+
 Theorem specImpliesNonSpec : forall H H' T t t' PT pt, 
                                erasePool T PT -> erasePool t pt -> 
                                step H T t (OK H' T t') -> wellFormed H (tUnion T t) ->
@@ -150,17 +178,31 @@ Proof.
    replace (pSingleton (eraseTerm (fill E' (raise E)))) with
    (erasePoolAux(Singleton thread (tid, unlocked [], s2, fill E' (raise E)))). 
    rewrite <- eraseUnionComm. constructor. erewrite erasePoolSingleton; eauto. }
-  {exists (eraseHeap H'). econstructor. split; eauto. inv H1.
+  {exists (eraseHeap H'). econstructor. split; eauto. inv H1. 
    repeat erewrite erasePoolSingleton; eauto. unfold pSingleton. rewrite <- AddSingleton. 
    econstructor. eapply pSpecJoinRaise. eapply decomposeErase in H9; eauto. simpl. auto. 
    unfold pUnion. rewrite union_empty_l. rewrite eraseFill. constructor. }
   {exists (eraseHeap H). econstructor. split. Focus 2. split; auto. 
    erewrite eraseHeapDependentRead. auto. eauto. destructLast s1'.  
    {erewrite erasePoolSingleton; eauto. inv H1. simpl. erewrite erasePoolSingleton; eauto.
-    Focus 2. eraseThreadTac. rewrite app_nil_l. auto. inv H3. 
+    Focus 2. eraseThreadTac. rewrite app_nil_l. auto. inv H3. inv H4. unfoldTac. 
+    rewrite unspecUnionComm in H5. simpl in *. erewrite unspecSingleton in H5. Focus 2. 
+    unspecThreadTac. rewrite app_nil_l. auto.
 
-
-
+Require Import Coq.Program.Equality. 
+Theorem nilReadCatchup : forall H TID x M M' E d s2 PT T T',
+                           erasePool T' PT -> 
+                           spec_multistep H (tUnion T (tSingleton(TID, unlocked nil, s2, M'))) 
+                                          H (tUnion T' (tSingleton(TID, unlocked [rAct x M' E d], s2, M))) ->
+                           pmultistep (eraseHeap H) PT (pSingleton (eraseTerm M')) 
+                                      (pOK (eraseHeap H) PT (pSingleton (eraseTerm M))). 
+Proof.
+  intros. dependent induction H1.
+  {apply UnionEqTID in x. invertHyp. constructor. }
+  {copy H. apply specStepSingleton in H2. invertHyp. copy x. unfoldSetEq x. 
+   assert(tIn (tUnion T0 (tSingleton x1)) x1). apply Union_intror. constructor. apply H3 in H5. 
+   inversion H5; subst. 
+   {inv H0. apply pullOut in H6. inv H
     
     
 
