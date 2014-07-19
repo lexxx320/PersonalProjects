@@ -3,22 +3,17 @@ Export ListNotations.
 Require Export SpecLib. 
 Require Export AST. 
 Require Import Coq.Logic.ProofIrrelevance.
+Require Import Coq.Sets.Ensembles. 
 
 Definition rawHeap (T:Type) := list (id * T). 
 
-Definition optLT (n:nat) (m:option nat) :=
-  match m with
-      |Some m' => if lt_dec n m' then true else false
-      |None => true
-  end. 
-
-Inductive monotonic (n:option nat) (T:Type) : rawHeap T -> Prop :=
-|consMono : forall m H v, optLT m n = true -> monotonic (Some m) T H ->
-                          monotonic n T ((m, v)::H)
-|nilMono : monotonic n T nil. 
+Inductive unique (T:Type) (seen:Ensemble id) : rawHeap T -> Prop :=
+|consUnique : forall m H v, ~ In id seen m -> unique T (Add id seen m) H ->
+                            unique T seen ((m, v)::H)
+|nilUnique : unique T seen nil. 
 
 Inductive heap (T:Type) : Type := 
-|heap_ : forall h, monotonic None T h -> heap T. 
+|heap_ : forall h, unique T (Empty_set id) h -> heap T. 
 
 Fixpoint raw_heap_lookup {T : Type} (i : id) (h : rawHeap T) := 
   match h with
@@ -31,22 +26,23 @@ Definition heap_lookup {T:Type} (i:id) (h:heap T) :=
       |heap_ h prf => raw_heap_lookup i h
   end. 
 
-Definition raw_extend {T : Type} v (heap : rawHeap T) := 
-  match heap with
-    |(n, v') :: h' => (S n, (S n, v) :: (n, v') :: h')
-    |nil => (1, (1, v) :: nil)
-  end.
+Definition raw_extend {T : Type} (x:id) v (heap : rawHeap T) := ((x, v)::heap). 
 
-Definition FST {T1 T2:Type} (p:T1 * T2) := match p with (x, _) => x end. 
-Definition SND {T1 T2:Type} (p:T1 * T2) := match p with (_, x) => x end. 
-
-Theorem extendPreservesMonotonicity : forall T h v, 
-                                        monotonic None T h ->
-                                        monotonic None T (SND (raw_extend v h)). 
+Theorem extendPreservesMonotonicity : forall S T h v x, 
+                             raw_heap_lookup x h = None -> 
+                             unique T S h ->
+                             unique T S (raw_extend x v h). 
 Proof.
   induction h; intros. 
-  {simpl in *. inv H. constructor. auto. constructor. }
-  {simpl in *. destruct a. inv H. constructor. auto. 
+  {constructor. 
+
+
+  {simpl in *. inv H. constructor. intros c. inv c. constructor. }
+  {simpl in *. destruct a. inv H. constructor. intros c. inv c. 
+   constructor. intros c. inv c. inv H. inversion H. symmetry in H0. 
+   apply n_Sn in H0. auto. apply IHh. 
+
+
    constructor. simpl. assert(i < S i) by apply lt_n_Sn. destruct (lt_dec i (S i)). 
    auto. contradiction. auto. }
 Qed. 
@@ -79,7 +75,8 @@ Qed.
 
 Definition replace {T:Type} i v (h:heap T) :=
   match h with
-      |heap_ h' prf => heap_ T (raw_replace i v h') (replacePreservesMonotonicity T h' v i None prf)
+      |heap_ h' prf => heap_ T (raw_replace i v h') 
+                             (replacePreservesMonotonicity T h' v i None prf)
   end. 
 
 Fixpoint raw_remove {T:Type} (h : rawHeap T) x :=
