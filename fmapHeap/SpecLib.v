@@ -1,16 +1,4 @@
-(** * SfLib: Software Foundations Library *)
-
-(* $Date: 2013-07-17 16:19:11 -0400 (Wed, 17 Jul 2013) $ *)
-
-(** Here we collect together several useful definitions and theorems
-    from Basics.v, List.v, Poly.v, Ind.v, and Logic.v that are not
-    already in the Coq standard library.  From now on we can [Import]
-    or [Export] this file, instead of cluttering our environment with
-    all the examples and false starts in those files. *)
-
-(** * From the Coq Standard Library *)
-
-Require Omega.   (* needed for using the [omega] tactic *)
+Require Omega.   
 Require Export Bool.
 Require Export List.
 Export ListNotations.

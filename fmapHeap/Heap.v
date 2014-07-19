@@ -44,80 +44,22 @@ Proof.
   intros. apply MFacts.add_eq_o. auto.
 Qed. 
 
-Theorem lookupDeterministic : forall (T:Type) x H (v v':option T), 
-                                heap_lookup x H = v -> heap_lookup x H = v' -> v = v'. 
-Proof.
-  intros. destruct v; destruct v'. 
-  {
-
-
-
-  induction H; intros. 
-  {simpl in *. subst. auto. }
-  {simpl in *. destruct a. destruct (beq_nat x i). subst. auto. subst. auto. }
-Qed. 
-
-Theorem lookupDeterministic : forall (T:Type) x H (v v':option T), 
-                                heap_lookup x H = v -> heap_lookup x H = v' -> v = v'. 
-Proof.
-  destruct H. intros. simpl in *. eapply raw_lookupDeterministic in H; eauto.
-Qed. 
-
-Theorem raw_lookupReplaceNeq : forall (T:Type) H x x' v (v':T), 
+Theorem lookupReplaceNeq : forall (T:Type) H x x' v (v':T), 
                                  x<>x' -> 
-                                 (raw_heap_lookup x H = v <->
-                                  raw_heap_lookup x (raw_replace x' v' H) = v).
+                                 (heap_lookup x H = v <->
+                                  heap_lookup x (replace x' v' H) = v).
 Proof.
   intros. split; intros. 
-  {induction H. 
-   {inv H1. auto. }
-   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq1; destruct (beq_nat x' i) eqn:eq2. 
-    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. exfalso. apply H0; auto. }
-    {simpl. rewrite eq1. auto. }
-    {simpl. apply beq_nat_false_iff in H0. rewrite H0; auto. }
-    {simpl. rewrite eq1. auto. }
-   }
-  }
-  {induction H.
-   {inv H1. auto. }
-   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq1; destruct (beq_nat x' i)eqn:eq2. 
-    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. exfalso. apply H0; auto. }
-    {simpl in *. rewrite eq1 in H1. auto. }
-    {simpl in *. apply beq_nat_false_iff in H0. rewrite H0 in H1. auto. }
-    {simpl in *. rewrite eq1 in H1. auto. }
-   }
-  }
+  {unfold heap_lookup. unfold replace. rewrite MFacts.add_neq_o. auto.
+   intros c. subst. apply H0; auto. }
+  {rewrite MFacts.add_neq_o in H1. auto. intros c. subst. apply H0; auto. }
 Qed. 
 
-Theorem lookupReplaceNeq : forall (T:Type) H x x' v (v':T), 
-                             x<>x' -> 
-                             (heap_lookup x H = v <->
-                              heap_lookup x (replace x' v' H) = v).
-Proof.
-  intros. destruct H. simpl. apply raw_lookupReplaceNeq. auto. 
-Qed. 
-
-Theorem rawHeapsEq : forall T H H' prf prf',  H = H' -> heap_ T H prf = heap_ T H' prf'. 
-Proof.
-  intros. subst. assert(prf=prf'). apply proof_irrelevance. subst. auto.
-Qed. 
-
-Theorem raw_replaceOverwrite : forall (T:Type) x (v v':T) H, 
-                             raw_replace x v (raw_replace x v' H) = raw_replace x v H. 
-Proof. 
-  induction H; intros. 
-  {auto. }
-  {simpl. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {simpl. rewrite <- beq_nat_refl. auto. }
-   {simpl. rewrite eq. rewrite IHlist. auto. }
-  }
-Qed. 
-
-Theorem replaceOverwrite : forall (T:Type) x (v v':T) H,
+Theorem replaceOverwrite : forall (T:Type) x (v v':T) H, 
                              replace x v (replace x v' H) = replace x v H. 
 Proof.
-  intros. destruct H. simpl in *. eapply rawHeapsEq. apply raw_replaceOverwrite. 
-Qed. 
+  intros. 
+
 
 Theorem ltLookup : forall T u x H v, raw_heap_lookup x H = Some v ->
                                        monotonic u T H -> optLT x u = true. 
