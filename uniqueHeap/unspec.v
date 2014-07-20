@@ -30,26 +30,32 @@ Fixpoint raw_unspecHeap (H : rawHeap ivar_state) :=
       |nil => nil
   end. 
 
-Hint Constructors monotonic. 
+Hint Constructors unique. 
 
-Theorem unspecMonotonic : forall h u,
-                            monotonic u ivar_state h ->
-                            monotonic u ivar_state (raw_unspecHeap h). 
+Theorem unspecUnique : forall h S,
+                         unique ivar_state S h ->
+                         unique ivar_state S (raw_unspecHeap h). 
 Proof.
   induction h; intros; auto. simpl in *. destruct a. 
-  {destruct i0; auto. 
-   {destruct (commit a). simpl. inv H. constructor. auto. eauto. simpl. inv H. 
-    eapply monotonicLowerUB; eauto. }
-   {destruct (commit a). 
-    {destruct (commit a0). inv H. eauto. inv H. eauto. }
-    {inv H. eapply monotonicLowerUB; eauto. }
-   }
+  destruct i0. 
+  {destruct (commit a). 
+   {inv H. eauto. }
+   {inv H. apply uniqueSubset with (S:= Add AST.id S i). apply IHh. 
+    auto. unfold Included. intros. constructor. auto. }
   }
-Qed.  
+  {destruct (commit a). 
+   {destruct (commit a0). 
+    {inv H. constructor; auto. }
+    {inv H. constructor; auto. }
+   }
+   {inv H. eapply uniqueSubset. eauto. unfold Included. intros. constructor. auto. }
+  }
+Qed. 
 
 Definition unspecHeap H := 
   match H with
-      heap_ h' prf => heap_ (ivar_state) (raw_unspecHeap h') (unspecMonotonic h' None prf)
+      heap_ h' prf => heap_ (ivar_state) (raw_unspecHeap h') 
+                            (unspecUnique h' (Empty_set AST.id) prf)
   end. 
 
 Inductive unspecThread : thread -> Ensemble thread -> Prop :=
@@ -349,23 +355,20 @@ Proof.
   apply rawHeapsEq; eauto. 
 Qed. 
 
-Theorem raw_unspecHeapExtend : forall res H a b,
-                                 res = raw_extend(sempty (aCons a b)) H -> 
-                                 raw_unspecHeap (SND res) = raw_unspecHeap H.
+Theorem raw_unspecHeapExtend : forall H a b x,
+       raw_unspecHeap (raw_extend x (sempty (aCons a b)) H) = raw_unspecHeap H.
 Proof. 
   induction H; intros. 
-  {simpl in H. inv H. simpl. destruct b; simpl; auto. }
-  {simpl in *. destruct a. inv H0. simpl. destruct b; simpl; auto. }
-Qed.
-  
-Theorem unspecHeapExtend : forall x H H' a b,
-                             (x,H')=extend(sempty (aCons a b)) H -> 
-                             unspecHeap H' = unspecHeap H.
-Proof. 
-  intros. destruct H. simpl in *. inv H0. 
-  eapply rawHeapsEq. eapply raw_unspecHeapExtend. auto. 
+  {simpl. destruct b; simpl; auto. }
+  {simpl in *. destruct a. destruct b; simpl; auto. }
 Qed. 
-
+  
+Theorem unspecHeapExtend : forall x H a b p,
+     unspecHeap (extend x (sempty (aCons a b)) H p) = unspecHeap H. 
+Proof. 
+  intros. destruct H. simpl in *.  
+  eapply rawHeapsEq. eapply raw_unspecHeapExtend.  
+Qed. 
 
 Ltac uCons a b := replace (unlocked (a::b)) with (aCons a (unlocked b)); auto. 
 

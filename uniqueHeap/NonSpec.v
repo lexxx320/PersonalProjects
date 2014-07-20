@@ -163,9 +163,9 @@ Inductive pstep : pHeap -> pPool -> pPool -> pconfig -> Prop :=
 |PPutError : forall E t M h T x N,
                pdecompose t E (pput (pfvar x) M) -> heap_lookup x h = Some (pfull N) ->
                pstep h T (pSingleton t) pError
-|PNew : forall E t h h' T x,
-             pdecompose t E pnew -> (x, h') = extend pempty h ->
-             pstep h T (pSingleton t) (pOK h' T (pSingleton (pfill E (pret (pfvar x)))))
+|PNew : forall E t h h' T x (p:heap_lookup x h = None),
+          pdecompose t E pnew ->  h' = extend x pempty h p ->
+          pstep h T (pSingleton t) (pOK h' T (pSingleton (pfill E (pret (pfvar x)))))
 .
 
 Inductive pmultistep : pHeap -> pPool -> pPool -> pconfig -> Prop :=

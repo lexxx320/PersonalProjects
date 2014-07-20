@@ -157,7 +157,19 @@ Proof.
    erewrite erasePoolSingleton. rewrite <- eraseUnionComm. constructor. 
    erewrite erasePoolSingleton; eauto. copy d. apply decomposeEq in H1. subst. 
    eraseThreadTac. rewrite app_nil_l. auto. }
-  {admit. }
+  {exists (eraseHeap H). econstructor. split. constructor. split. 
+   rewrite eraseHeapNew. auto. inv H1. destruct s1. 
+   {erewrite erasePoolSingleton; eauto. simpl. erewrite erasePoolSingleton; eauto. }
+   {destruct l. 
+    {copy d. apply decomposeEq in H1. subst. erewrite erasePoolSingleton; eauto. 
+     simpl. erewrite erasePoolSingleton; eauto. eraseThreadTac. rewrite app_nil_l. 
+     auto. }
+    {assert(exists t', eraseThread (tid,unlocked(a::l),s2,t0)t').
+     apply eraseThreadTotal. invertHyp. erewrite erasePoolSingleton; eauto. 
+     erewrite erasePoolSingleton. copy d. apply decomposeEq in H1. subst; eauto.  
+     uCons a l. rewrite eraseTwoActs. eauto. }
+   }
+  }
   {exists (eraseHeap H'). econstructor. split; auto. inv H1. unfoldTac. rewrite coupleUnion. 
    rewrite eraseUnionComm. destruct s1; simpl.
    {repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_r. constructor. }
@@ -169,7 +181,10 @@ Proof.
      rewrite union_empty_r. constructor. rewrite app_comm_cons. eapply eraseSpecSame. eauto. }
    }
   }
-  {admit. }
+  {inv H3. inv H4. unfoldTac. rewrite coupleUnion in H5. 
+   repeat rewrite unspecUnionComm in H5. erewrite unspecSingleton in H5; eauto. 
+   erewrite unspecSingleton in H5; eauto. unfoldTac. rewrite union_empty_r in H5. 
+   admit. }
   {exists (eraseHeap H). eapply rollbackIdempotent in H15; eauto. 
    invertHyp. inv H1. econstructor. split. unfold tAdd. unfold Add. rewrite eraseUnionComm. 
    erewrite erasePoolSingleton; eauto. eapply pmulti_step. eapply pSpecRunRaise. 
@@ -188,6 +203,7 @@ Proof.
     Focus 2. eraseThreadTac. rewrite app_nil_l. auto. inv H3. inv H4. unfoldTac. 
     rewrite unspecUnionComm in H5. simpl in *. erewrite unspecSingleton in H5. Focus 2. 
     unspecThreadTac. rewrite app_nil_l. auto.
+
 
 Require Import Coq.Program.Equality. 
 Theorem nilReadCatchup : forall H TID x M M' E d s2 PT T T',

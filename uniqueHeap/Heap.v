@@ -26,7 +26,7 @@ Definition heap_lookup {T:Type} (i:id) (h:heap T) :=
   match h with
       |heap_ h prf => raw_heap_lookup i h
   end. 
-
+ 
 Definition raw_extend {T : Type} (x:id) v (heap : rawHeap T) := ((x, v)::heap). 
  
 Theorem AddUnique : forall T x H S, 
@@ -53,37 +53,10 @@ Proof.
    rewrite Add_commutative. apply AddUnique; auto. }
 Qed. 
 
-
 Definition getRawHeap {T:Type} (h:heap T) := 
   match h with
       heap_ h p => h
   end. 
-
-Inductive listn : nat -> Type :=
-|nNil : listn 0
-|nCons : forall n, nat -> listn n -> listn (S n).
-
-Definition lengthn (n:nat) (l:listn n) := n. 
-
-Fixpoint concatN (n:nat) (m:nat) (l1 : listn n) (l2 : listn m) : listn (n + m) :=
-  match l1 in listn n return listn (n+m) with
-      |nCons n' hd tl => nCons (n'+m) hd (concatN n' m tl l2)
-      |nNil => l2
-  end. 
-
-Definition trans {T:Type} (h:heap T) :=
-  match h as y return (h = y) with
-      |heap_ h' prf => (fun H:(h = heap_ T h' prf) => H)
-  end.  
-
-(match x as y return (x = y -> _) with
-Coq <   | 0 => fun H : x = 0 -> t
-Coq <   | S n => fun H : x = S n -> u
-Coq <   end) (eq_refl n).
-
-Theorem asdf : forall (T:Type) (x:T), x = x. 
-Proof. auto. 
-Qed. 
 
 Theorem lookupImpliesRawLookup : forall T x (H:heap T) v, 
                                    heap_lookup x H = v -> 
@@ -92,12 +65,29 @@ Proof.
   intros. destruct H. simpl in *. auto. 
 Qed. 
 
-Definition extend {T:Type} x v (h : heap T) (p:heap_lookup x h = None) :=
-  match h with
-      |heap_ h' prf => heap_ T (raw_extend x v h')
-             (extendPreservesUniqueness T (getRawHeap h) v x prf (lookupImpliesRawLookup T x h None p) prf)
-  end.
+Theorem asdf : forall T x (H:heap T) v v', 
+                                   heap_lookup x H = v -> 
+                                   heap_lookup x H = v' -> v = v'.
+Proof.
+  intros. rewrite H0 in H1. assumption. Qed. 
 
+Definition extend {T:Type} x (v:T) (h : heap T) (p:heap_lookup x h = None) : heap T.
+Proof. 
+  destruct h. eapply extendPreservesUniqueness in p. Focus 2. assumption. 
+  econstructor. eapply p. Grab Existential Variables. auto. 
+Defined. 
+
+(*Test case
+Theorem empty_unique : unique nat (Empty_set id) nil. 
+  intros. constructor. Qed. 
+
+Definition h := heap_ nat nil empty_unique. 
+
+Theorem lookup1 : heap_lookup 1 h = None. 
+Proof. simpl. reflexivity. Qed. 
+
+Eval compute in extend 1 2 h lookup1. 
+*)
 
 Fixpoint raw_replace {T:Type} i v (h : rawHeap T) :=
   match h with
@@ -107,22 +97,23 @@ Fixpoint raw_replace {T:Type} i v (h : rawHeap T) :=
       |nil => nil
   end.
 
-Theorem replacePreservesMonotonicity : forall T h v x u, 
-                                         monotonic u T h ->
-                                         monotonic u T (raw_replace x v h). 
+Theorem replacePreservesUniqueness : forall T h S v x, 
+                                         unique T S h ->
+                                         unique T S (raw_replace x v h). 
 Proof.
   induction h; intros.
   {simpl. constructor. }
-  {inv H. simpl. destruct (beq_nat x m) eqn:eq. 
+  {inv H. simpl in *. destruct (beq_nat x m) eqn:eq. 
    {apply beq_nat_true in eq; subst. constructor. auto. assumption. }
-   {constructor. auto. apply Hh. auto. }
+   {constructor. auto. apply IHh. auto. }
   }
 Qed. 
 
 Definition replace {T:Type} i v (h:heap T) :=
   match h with
-      |heap_ h' prf => heap_ T (raw_replace i v h') 
-                             (replacePreservesMonotonicity T h' v i None prf)
+      |heap_ h' prf => 
+       heap_ T (raw_replace i v h') 
+             (replacePreservesUniqueness T h' (Empty_set id) v i prf)
   end. 
 
 Fixpoint raw_remove {T:Type} (h : rawHeap T) x :=
@@ -131,36 +122,36 @@ Fixpoint raw_remove {T:Type} (h : rawHeap T) x :=
       |nil => nil
   end.
 
-Theorem monotonicLowerUB : forall u u' T h,
-                             monotonic (Some u) T h -> optLT u u' = true ->
-                             monotonic u' T h. 
+
+Theorem uniqueSubset : forall T h S S',
+                         unique T S h -> Included id S' S ->
+                         unique T S' h. 
 Proof.
   induction h; intros. 
   {constructor. }
-  {inv H. constructor. simpl in H4. destruct (lt_dec m u). 
-   {destruct u'. simpl in H0. destruct (lt_dec u n). simpl. 
-    assert(m < n). omega. destruct (lt_dec m n). auto. contradiction. 
-    inv H0. auto. }
-   {inv H4. }
-   auto.
-  }
+  {inv H. constructor. unfold Included in H0. intros c. apply H0 in c. 
+   contradiction. eapply IHh; eauto. unfold Included in *. intros. 
+   inv H. apply H0 in H1. constructor. auto. inv H1. 
+   apply Union_intror. constructor. }
 Qed. 
 
-Theorem removePreservesMonotonicity : forall T h x u, 
-                                        monotonic u T h ->
-                                        monotonic u T (raw_remove h x). 
+Theorem removePreservesUniqueness : forall T h S x, 
+                                      unique T S h ->
+                                      unique T S (raw_remove h x). 
 Proof.
   induction h; intros. 
-  {simpl. constructor. }
+  {simpl. auto. }
   {simpl. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H. eapply monotonicLowerUB in H5; eauto. }
-   {inv H. constructor. auto. apply IHh; auto. }
+   {inv H. eapply uniqueSubset. eauto. unfold Included. intros. 
+    constructor. auto. }
+   {inv H. constructor. auto. eapply IHh. auto. }
   }
 Qed. 
 
 Definition remove {T:Type} (h:heap T) x :=
   match h with
-    |heap_ h' prf => heap_ T (raw_remove h' x) (removePreservesMonotonicity T h' x None prf)
+    |heap_ h' prf => 
+     heap_ T (raw_remove h' x) (removePreservesUniqueness T h' (Empty_set id)x prf)
   end. 
 
 Theorem raw_heapUpdateNeq : forall (T:Type) h i (v v' : T),
@@ -183,8 +174,6 @@ Proof.
   eapply raw_heapUpdateNeq in H; eauto. inversion c. contradiction. 
 Qed. 
 
-
-
 Theorem raw_HeapLookupReplace : forall (T:Type) x (h:rawHeap T) v v', 
                               raw_heap_lookup x h = Some v' ->
                               raw_heap_lookup x (raw_replace x v h) = Some v. 
@@ -204,34 +193,10 @@ Proof.
   intros. destruct h. simpl in *. eapply raw_HeapLookupReplace. eauto. 
 Qed. 
 
-Theorem raw_lookupExtend : forall (T:Type) H (v:T) res, 
-                             res = raw_extend v H ->
-                             raw_heap_lookup (FST res) (SND res) = Some v. 
-Proof.
-  intros. induction H. 
-  {simpl in *. inversion H0; subst. simpl. reflexivity. }
-  {destruct a. simpl in *. inversion H0; subst. simpl. rewrite <- beq_nat_refl. 
-   reflexivity. }
-Qed. 
-
-Theorem lookupExtend : forall (T:Type) x H H' (v:T), (x, H') = extend v H ->
-                                                     heap_lookup x H' = Some v. 
-Proof.
-  destruct H. intros. simpl in *. inv H. eapply raw_lookupExtend. auto. 
-Qed. 
-
-Theorem raw_lookupDeterministic : forall (T:Type) x H (v v':option T), 
-                                raw_heap_lookup x H = v -> raw_heap_lookup x H = v' -> v = v'. 
-Proof.
-  induction H; intros. 
-  {simpl in *. subst. auto. }
-  {simpl in *. destruct a. destruct (beq_nat x i). subst. auto. subst. auto. }
-Qed. 
-
-Theorem lookupDeterministic : forall (T:Type) x H (v v':option T), 
-                                heap_lookup x H = v -> heap_lookup x H = v' -> v = v'. 
-Proof.
-  destruct H. intros. simpl in *. eapply raw_lookupDeterministic in H; eauto.
+Theorem lookupExtend : forall (T:Type) x H (v:T) p, 
+                         heap_lookup x (extend x v H p) = Some v. 
+Proof. 
+  destruct H. intros. simpl in *. rewrite <- beq_nat_refl. auto. 
 Qed. 
 
 Theorem raw_lookupReplaceNeq : forall (T:Type) H x x' v (v':T), 
@@ -242,8 +207,10 @@ Proof.
   intros. split; intros. 
   {induction H. 
    {inv H1. auto. }
-   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq1; destruct (beq_nat x' i) eqn:eq2. 
-    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. exfalso. apply H0; auto. }
+   {simpl in *. destruct a.
+    destruct (beq_nat x i) eqn:eq1; destruct (beq_nat x' i) eqn:eq2. 
+    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. exfalso. 
+     apply H0; auto. }
     {simpl. rewrite eq1. auto. }
     {simpl. apply beq_nat_false_iff in H0. rewrite H0; auto. }
     {simpl. rewrite eq1. auto. }
@@ -251,8 +218,10 @@ Proof.
   }
   {induction H.
    {inv H1. auto. }
-   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq1; destruct (beq_nat x' i)eqn:eq2. 
-    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. exfalso. apply H0; auto. }
+   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq1; 
+                            destruct (beq_nat x' i)eqn:eq2. 
+    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. 
+     exfalso. apply H0; auto. }
     {simpl in *. rewrite eq1 in H1. auto. }
     {simpl in *. apply beq_nat_false_iff in H0. rewrite H0 in H1. auto. }
     {simpl in *. rewrite eq1 in H1. auto. }
@@ -288,17 +257,6 @@ Theorem replaceOverwrite : forall (T:Type) x (v v':T) H,
                              replace x v (replace x v' H) = replace x v H. 
 Proof.
   intros. destruct H. simpl in *. eapply rawHeapsEq. apply raw_replaceOverwrite. 
-Qed. 
-
-Theorem ltLookup : forall T u x H v, raw_heap_lookup x H = Some v ->
-                                       monotonic u T H -> optLT x u = true. 
-Proof.
-  induction H; intros. 
-  {inv H. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. inversion H1; subst. apply beq_nat_true in eq. subst; auto. }
-   {eapply IHlist; eauto. inversion H1; subst. eapply monotonicLowerUB; eauto. }
-  }
 Qed. 
 
 Theorem raw_lookupReplaceSwitch : forall T x x' (v v':T) H,

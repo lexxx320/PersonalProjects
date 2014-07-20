@@ -194,8 +194,9 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
                 decompose t E (put (fvar x) N) ->
                 heap_lookup x h = Some(sfull (unlocked nil) ds (unlocked nil) tid' N') ->
                 step h T (tSingleton (tid, unlocked nil, s2, t)) Error
-|New : forall E h h' x tid t s1 s2 T (d:decompose t E new),
-         (x, h') = extend (sempty (aCons (nAct t E d x)s1)) h -> 
+|New : forall E h h' x tid t s1 s2 T (d:decompose t E new)
+              (p:heap_lookup x h = None),
+         h' = extend x (sempty (aCons (nAct t E d x)s1)) h p -> 
          step h T (tSingleton (tid, s1, s2, fill E new)) 
               (OK h' T (tSingleton (tid, aCons (nAct t E d x) s1, s2, fill E(ret(fvar x)))))
 |Spec : forall E M t N tid s1 s2 T h (d:decompose t E (spec M N)), 

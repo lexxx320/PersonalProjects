@@ -63,7 +63,7 @@ Proof.
    simpl in H11. inversion H11. invertListNeq. }
   {rewrite H16 in H12. destruct s1; inversion H12; invertListNeq. } 
   {apply AddEqSingleton in H4. apply AddEqSingleton in H2. inv H2. inv H4. }
-  {destruct s0; inversion H3; invertListNeq. }
+  {rewrite H14 in H10. destruct s1; inversion H10. invertListNeq. invertListNeq. }
   {inv H2. inv H1. }
   {inversion H1. inversion H5. }
   {subst. apply AddEqSingleton in H4. inv H4. apply AddEqSingleton in H2. inv H2. 

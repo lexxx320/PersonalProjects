@@ -49,9 +49,9 @@ Fixpoint raw_eraseHeap (h:rawHeap ivar_state) : rawHeap pivar_state :=
        else raw_eraseHeap H'
   end.
 
-Theorem eraseMonotonic : forall H u, 
-                           monotonic u ivar_state H ->
-                           monotonic u pivar_state (raw_eraseHeap H). 
+Theorem eraseUnique : forall H S,
+                        unique ivar_state S H ->
+                        unique pivar_state S (raw_eraseHeap H). 
 Proof.
   induction H; intros. 
   {simpl. constructor. }
@@ -59,14 +59,16 @@ Proof.
    {destruct i0. 
     {destruct (commit a). 
      {inv H0. constructor. auto. eauto. }
-     {inv H0. eapply IHlist. eapply monotonicLowerUB; eauto. }
+     {inv H0. eapply IHlist. eapply uniqueSubset; eauto. unfold Included. 
+      intros. constructor; auto. }
     }
     {destruct (commit a). 
      {destruct (commit a0). 
       {inv H0. auto. }
       {inv H0. constructor. auto. auto. }
      }
-     {inv H0. eapply IHlist. eapply monotonicLowerUB; eauto. }
+     {inv H0. eapply IHlist. eapply uniqueSubset; eauto. unfold Included. intros. 
+      constructor. auto.  }
     }
    }
   }
@@ -74,7 +76,8 @@ Qed.
 
 Definition eraseHeap H := 
   match H with
-      heap_ h' prf => heap_ pivar_state (raw_eraseHeap h') (eraseMonotonic h' None prf)
+      heap_ h' prf => heap_ pivar_state (raw_eraseHeap h')
+                            (eraseUnique h' (Empty_set AST.id) prf)
   end. 
 
 Inductive eraseThread : thread -> pPool -> Prop :=
@@ -549,21 +552,21 @@ Proof.
   intros. destruct H; simpl in *. apply rawHeapsEq. apply raw_eraseHeapWrite. auto. 
 Qed. 
 
-Theorem raw_eraseHeapNew : forall res H a b,
-                                 res = raw_extend(sempty (aCons a b)) H -> 
-                                 raw_eraseHeap (SND res) = raw_eraseHeap H.
+Theorem raw_eraseHeapNew : forall H a b x,
+                         raw_eraseHeap (raw_extend x (sempty (aCons a b)) H) = 
+                         raw_eraseHeap H.
 Proof. 
   induction H; intros. 
-  {simpl in H. inv H. simpl. destruct b; auto. }
-  {simpl in *. destruct a. inv H0. simpl. destruct b; auto. }
+  {simpl. destruct b; simpl; auto. }
+  {simpl in *. destruct a. simpl. destruct b; auto. }
 Qed.
   
-Theorem eraseHeapNew : forall x H H' a b,
-                             (x,H')=extend(sempty (aCons a b)) H -> 
-                             eraseHeap H' = eraseHeap H.
-Proof. 
-  intros. destruct H. simpl in *. inv H0. 
-  eapply rawHeapsEq. eapply raw_eraseHeapNew. auto. 
+Theorem eraseHeapNew : forall x H a b p,
+                         eraseHeap (extend x (sempty (aCons a b)) H p) =
+                         eraseHeap H.                  
+Proof.
+  intros. destruct H. simpl in *.  
+  eapply rawHeapsEq. eapply raw_eraseHeapNew. 
 Qed. 
 
 Theorem erasePoolDeterminism : forall T T' T'', 

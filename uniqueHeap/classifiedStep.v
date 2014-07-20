@@ -34,8 +34,8 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
                h'' = replace x (sfull (unlocked nil) (Empty_set tid) (unlocked nil) TID N) h' -> 
                prog_step h T (tAdd TR (TID, (unlocked nil), s2, fill E(put (fvar x) N))) (OK h'' T
                     (tAdd TR' (TID, (unlocked nil), wAct x t E N d::s2, fill E (ret unit))))
-|New : forall E h h' x tid t s2 T (d:decompose t E new),
-         (x, h') = extend (sempty (unlocked nil)) h -> 
+|New : forall E h h' x tid t s2 T (d:decompose t E new) (p:heap_lookup x h = None),
+         h' = extend x (sempty (unlocked nil)) h p -> 
          prog_step h T (tSingleton (tid, (unlocked nil), s2, fill E new)) 
               (OK h' T (tSingleton (tid, (unlocked nil), nAct t E d x::s2, fill E(ret(fvar x)))))
 |Spec : forall E M t N tid s2 T h (d:decompose t E (spec M N)), 
@@ -110,8 +110,9 @@ Inductive spec_step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
          h' = replace x (sfull sc (Empty_set tid) (aCons (wAct x t E N d) b) TID N) h ->
          spec_step h T (tSingleton(TID, b, s2, t)) h' T
               (tSingleton (TID, aCons (wAct x t E N d) b, s2, fill E(ret unit)))
-|SNew : forall E h h' x tid t b s2 T (d:decompose t E new),
-         (x, h') = extend (sempty (aCons (nAct t E d x) b)) h ->
+|SNew : forall E h h' x tid t b s2 T (d:decompose t E new)
+               (p:heap_lookup x h = None),
+         h' = extend x (sempty (aCons (nAct t E d x) b)) h p ->
          spec_step h T (tSingleton(tid, b, s2, t))h' T
               (tSingleton (tid, aCons (nAct t E d x) b, s2, fill E(ret(fvar x))))
 |SSpec : forall E M t N tid' tid b s2 T h (d:decompose t E (spec M N)), 
@@ -138,29 +139,25 @@ Proof.
   intros. inv H; eauto. Qed. 
 
 Theorem specStepCommitFullIVar:  forall x H H' ds tid M T t t',
-                                   spec_step H T t H' T t' ->
-                                   heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) tid M) ->
-                                  exists ds', heap_lookup x H' = Some(sfull (unlocked nil) ds' (unlocked nil) tid M). 
+         spec_step H T t H' T t' ->
+         heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) tid M) ->
+         exists ds', heap_lookup x H' = 
+                     Some(sfull (unlocked nil) ds' (unlocked nil) tid M). 
 Proof. 
-  intros. inv H0; try solve[econstructor; eauto]. 
+  intros. inversion H0; subst; try solve[econstructor; eauto]. 
   {destruct (beq_nat x x0) eqn:eq. 
-   {apply beq_nat_true in eq. subst. eapply lookupDeterministic in H2; eauto. inv H2. 
-    exists (Add tid ds0 TID). erewrite HeapLookupReplace; eauto. }
-   {eapply lookupReplaceNeq in H1; eauto. intros c. apply beq_nat_false in eq. contradiction. }
+   {apply beq_nat_true in eq. subst. rewrite H2 in H1. inv H1. 
+    exists (Add AST.tid ds TID). erewrite HeapLookupReplace; eauto. }
+   {eapply lookupReplaceNeq in H1; eauto. intros c. apply beq_nat_false in eq. 
+    contradiction. }
   }
   {destruct (beq_nat x x0) eqn:eq. 
-   {apply beq_nat_true in eq. subst. eapply lookupDeterministic in H2; eauto. inv H2. }
+   {apply beq_nat_true in eq. subst. rewrite H2 in H1. inv H1. }
    {eapply lookupReplaceNeq in H1; eauto. apply beq_nat_false in eq. auto. }
   }
   {destruct H; simpl in *. destruct h. 
-   {inv H1. }
-   {exists ds. destruct p. simpl in *. destruct (beq_nat x i) eqn:eq. 
-    {inv H1. inversion H2; subst. simpl. inversion m; subst. clear H3. 
-     destruct (beq_nat x (S i)) eqn:eq2. apply beq_nat_true in eq. apply beq_nat_true in eq2. 
-     subst. assert(i <>  S i). omega. contradiction. rewrite eq. auto. }
-    {inversion H2; subst. simpl. inversion m; subst. copy H1. eapply ltLookup in H1; eauto. 
-     simpl in *. destruct (lt_dec x i). Focus 2. inv H1. assert(beq_nat x (S i) = false). 
-     apply beq_nat_false_iff. omega. rewrite H0. rewrite eq. auto. }
-   }
+   {inv H1. } 
+   {assert(x<>x0). intros c. subst. rewrite p in H1. inv H1. 
+    rewrite <- beq_nat_false_iff in H. rewrite H. exists ds. eassumption. }
   }
-Qed. 
+Qed.

@@ -56,36 +56,51 @@ Proof.
   apply decomposeEq in H5. subst. auto. auto. simpl. auto. eauto.  
 Qed.  
 
-Theorem raw_eraseFull' : forall H x N u, 
-                       monotonic u ivar_state H ->
-                       raw_heap_lookup x (raw_eraseHeap H) = Some(pfull (eraseTerm N)) ->
-                       exists tid ds, raw_heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) tid N). 
+
+Theorem lookupSomeUnique : forall T H x v S,
+                             unique T S H -> Ensembles.In id S x ->
+                             raw_heap_lookup x H = Some v -> False. 
+Proof.
+  induction H; intros. 
+  {inv H1. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H2. inv H0. apply beq_nat_true in eq. subst. contradiction. }
+   {inv H0. eapply IHlist; eauto. constructor. auto. }
+  }
+Qed. 
+
+Theorem raw_eraseFull' : forall H x N S, 
+          unique ivar_state S H ->
+          raw_heap_lookup x (raw_eraseHeap H) = Some(pfull (eraseTerm N)) ->
+          exists tid ds, raw_heap_lookup x H = 
+                         Some(sfull (unlocked nil) ds (unlocked nil) tid N). 
 Proof.
   induction H; intros. 
   {inv H0. } 
   {simpl in *. destruct a eqn:eq1. destruct i0 eqn:eq2. 
    {destruct (commit a0). 
-    {simpl in *. destruct (beq_nat x i). inv H1. eapply IHlist in H1. invertHyp. eauto. 
-    inversion H0; subst. eauto. }
+    {simpl in *. destruct (beq_nat x i). inv H1. eapply IHlist in H1. invertHyp. 
+     eauto.     inversion H0; subst. eauto. }
     {eapply IHlist in H1. invertHyp. simpl in *. destruct (beq_nat x i) eqn:eq4. 
-     {inversion H0; subst. eapply ltLookup in H1; eauto. simpl in *. 
-      destruct (lt_dec x i). apply beq_nat_true in eq4. subst. omega. inv H1. }
+     {inversion H0; subst. apply beq_nat_true in eq4. subst. 
+      eapply lookupSomeUnique in H1; eauto.inv H1. apply Union_intror. constructor. }
      {eauto. }
      {subst. inversion H0; subst. eauto. }
     }
    }
    {destruct (commit a0) eqn:eq5. 
     {destruct (commit a1)eqn:eq6. 
-     {simpl in *. destruct (beq_nat x i) eqn:eq4. inv H1. apply eraseTermUnique in H3. subst.
-      destruct a0; inv eq5. destruct a1; inv eq6. destruct l; inv H2. destruct l0; inv H3.
+     {simpl in *. destruct (beq_nat x i) eqn:eq4. inv H1.
+      apply eraseTermUnique in H3. subst. destruct a0; inv eq5.
+      destruct a1; inv eq6. destruct l; inv H2. destruct l0; inv H3.
       eauto. eapply IHlist in H1; eauto. inv H0. eauto. }
      {simpl in *. destruct (beq_nat x i). inv H1. eapply IHlist in H1. auto. 
       inversion H0; subst. eauto. }
     }
     {simpl in *. destruct (beq_nat x i) eqn:eq. 
      {subst. eapply IHlist in H1; eauto. invertHyp. inversion H0; subst. 
-      eapply ltLookup in H1; eauto. simpl in H1. destruct (lt_dec x i). apply beq_nat_true in eq. 
-      omega. inv H1. inversion H0; subst. eauto. }
+      eapply lookupSomeUnique in H1; eauto. inv H1. apply beq_nat_true in eq. 
+      subst. apply Union_intror. constructor. inv H0. eauto. }
      {subst. eapply IHlist; eauto. inversion H0; subst. eauto. }
     }
    }
@@ -160,9 +175,7 @@ Proof.
     {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto. 
      inv H6. inv H10. }
     {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto. 
-     invertHyp. inv H10. eapply lookupDeterministic in H1; eauto. inv H1. }
-    {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto.
-     invertHyp. inv H10. }
+     invertHyp. inv H10. rewrite H1 in H7. inv H7. }
    }
   }
 Qed. 
