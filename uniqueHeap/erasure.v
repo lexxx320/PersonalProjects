@@ -233,10 +233,6 @@ Ltac applyHyp :=
       |H : forall a : _, ?X -> ?Y, H' : ?Z |- _ => apply H in H'
   end. 
 
-Axiom uniqueThreadPool : forall T tid t t', 
-                           thread_lookup T tid t -> thread_lookup T tid t' -> t = t'. 
-
-
 Theorem eraseFill : forall E e, 
                            eraseTerm (fill E e) = (pfill (eraseCtxt E) (eraseTerm e)). 
 Proof.

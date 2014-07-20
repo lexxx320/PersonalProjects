@@ -9,6 +9,8 @@ Require Import erasure.
 Require Import hetList. 
 Require Import SpecLib. 
 Require Import Heap. 
+Require Import unspec. 
+Require Import classifiedStep. 
 
 Axiom uniqueThreadPool : forall T tid t t', 
                            thread_lookup T tid t -> thread_lookup T tid t' -> t = t'. 
@@ -52,7 +54,8 @@ Proof.
 Qed. 
 
 Theorem NonSpecPureStep : forall h sh tid s1 s2 M M' T T',
-                            step h T (tSingleton (tid,s1,s2,M)) (OK h T (tSingleton(tid,s1,s2,M'))) ->
+                            step h T (tSingleton (tid,s1,s2,M)) 
+                                 (OK h T (tSingleton(tid,s1,s2,M'))) ->
                             erasePool T T' -> eraseHeap h = sh ->
                             pstep sh T' (pSingleton (eraseTerm M)) (pOK sh T' (pSingleton (eraseTerm M'))).
 Proof.
@@ -80,18 +83,26 @@ Proof.
 Qed. 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+Theorem NonSpecPureStep' : forall h sh tid s1 s2 M M' T T',
+     spec_step h T (tSingleton (tid,s1,s2,M)) 
+               h T (tSingleton(tid,s1,s2,M')) ->
+     erasePool T T' -> eraseHeap h = sh ->
+     pstep sh T' (pSingleton (eraseTerm M)) (pOK sh T' (pSingleton (eraseTerm M'))).
+Proof.
+  intros. inversion H; try subst. 
+  {unfoldTac; repeat invertHyp. inv H2. inv H3. apply simBasicStep in H6. 
+   eapply PBasicStep. auto. }
+  {symmetry in H8. apply SingleEqCouple in H8. invertHyp. inv H1. 
+   inversion H2. destruct b; inv H7. }
+  {clear H9. unfoldTac; repeat invertHyp. inv H2. inversion H3. destruct s1. 
+   simpl in *. inversion H2. invertListNeq. simpl in *. inversion H2. 
+   invertListNeq. }
+  {eapply heapUpdateNeq in H9; eauto. inv H9. introsInv. }
+  {destruct h. simpl in *. inversion H8. destruct h. inv H10. 
+   unfold raw_extend in H10. simpl in *. invertListNeq. }
+  {symmetry in H8. apply SingleEqCouple in H8. invertHyp. inv H2. inversion H1. 
+   destruct b; inv H7. }
+Qed. 
 
 
 

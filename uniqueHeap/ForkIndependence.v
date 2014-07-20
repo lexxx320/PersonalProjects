@@ -52,41 +52,7 @@ Proof.
     apply H1 in H4. inversion H4; subst. auto. inv H6. exfalso. eapply uniqueTP; eauto. 
     constructor. }
   }
-Qed. 
-
-Definition alength l :=
-  match l with
-      |locked l' => length l'
-      |unlocked l' => length l'
-  end. 
-
-Theorem monotonicActions : forall H tid H' T T' s1 s1' s2 s2' M M',
-                             spec_multistep H T H' T' ->
-                             tIn T (tid,s1,s2,M) -> tIn T' (tid,s1',s2',M') ->
-                             alength s1 + length s2 <= alength s1' + length s2'. 
-Proof.
-  intros. genDeps{tid; s1; s1'; s2; s2'; M; M'}. dependent induction H0. 
-  {intros. assert(thread_lookup p2 tid (tid,s1,s2,M)). econstructor. auto. 
-   auto. assert(thread_lookup p2 tid (tid,s1',s2',M')). econstructor. auto. 
-   auto. eapply uniqueThreadPool in H; eauto. inv H. omega. }
-  {intros. inversion H1; subst. 
-   {assert(tIn (tUnion T t') (tid,s1,s2,M)). constructor; auto. eapply IHspec_multistep in H4. 
-    eauto. eauto. }
-   {inversion H; subst. 
-    {inv H3. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
-    {inv H3. eapply IHspec_multistep with(s4 := aCons (fAct M E M0 d)s1)(s3:=s2) in H2. 
-     destruct s1; simpl in *; omega. apply Union_intror. apply Couple_l. }
-    {inv H3. eapply IHspec_multistep with(s4:=aCons (rAct x M E d)s1)(s3:=s2) in H2. 
-     destruct s1; simpl in *; omega. apply Union_intror. constructor. }
-    {inv H3. eapply IHspec_multistep with(s4:=aCons (wAct x M E N d)s1)(s3:=s2) in H2. 
-     destruct s1; simpl in *; omega. apply Union_intror. constructor. }
-    {inv H3. eapply IHspec_multistep with(s4:=aCons(nAct M E d x)s1)(s3:=s2) in H2. 
-     destruct s1; simpl in *; omega.  apply Union_intror. constructor. }
-    {inv H3. eapply IHspec_multistep with(s4:=aCons(srAct M E M0 N d)s1)(s3:=s2) in H2.
-     destruct s1; simpl in *; omega. apply Union_intror. constructor. }
-   }
-  }
-Qed. 
+Qed.
 
 Theorem specMultiPureThrowout : forall H H' T T' tid s1 s2 M M',
                                   spec_multistep H (tUnion T (tSingleton(tid,s1,s2,M))) H'
