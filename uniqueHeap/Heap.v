@@ -65,17 +65,14 @@ Proof.
   intros. destruct H. simpl in *. auto. 
 Qed. 
 
-Theorem asdf : forall T x (H:heap T) v v', 
-                                   heap_lookup x H = v -> 
-                                   heap_lookup x H = v' -> v = v'.
-Proof.
-  intros. rewrite H0 in H1. assumption. Qed. 
-
-Definition extend {T:Type} x (v:T) (h : heap T) (p:heap_lookup x h = None) : heap T.
-Proof. 
-  destruct h. eapply extendPreservesUniqueness in p. Focus 2. assumption. 
-  econstructor. eapply p. Grab Existential Variables. auto. 
-Defined. 
+Definition extend {T:Type} (x:id) (v:T) (h:heap T) (p:heap_lookup x h=None) := 
+  match h as h0 return (heap_lookup x h0 = None -> heap T) with
+    | heap_ h0 u =>
+      fun p0 : heap_lookup x (heap_ T h0 u) = None =>
+        (fun p1 : unique T (Empty_set id) (raw_extend x v h0) =>
+           heap_ T (raw_extend x v h0) p1)
+          (extendPreservesUniqueness T h0 v x u p0 u)
+  end p.
 
 (*Test case
 Theorem empty_unique : unique nat (Empty_set id) nil. 
