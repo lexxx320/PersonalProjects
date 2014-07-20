@@ -563,5 +563,26 @@ Proof.
    auto. }
 Qed. 
 
+Theorem raw_unspecHeapLookupFull : forall H  x a b c,
+                                 raw_heap_lookup x H = Some(sfull (unlocked nil) a (unlocked nil) b c) ->
+                                 raw_heap_lookup x (raw_unspecHeap H) = 
+                                 Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) b c).
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {apply IHlist in H0. destruct i0. destruct (commit a). simpl; rewrite H0. rewrite eq. 
+    auto. auto. destruct (commit a). destruct (commit a1). simpl. rewrite eq; auto. simpl. rewrite eq; auto. 
+    auto. }
+  }
+Qed. 
 
+Theorem unspecHeapLookupFull : forall H x a b c,
+                                 heap_lookup x H = Some(sfull (unlocked nil) a (unlocked nil) b c) ->
+                                 heap_lookup x (unspecHeap H) = 
+                                 Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) b c).
+Proof.
+  intros. destruct H; simpl in *. eapply raw_unspecHeapLookupFull; eauto. 
+Qed. 
 

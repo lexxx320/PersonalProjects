@@ -83,7 +83,7 @@ Proof.
      eauto.     inversion H0; subst. eauto. }
     {eapply IHlist in H1. invertHyp. simpl in *. destruct (beq_nat x i) eqn:eq4. 
      {inversion H0; subst. apply beq_nat_true in eq4. subst. 
-      eapply lookupSomeUnique in H1; eauto.inv H1. apply Union_intror. constructor. }
+      eapply lookupSomeUnique in H1; eauto. inv H1. apply Union_intror. constructor. }
      {eauto. }
      {subst. inversion H0; subst. eauto. }
     }
@@ -124,8 +124,9 @@ Theorem EqJMeq : forall (T:Type) (x y:T), x = y -> JMeq x y.
 Proof.
   intros. subst. auto. Qed. 
 
-Axiom UnionSingletonEq : forall T T' a b, tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
-                                          tIn T' a -> T = tUnion (Subtract thread T' a) (tSingleton b).
+Axiom UnionSingletonEq : forall T T' a b, 
+                 tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
+                 tIn T' a -> T = tUnion (Subtract thread T' a) (tSingleton b).
 
 Ltac invertActList :=
   match goal with
@@ -178,29 +179,6 @@ Proof.
      invertHyp. inv H10. rewrite H1 in H7. inv H7. }
    }
   }
-Qed. 
-
-Theorem raw_unspecHeapLookupFull : forall H  x a b c,
-                                 raw_heap_lookup x H = Some(sfull (unlocked nil) a (unlocked nil) b c) ->
-                                 raw_heap_lookup x (raw_unspecHeap H) = 
-                                 Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) b c).
-Proof.
-  induction H; intros. 
-  {inv H. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. simpl. rewrite eq. auto. }
-   {apply IHlist in H0. destruct i0. destruct (commit a). simpl; rewrite H0. rewrite eq. 
-    auto. auto. destruct (commit a). destruct (commit a1). simpl. rewrite eq; auto. simpl. rewrite eq; auto. 
-    auto. }
-  }
-Qed. 
-
-Theorem unspecHeapLookupFull : forall H x a b c,
-                                 heap_lookup x H = Some(sfull (unlocked nil) a (unlocked nil) b c) ->
-                                 heap_lookup x (unspecHeap H) = 
-                                 Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) b c).
-Proof.
-  intros. destruct H; simpl in *. eapply raw_unspecHeapLookupFull; eauto. 
 Qed. 
 
 Theorem wfDoubleWrite : forall H T tid s1' x M' E N d s2 M a b c,

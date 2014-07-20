@@ -10,6 +10,7 @@ Require Import unspec.
 Require Import erasure. 
 Require Import eraseRollbackIdempotent. 
 Require Import classifiedStep. 
+Require Import Coq.Program.Equality. 
 
 Theorem AddSingleton : forall T t, Add T (Empty_set T) t = Singleton T t. 
 Proof.
@@ -50,6 +51,27 @@ Proof.
   intros. destruct H. simpl. eapply raw_lookupEraseSpecFull. eauto. 
 Qed.  
 
+Theorem raw_lookupEraseCommitFull : forall x H ds tid N, 
+       raw_heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) tid N) ->
+       raw_heap_lookup x (raw_eraseHeap H) = Some (pfull (eraseTerm N)). 
+Proof.
+  induction H; intros.  
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {destruct i0. destruct (commit a) eqn:eq2. simpl. rewrite eq. eauto. 
+    eauto. destruct (commit a). destruct (commit a0). simpl. 
+    rewrite eq. eauto. simpl. rewrite eq; eauto. eauto. }
+  }
+Qed. 
+
+Theorem lookupEraseCommitFull : forall x H ds tid N, 
+       heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) tid N) ->
+       heap_lookup x (eraseHeap H) = Some (pfull (eraseTerm N)). 
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupEraseCommitFull; eauto. 
+Qed. 
+
 Hint Constructors pbasic_step. 
 
 Theorem simBasicStep : forall t t',
@@ -70,7 +92,7 @@ Ltac repEmpty :=
        end.
 
 Axiom uniqueTP : forall T1 T2 t, tIn (tUnion T1 T2) t -> tIn T1 t -> tIn T2 t -> False. 
-
+ 
 Theorem UnionEqTID : forall T T' tid s1 s2 M s1' s2' M',
                        tUnion T (tSingleton(tid,s1,s2,M)) = tUnion T' (tSingleton(tid,s1',s2',M')) ->
                        T = T' /\ s1 = s1' /\ s2 = s2' /\ M = M'. 
@@ -97,11 +119,74 @@ Proof.
   }
 Qed. 
 
+Axiom UnionSingletonEq : forall T T' a b, 
+                 tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
+                 tIn T' a -> T = tUnion (Subtract thread T' a) (tSingleton b).
+
+Theorem EqJMeq : forall (T:Type) (x y:T), x = y -> JMeq x y.
+Proof.
+  intros. subst. auto. Qed. 
+ 
+Ltac invertDecomp :=
+  match goal with
+    |H:(?a,?b,?c,?d)=(?e,?f,?g,?h) |- _ => inv H
+    |H:?x = ?y |- _ => solve[inv H]
+    |H:decompose ?M ?E ?e,H':decompose ?M' ?E' ?e' |- _=>
+     eapply uniqueCtxtDecomp in H; eauto; invertHyp
+  end. 
+
+Theorem specStepRead : forall H H' T T' TID x M M' N E d s2 t0 ds PT,
+    decompose M' E (get (fvar x)) -> erasePool T PT ->            
+    heap_lookup x H = Some(sfull (unlocked nil) ds(unlocked nil) t0 N) ->         
+    spec_multistep H (tUnion T (tSingleton(TID,unlocked nil, s2, M'))) 
+                   H' (tUnion T' (tSingleton(TID,unlocked[rAct x M' E d],s2,M))) ->
+    exists H'' T'', 
+      spec_multistep H''(tUnion T''(tSingleton(TID,unlocked[rAct x M' E d],s2,fill E (ret N))))
+                     H' (tUnion T' (tSingleton(TID,unlocked[rAct x M' E d],s2,M))) /\
+      eraseHeap H'' = eraseHeap H /\ erasePool T'' PT. 
+Proof.
+  intros. generalize dependent ds. dependent induction H3; intros.
+  {apply UnionEqTID in x. invertHyp. inv H3. }
+  {copy x. unfoldSetEq x. copy H2. apply specStepSingleton in H2. invertHyp. 
+   assert(tIn (tUnion T0(tSingleton x)) x). apply Union_intror. constructor. 
+   apply H6 in H2. inversion H2; subst. 
+   {copy H8. eapply specSingleStepErase in H10; eauto. copy H8. 
+    eapply specStepCommitFullIVar in H8; eauto. invertHyp. 
+    eapply IHspec_multistep in H12. invertHyp. exists x2. exists x3. 
+    split. eauto. split. rewrite <- H8. auto. auto. auto. inv H13. 
+    replace PT with (erasePoolAux(tUnion (Subtract thread T x) t')). 
+    constructor. inv H1. rewrite eraseUnionComm. rewrite H15. 
+    rewrite <- eraseUnionComm. replace (tUnion (Subtract thread T x)(tSingleton x))
+                                       with (tAdd (Subtract thread T x) x). 
+    unfold tAdd. rewrite <- add_subtract. auto. auto. unfoldTac. auto. auto.
+    apply EqJMeq. apply UnionSingletonEq in H5.
+    rewrite H5. unfoldTac. repeat rewrite Union_associative. 
+    rewrite (Union_commutative thread _ t'). auto. auto. auto. }
+   {inv H9. inv H8; unfoldTac; invertHyp; try solve[repeat invertDecomp]. 
+    {invertDecomp. inv H10; repeat invertDecomp. }
+    {invertDecomp. copy d; copy d0. invertDecomp. invertDecomp. inv H11. 
+     exists(replace x0 (sfull sc (Union tid ds0 (Singleton tid TID)) s writer N0) H).
+     exists T0. simpl in *. rewrite H10 in H4. inv H4. split. 
+     auto. assert(d=d0). apply proof_irrelevance. subst. auto. 
+     erewrite eraseHeapDependentRead; eauto. split; auto. apply UnionEqTID in H5. 
+     invertHyp. auto. }
+   }
+  }
+Qed. 
+
+Theorem simPureSteps : forall H H' T T' PT s1 s2 tid M M',
+                spec_multistep H (tUnion T (tSingleton(tid,s1,s2,M)))
+                               H' (tUnion T' (tSingleton(tid,s1,s2,M'))) ->
+                eraseHeap H = eraseHeap H' -> erasePool T PT ->
+                pmultistep (eraseHeap H) PT (pSingleton (eraseTerm M))
+                           (pOK (eraseHeap H) PT (pSingleton (eraseTerm M'))).
+Admitted. 
+
 Theorem specImpliesNonSpec : forall H H' T t t' PT pt, 
-                               erasePool T PT -> erasePool t pt -> 
-                               step H T t (OK H' T t') -> wellFormed H (tUnion T t) ->
-                               exists PH' pt', pmultistep (eraseHeap H) PT pt (pOK PH' PT pt') /\
-                                               eraseHeap H' = PH' /\ erasePool t' pt'. 
+                erasePool T PT -> erasePool t pt -> 
+                step H T t (OK H' T t') -> wellFormed H (tUnion T t) ->
+                exists PH' pt', pmultistep (eraseHeap H) PT pt (pOK PH' PT pt') /\
+                                eraseHeap H' = PH' /\ erasePool t' pt'. 
 Proof.
   intros. inversion H2; subst. 
   {exists (eraseHeap H'). econstructor. split; auto. destruct s1. 
@@ -198,31 +283,21 @@ Proof.
    econstructor. eapply pSpecJoinRaise. eapply decomposeErase in H9; eauto. simpl. auto. 
    unfold pUnion. rewrite union_empty_l. rewrite eraseFill. constructor. }
   {exists (eraseHeap H). econstructor. split. Focus 2. split; auto. 
-   erewrite eraseHeapDependentRead. auto. eauto. destructLast s1'.  
-   {erewrite erasePoolSingleton; eauto. inv H1. simpl. erewrite erasePoolSingleton; eauto.
-    Focus 2. eraseThreadTac. rewrite app_nil_l. auto. inv H3. inv H4. unfoldTac. 
-    rewrite unspecUnionComm in H5. simpl in *. erewrite unspecSingleton in H5. Focus 2. 
-    unspecThreadTac. rewrite app_nil_l. auto.
-
-
-Require Import Coq.Program.Equality. 
-Theorem nilReadCatchup : forall H TID x M M' E d s2 PT T T',
-                           erasePool T' PT -> 
-                           spec_multistep H (tUnion T (tSingleton(TID, unlocked nil, s2, M'))) 
-                                          H (tUnion T' (tSingleton(TID, unlocked [rAct x M' E d], s2, M))) ->
-                           pmultistep (eraseHeap H) PT (pSingleton (eraseTerm M')) 
-                                      (pOK (eraseHeap H) PT (pSingleton (eraseTerm M))). 
-Proof.
-  intros. dependent induction H1.
-  {apply UnionEqTID in x. invertHyp. constructor. }
-  {copy H. apply specStepSingleton in H2. invertHyp. copy x. unfoldSetEq x. 
-   assert(tIn (tUnion T0 (tSingleton x1)) x1). apply Union_intror. constructor. apply H3 in H5. 
-   inversion H5; subst. 
-   {inv H0. apply pullOut in H6. inv H
-    
-    
-
-
+   erewrite eraseHeapDependentRead. auto. eauto. inv H1. inv H3. 
+   inv H4. destructLast s1'.  
+   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
+    rewrite unspecUnionComm in H5. simpl in *. erewrite unspecSingleton in H5. 
+    Focus 2. unspecThreadTac. rewrite app_nil_l. auto. copy H11. 
+    apply lookupEraseCommitFull in H11; auto. 
+    replace (pSingleton(eraseTerm M'))with(Add ptrm(Empty_set ptrm)(eraseTerm M')). 
+    econstructor. eapply PGet. eauto. copy d. rewrite <- decomposeErase in H3;eauto. 
+    unfold pUnion. rewrite union_empty_l. eapply specStepRead in H5; eauto. 
+    invertHyp. rewrite eraseUnspecHeapIdem in H4. rewrite <- H4.
+    eapply simPureSteps in H3. rewrite eraseFill in H3. eassumption. 
+    auto. rewrite eraseUnspecPoolAuxEq in H6. inv H0. auto. 
+    eapply unspecHeapLookupFull; eauto. unfoldTac. rewrite union_empty_l. auto. }
+   {invertHyp. x
+}
 
 
 
