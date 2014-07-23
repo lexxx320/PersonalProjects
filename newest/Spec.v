@@ -364,11 +364,11 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
                   h' = replace i (sempty (unlocked nil)) h -> 
                  step h T (tSingleton (tid, s1, s2, M))
                       (OK h' T (tSingleton (tid, unlocked s1', nAct M' E d i::s2, M)))
-|PopFork : forall h s1 s1' s2 tid M' M N T M'' E d, 
+|PopFork : forall h s1 s1' s2 tid M' M N T M'' E d s1'', 
              s1 = unlocked(s1' ++ [fAct M' E M'' d]) -> 
-             step h T (tCouple (tid, s1, s2, M) (1::tid, locked s1', nil, N)) (OK h T 
+             step h T (tCouple (tid, s1, s2, M) (1::tid, locked s1'', nil, N)) (OK h T 
                   (tCouple (tid, unlocked s1', fAct M' E M'' d::s2, M)
-                           (1::tid, unlocked s1', nil, N)))
+                           (1::tid, unlocked s1'', nil, N)))
 |PopSpec : forall h s1 s1' s1'' s2 s2' t tid M' M N T E d M'', 
              s1 = unlocked (s1' ++ [srAct t E M N d]) -> 
              step h T (tCouple(tid, s1, s2, M')(2::tid,locked s1'',s2',M''))

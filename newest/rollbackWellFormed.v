@@ -68,20 +68,25 @@ Proof.
   }
 Qed. 
 
-Theorem eqUnspec : forall T, T = unspecPoolAux T -> commitPool T. 
+Definition commitPool' T := forall tid s1 s2 M, tIn T (tid,s1,s2,M) -> 
+                                                s1 = unlocked nil \/ exists N, s1 = specStack nil N.
+
+Theorem eqUnspec : forall T, T = unspecPoolAux T -> commitPool' T. 
 Proof. 
-  intros. unfold commitPool. intros. unfoldSetEq H. apply H1 in H0. inv H0. inv H3; inv H4; auto. 
+  intros. unfold commitPool'. intros. unfoldSetEq H. apply H1 in H0. inv H0.
+  inv H3; try solve[inv H4; eauto]. 
 Qed. 
 
+(*
 Theorem passThroughAct : forall a M M' T s1 s2 H H' tid,
-                           actionTerm a M' -> unspecHeap H H' ->
-                           spec_multistep H' (tUnion (unspecPoolAux T) (unspecPoolAux (tSingleton(tid,a::s1,s2,M))))
-                                          H (tUnion T (tSingleton(tid,a::s1,s2,M))) ->
-                           exists T'' H'', 
-                             spec_multistep H' (tUnion (unspecPoolAux T) (unspecPoolAux (tSingleton(tid,a::s1,s2,M))))
-                                            H'' (tUnion T'' (tSingleton(tid,s1,s2,M'))) /\
-                             spec_multistep H'' (tUnion T'' (tSingleton(tid,s1,s2,M')))
-                                            H (tUnion T (tSingleton(tid,s1,s2,M'))). 
+        actionTerm a M' -> unspecHeap H H' ->
+        spec_multistep H' (tUnion (unspecPoolAux T) (unspecPoolAux (tSingleton(tid,a::s1,s2,M))))
+                       H (tUnion T (tSingleton(tid,a::s1,s2,M))) ->
+        exists T'' H'', 
+          spec_multistep H' (tUnion (unspecPoolAux T) (unspecPoolAux (tSingleton(tid,a::s1,s2,M))))
+                         H'' (tUnion T'' (tSingleton(tid,s1,s2,M'))) /\
+          spec_multistep H'' (tUnion T'' (tSingleton(tid,s1,s2,M')))
+                         H (tUnion T (tSingleton(tid,s1,s2,M'))). 
 Proof.
   intros. dependent induction H2.  
   {rewrite <- unspecUnionComm in x. symmetry in x. apply eqUnspec in x. unfold commitPool in x. 
@@ -92,7 +97,46 @@ Proof.
    {admit. }
    {inv H6. inv H7. inv H10. inv H6. erewrite unspecSingleton; eauto. 
 Admitted. 
+*)
 
+Inductive eraseTrm : list action -> trm -> trm -> Prop :=
+|eraseTrmNil : forall M, eraseTrm nil M M
+|eraseTrmRead : forall x t E d s M, eraseTrm (s++[rAct x t E d]) M t
+|eraseTrmWrite : forall x t E M d N s, eraseTrm (s++[wAct x t E M d]) N t
+|eraseTrmNew : forall x t E d s M, eraseTrm (s++[nAct t E d x]) M t
+|eraseTrmFork : forall t E M d N s, eraseTrm (s++[fAct t E M d]) N t
+|eraseTrmSR : forall t E M N d M' s, eraseTrm (s++[srAct t E M N d]) M' t. 
+
+Theorem unspecEraseTrm : forall tid s1 s2 M M', 
+                          eraseTrm s1 M M' ->
+                          unspecThread(tid,unlocked s1,s2,M) (tSingleton(tid,unlocked nil,s2,M')). 
+Proof.
+  intros. destructLast s1. 
+  {inv H; try invertListNeq. auto. }
+  {invertHyp. destruct x; inv H; try solve[invertListNeq]; apply lastElementEq in H1; 
+   inv H1; unspecThreadTac; auto. }
+Qed. 
+
+Theorem eEraseTrm : forall s1 M, exists M', eraseTrm s1 M M'. 
+  intros. destructLast s1. 
+  {econstructor. econstructor. }
+  {invertHyp. destruct x; econstructor; econstructor. }
+Qed. 
+
+Ltac eraseTrmTac s1 M := assert(exists M', eraseTrm s1 M M') by apply eEraseTrm; invertHyp.            
+
+Theorem passThroughAct : forall a M M' T T' s1 s2 H H' tid,
+        actionTerm a M' -> 
+        spec_multistep H T H' (tUnion T' (tSingleton(tid,locked(a::s1),s2,M))) ->
+        exists T'' H'', 
+          spec_multistep H T H'' (tUnion T'' (tSingleton(tid,locked s1,s2,M'))) /\
+          spec_multistep H'' (tUnion T'' (tSingleton(tid,locked s1,s2,M')))
+                         H' (tUnion T' (tSingleton(tid,locked(a::s1),s2,M))). 
+Proof. 
+  intros. dependent induction H1.  
+  {econstructor. econstructor. split. Admitted. 
+Hint Constructors actionTerm.
+ 
 Theorem rollbackWF : forall H H' T TR TR' tidR acts,
                        wellFormed H (tUnion T TR) ->
                        rollback tidR acts H TR H' TR' ->
@@ -100,21 +144,13 @@ Theorem rollbackWF : forall H H' T TR TR' tidR acts,
 Proof.
   intros. induction H1. 
   {auto. }
-  {subst. inversion H0; subst. inversion H3; subst. apply IHrollback. destruct s1'. 
-   {econstructor; eauto. eapply unspecHeapAddReader; eauto. unfoldTac.
-    repeat rewrite unspecUnionComm in H7. unfoldTac. repeat rewrite <- Union_associative in H7.
-    rewrite <- unspecUnionComm in H7. eapply passThroughAct in H7. invertHyp. 
-    repeat rewrite unspecUnionComm. unfoldTac. repeat rewrite <- Union_associative.
-    rewrite unspecUnionComm in H. eapply spec_multi_trans. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton; eauto. erewrite unspecSingleton in H. Focus 2. 
-    eapply unspecRead; eauto. Focus 2. constructor. Focus 2. auto. eapply spec_multi_trans. 
+  {subst. inversion H0; subst. inversion H3; subst. apply IHrollback. unfoldTac.
+   econstructor; eauto. repeat rewrite unspecUnionComm in *. destruct s1'. 
+   {erewrite unspecSingleton; eauto. unfoldTac. rewrite union_empty_r. simpl in *. 
+    erewrite unspecSingleton in H5; eauto. rewrite union_empty_r in H5.
+    erewrite unspecHeapRBRead; eauto. rewrite <- Union_associative in H5.
+    apply passThroughAct with(M':=M')in H5; auto. invertHyp. eapply spec_multi_trans. 
     eassumption. 
-   
-
-
-
-
-
 
 
 

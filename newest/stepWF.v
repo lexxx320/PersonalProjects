@@ -11,7 +11,7 @@ Require Import sets.
 Require Import Heap. 
 Require Import classifiedStep. 
 Require Import Coq.Sets.Powerset_facts.
-Require Import ForkIndependence. 
+(*Require Import ForkIndependence. *)
 
 Theorem destructEnd : forall (T:Type) (l : list T), l = [] \/ exists (a:T) l', l = l' ++ [a]. 
 Proof.
@@ -66,7 +66,7 @@ Proof.
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
    {inv H0. simpl. apply beq_nat_true in eq. subst. destruct s1; simpl. destruct d; simpl. 
-    auto. auto. destruct d; simpl; auto. }
+    auto. auto. auto. destruct d; simpl; auto. destruct d; simpl; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
 Qed. 
@@ -176,6 +176,40 @@ Ltac rUnspec := erewrite unspecSingleton; eauto.
 Ltac rUnspecIn H := erewrite unspecSingleton in H; eauto.
 Ltac rUnspecAll := erewrite unspecSingleton in *; eauto. 
 
+Inductive eraseTrm : list action -> trm -> trm -> Prop :=
+|eraseTrmNil : forall M, eraseTrm nil M M
+|eraseTrmRead : forall x t E d s M, eraseTrm (s++[rAct x t E d]) M t
+|eraseTrmWrite : forall x t E M d N s, eraseTrm (s++[wAct x t E M d]) N t
+|eraseTrmNew : forall x t E d s M, eraseTrm (s++[nAct t E d x]) M t
+|eraseTrmFork : forall t E M d N s, eraseTrm (s++[fAct t E M d]) N t
+|eraseTrmSR : forall t E M N d M' s, eraseTrm (s++[srAct t E M N d]) M' t. 
+
+Inductive unspecTrm : actionStack -> trm -> trm -> actionStack -> Prop :=
+|unspecUnlocked : forall s M M', eraseTrm s M M' -> unspecTrm (unlocked s) M M' (unlocked nil)
+|unspecSpecStack : forall s M N, unspecTrm (specStack s N) M N (specStack nil N). 
+
+Theorem unspecEraseTrm : forall tid s1 s1' s2 M M', 
+                          unspecTrm s1 M M' s1' ->
+                          unspecThread(tid,s1,s2,M) (tSingleton(tid,s1',s2,M')). 
+Proof.
+  intros. destruct s1. 
+  {inv H. }
+  {destructLast l. 
+   {inv H. inv H1; try invertListNeq. auto. }
+   {invertHyp. inv H. destruct x; inv H1; try solve[invertListNeq]; apply lastElementEq in H0; 
+   inv H0; unspecThreadTac; auto. }
+  }
+  {destructLast l; inv H; auto. }
+Qed. 
+
+Theorem eEraseTrm : forall s1 M, exists M', eraseTrm s1 M M'. 
+  intros. destructLast s1. 
+  {econstructor. econstructor. }
+  {invertHyp. destruct x; econstructor; econstructor. }
+Qed. 
+
+Ltac eraseTrmTac s1 M := assert(exists M', eraseTrm s1 M M') by apply eEraseTrm; invertHyp.  
+
 Theorem stepWF : forall H T t H' t', 
                    wellFormed H (tUnion T t) -> step H T t (OK H' T t') ->
                    wellFormed H' (tUnion T t'). 
@@ -184,7 +218,7 @@ Proof.
   {destruct s1. 
    {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. 
     rUnspecAll. unfoldTac. rewrite union_empty_r in *. eapply spec_multi_trans; eauto. 
-    econstructor. eapply SBasicStep. eauto. constructor. constructor. }
+    econstructor. eapply SBasicStep. eauto. constructor. constructor. } 
    {destruct l. 
     {inv H0. inv H2. econstructor; eauto. rewrite unspecUnionComm in *. rUnspecAll. 
      apply spec_multi_unused in H3. rewrite spec_multi_unused. auto. }

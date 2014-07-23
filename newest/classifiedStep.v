@@ -42,7 +42,7 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
               (OK h' T (tSingleton (tid, (unlocked nil), nAct t E d x::s2, fill E(ret(fvar x)))))
 |Spec : forall E M t N tid s2 T h (d:decompose t E (spec M N)), 
           prog_step h T (tSingleton (tid, (unlocked nil), s2, t)) (OK h T
-               (tCouple (tid, (unlocked nil), srAct t E M N d::s2,t) (tid, (unlocked nil), [], N))) 
+               (tCouple (tid, (unlocked nil), srAct t E M N d::s2,t) (2::tid, (unlocked nil), [], N))) 
 |SpecJoin : forall t E M N0 N1 tid T h t1 t2 s1 s1' s2 s2' wf (p:decompose t E (specRun (ret N1) N0)),
               t1 = (tid,unlocked nil,s2, t) -> t2 = (2::tid,specStack s1 N0,s2',M) ->
               wf = decomposeWF t E (specRun (ret N1) N0) p ->
@@ -118,10 +118,10 @@ Inductive spec_step : sHeap -> pool -> pool -> sHeap -> pool -> pool -> Prop :=
          h' = extend x (sempty (aCons (nAct t E d x) b)) h p ->
          spec_step h T (tSingleton(tid, b, s2, t))h' T
               (tSingleton (tid, aCons (nAct t E d x) b, s2, fill E(ret(fvar x))))
-|SSpec : forall E M t N tid' tid b s2 T h (d:decompose t E (spec M N)), 
+|SSpec : forall E M t N tid b s2 T h (d:decompose t E (spec M N)), 
           spec_step h T (tSingleton(tid, b, s2, t)) h T
                (tCouple (tid, aCons (srAct t E M N d) b, s2,fill E(specRun M N))
-                        (tid', locked nil, nil, N))
+                        (2::tid, locked nil, nil, N))
 
 .
 
@@ -216,6 +216,32 @@ Proof.
    eapply uniqueThreadPool in H; eauto. inv H. replace [a;b] with ([a]++[b]) in H4; auto. 
    replace [c;b] with ([c]++[b]) in H4; auto. repeat rewrite app_assoc in H4. 
    apply app_inj_tail in H4. inv H4. apply lastElementEq in H. subst. auto. }
+  {inv H1. 
+   {eapply IHspec_multistep. constructor. eauto. eauto. }
+   {copy H. apply specStepSingleton in H. invertHyp. inv H3. inv H1. 
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
+    {unfoldTac; invertHyp. inv H5. eapply IHspec_multistep. apply Union_intror. simpl. 
+     rewrite app_comm_cons. constructor. eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
+     rewrite app_comm_cons. constructor. eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
+     rewrite app_comm_cons. constructor. eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
+     rewrite app_comm_cons. constructor. eauto. }
+    {unfoldTac; invertHyp. inv H5. eapply IHspec_multistep. apply Union_intror. simpl. 
+     rewrite app_comm_cons. constructor. eauto. }
+   }
+  }
+Qed. 
+
+Theorem lockedFirstActEq : forall H H' tid s1 s1' a c s2 M M' T T',
+                 spec_multistep H T H' T' -> tIn T (tid,locked (s1++[a]),s2,M) -> 
+                 tIn T' (tid,locked(s1'++[c]),s2,M') -> a = c. 
+Proof.
+  intros. genDeps{s1';s1;s2;a;c;M;M';tid}. induction H0; intros. 
+  {assert(thread_lookup p2 tid (tid,locked(s1++[a]),s2,M)). econstructor. eauto. auto. 
+   assert(thread_lookup p2 tid (tid,locked(s1'++[c]),s2,M')). econstructor. eauto. auto.
+   eapply uniqueThreadPool in H; eauto. inv H. eapply lastElementEq. eauto. }
   {inv H1. 
    {eapply IHspec_multistep. constructor. eauto. eauto. }
    {copy H. apply specStepSingleton in H. invertHyp. inv H3. inv H1. 
