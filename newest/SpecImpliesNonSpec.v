@@ -141,9 +141,6 @@ Proof.
   intros. destruct H. simpl. eapply raw_lookupSpecFullEmpty; eauto.
 Qed. 
 
-Axiom heapExtensionality : forall (T:Type) (H H' : rawHeap T),
-                             (forall x, raw_heap_lookup x H = raw_heap_lookup x H') -> H = H'. 
-
 Theorem raw_eraseHeapCommitNewFull : forall x ds a b c d t N H S,
                                    unique ivar_state S H -> 
                                    raw_heap_lookup x H = Some(sfull (aCons a b) ds (aCons c d) t N) ->

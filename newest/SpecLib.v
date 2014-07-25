@@ -71,6 +71,11 @@ Tactic Notation "solve" "by" "inversion" :=
 Ltac inv H := inversion H; subst; clear H.
 Ltac introsInv := let n := fresh in intros; intros n; inv n.
 
+Ltac solveByInv :=
+  match goal with
+      |H:_ |- _ => solve[inv H]
+  end. 
+
 Ltac copy H :=
   match type of H with
       |?x => assert(x) by auto

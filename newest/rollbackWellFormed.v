@@ -13,17 +13,6 @@ Require Import Coq.Program.Equality.
 Require Import Heap. 
 Require Import Coq.Sets.Powerset_facts. 
 
-(*
-Theorem passThroughAct : forall a M M' T T' tid s1 s2 H H',
-                           actionTerm a M' ->
-                           splitMultistep H T (unspecPoolAux (tSingleton(tid,a::s1,s2,M)))
-                                          (OK H' T' (tSingleton(tid,a::s1,s2,M))) ->
-                           exists T'' H'', 
-                             splitMultistep H T (unspecPoolAux (tSingleton(tid,a::s1,s2,M)))
-                                            (OK H'' T'' (tSingleton(tid,s1,s2,M'))). 
-Admitted.  
-*)
-
 Theorem spec_multi_trans : forall H H' H'' T T' T'',
                         spec_multistep H T H' T' ->
                         spec_multistep H' T' H'' T'' ->
@@ -125,16 +114,22 @@ Qed.
 
 Ltac eraseTrmTac s1 M := assert(exists M', eraseTrm s1 M M') by apply eEraseTrm; invertHyp.            
 
+Definition notIn T tid := ~(exists t, thread_lookup T tid t). 
+
 Theorem passThroughAct : forall a M M' T T' s1 s2 H H' tid,
-        actionTerm a M' -> 
+        actionTerm a M' -> notIn T tid ->
         spec_multistep H T H' (tUnion T' (tSingleton(tid,locked(a::s1),s2,M))) ->
         exists T'' H'', 
           spec_multistep H T H'' (tUnion T'' (tSingleton(tid,locked s1,s2,M'))) /\
           spec_multistep H'' (tUnion T'' (tSingleton(tid,locked s1,s2,M')))
                          H' (tUnion T' (tSingleton(tid,locked(a::s1),s2,M))). 
 Proof. 
-  intros. dependent induction H1.  
-  {econstructor. econstructor. split. Admitted. 
+  intros. dependent induction H2. 
+  {unfold notIn in H1. exfalso. apply H1. econstructor. econstructor. apply Union_intror. 
+   constructor. auto. }
+  {
+
+
 Hint Constructors actionTerm.
  
 Theorem rollbackWF : forall H H' T TR TR' tidR acts,

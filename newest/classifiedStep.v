@@ -9,7 +9,8 @@ Require Import Coq.Program.Equality.
 
 Inductive SPEC : actionStack -> Prop :=
 |lockSpec : forall s, SPEC (locked s)
-|unlockedSpec : forall a b, SPEC(unlocked (a::b)). 
+|unlockedSpec : forall a b, SPEC(unlocked (a::b))
+|specStackSpec : forall s N, SPEC(specStack s N). 
 
 Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
 |BasicStep : forall tid s2 h T t t',
@@ -444,6 +445,14 @@ Proof.
 Qed. 
 
 
-
+Theorem spec_multi_trans : forall H H' H'' T T' T'',
+                        spec_multistep H T H' T' ->
+                        spec_multistep H' T' H'' T'' ->
+                        spec_multistep H T H'' T''.  
+Proof.
+  intros. genDeps {H''; T''}. induction H0; intros.  
+  {auto. }
+  {apply IHspec_multistep in H1. econstructor. eauto. auto. }
+Qed. 
 
 

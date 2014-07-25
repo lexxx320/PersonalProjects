@@ -177,6 +177,7 @@ Proof.
   }
 Qed. 
 
+(*---------------------Unspec Heap Equality Theorems-----------------------*)
 Theorem unspecHeapRBNew : forall H x S A,
                             heap_lookup x H = Some(sempty (aCons S A)) ->
                             unspecHeap H = unspecHeap (remove H x). 
@@ -226,6 +227,100 @@ Proof.
   intros. destruct H. simpl in *. eapply raw_unspecHeapRBRead in H0. 
   eapply rawHeapsEq. eauto. 
 Qed. 
+
+Theorem raw_unspecUnspecHeap : forall H, raw_unspecHeap(raw_unspecHeap H) = raw_unspecHeap H. 
+Proof.
+  induction H; intros; auto. simpl. destruct a. destruct i0. 
+  {destruct (commit a) eqn:eq. simpl. rewrite eq. rewrite IHlist; auto. auto. }
+  {destruct (commit a) eqn:eq1. simpl. destruct (commit a0) eqn:eq2. 
+   simpl. rewrite eq1. rewrite eq2. rewrite IHlist; eauto. simpl. 
+   rewrite eq1. rewrite IHlist; auto. auto. }
+Qed. 
+
+Theorem unspecUnspecHeap : forall H, unspecHeap(unspecHeap H) = unspecHeap H. 
+Proof.
+  intros. destruct H. apply rawHeapsEq. apply raw_unspecUnspecHeap. 
+Qed. 
+
+Theorem raw_unspecHeapCommitNewFull : forall H x S a b c d ds t N,
+                 unique ivar_state S H ->                        
+                 raw_heap_lookup x H = Some(sfull (aCons a b) ds (aCons c d) t N) ->
+                 raw_unspecHeap(raw_replace x (sfull (unlocked nil) ds (aCons c d) t N) H) = 
+                 raw_extend x (sempty (unlocked nil)) (raw_unspecHeap H). 
+Proof.
+  induction H; intros. 
+  {inv H0. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H1. destruct (commit (aCons a0 b)) eqn:eq1. destruct b; simpl in *; solveByInv. 
+    simpl. destruct (commit (aCons c d)) eqn:eq2. destruct d; simpl in *; solveByInv.
+    unfold raw_extend. auto. }
+   {simpl. inv H0. erewrite IHlist; eauto. destruct i0. 
+    {destruct (commit a).  
+     {apply heapExtensionality. intros. destruct (beq_nat x0 i)eqn:eq2.  
+      {apply beq_nat_true in eq2. subst. simpl. rewrite <- beq_nat_refl. 
+       rewrite beq_nat_sym in eq. rewrite eq. auto. } 
+      {simpl. rewrite eq2. destruct (beq_nat x0 x) eqn:eq3; auto. }
+     }
+     {auto. }
+    }
+    {destruct (commit a). 
+     {destruct (commit a1). 
+      {unfold raw_extend. apply heapExtensionality. intros. destruct (beq_nat x0 i)eqn:eq1. 
+       {simpl. rewrite eq1. destruct (beq_nat x0 x)eqn:eq2. 
+        {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. rewrite eq2 in eq. 
+         rewrite <- beq_nat_refl in eq. inv eq. }
+        {auto. }
+       }
+       {simpl. rewrite eq1. destruct (beq_nat x0 x); eauto. }
+      }
+      {unfold raw_extend. apply heapExtensionality. intros. simpl. destruct (beq_nat x0 i) eqn:eq1. 
+       {destruct (beq_nat x0 x) eqn:eq2. apply beq_nat_true in eq1. apply beq_nat_true in eq2. 
+        subst. rewrite eq2 in eq. rewrite <- beq_nat_refl in eq. inv eq. auto. 
+       }
+       {destruct (beq_nat x0 x) eqn:eq2; auto. }
+      }
+     }
+     {auto. }
+    }
+   }
+  }
+Qed. 
+
+Theorem unspecHeapCommitNewFull : forall H x a b c d ds t N p,
+                 heap_lookup x H = Some(sfull (aCons a b) ds (aCons c d) t N) ->
+                 unspecHeap(replace x (sfull (unlocked nil) ds (aCons c d) t N) H) = 
+                 extend x (sempty (unlocked nil)) (unspecHeap H) p. 
+Proof.
+  intros. destruct H; simpl in *. apply rawHeapsEq.
+  eapply raw_unspecHeapCommitNewFull; eauto. 
+Qed. 
+
+(*----------------------Unspec Heap Lookup Theorems---------------------*)
+
+Theorem raw_lookupUnspecFull : forall H x ds t N, 
+                             raw_heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) t N) ->
+                             raw_heap_lookup x (raw_unspecHeap H) =
+                             Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) t N).
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {destruct i0. destruct (commit a); eauto. simpl. rewrite eq. eauto. destruct (commit a); eauto.
+    destruct (commit a0). simpl. rewrite eq. eauto. simpl. rewrite eq; eauto. }
+  }
+Qed. 
+ 
+Theorem lookupUnspecFull : forall H x ds t N, 
+                             heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) t N) ->
+                             heap_lookup x (unspecHeap H) = 
+                             Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) t N).
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupUnspecFull; eauto.
+Qed. 
+
+
+
 
 Theorem rollbackUnspeculatedHeap : forall H H' tid T T' S, 
                                      rollback tid S H T H' T' -> unspecHeap H = unspecHeap H'. 
@@ -285,11 +380,6 @@ Proof.
    eauto. auto. }
 Qed. 
 
-Ltac solveByInv :=
-  match goal with
-      |H:_ |- _ => solve[inv H]
-  end. 
-
 Theorem unspecTwoActs' : forall tid A1 A2 As s2 M M' t,
                          unspecThread (tid, (aCons A1 (aCons A2 As)), s2, M') t <->
                          unspecThread (tid, (aCons A2 As), s2, M) t. 
@@ -343,7 +433,6 @@ Ltac helper :=
       assert(exists t'', unspecThread t' t'') by apply unspecThreadTotal; invertHyp
   end. 
 
-
 Theorem raw_unspecHeapAddWrite : forall x sc H a b TID N,
                                raw_heap_lookup x H = Some(sempty sc) -> 
                                raw_unspecHeap (raw_replace x (sfull sc (Empty_set tid) (aCons a b) TID N) H) = 
@@ -392,6 +481,7 @@ Proof.
    {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
    {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
     uCons a b. erewrite unspecTwoActs. eauto. }
+   {erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. }
   }
   {inv H1; split; auto. destruct b.   
    {simpl. repeat erewrite unspecSingleton; eauto. unfoldTac. rewrite coupleUnion. 
@@ -567,14 +657,22 @@ Proof.
 Qed. 
 
 Require Import Coq.Sets.Powerset_facts. 
+Require Import Coq.Program.Equality. 
+
 Theorem spec_multi_unused : forall H T1 T2 T1' H', 
                               spec_multistep H (tUnion T1 T2) H' (tUnion T1' T2) <->
                               spec_multistep H T1 H' T1'.
 Proof.
   intros. split; intros. 
-  {remember (tUnion T1 T2). remember (tUnion T1' T2). induction H0. 
-   {subst. admit. }
+  {dependent induction H0. 
    {admit. }
+   {copy H. apply specStepSingleton in H. invertHyp. copy x. unfoldSetEq x. 
+    assert(tIn(tUnion T (tSingleton x0)) x0). apply Union_intror. constructor. 
+    apply H2 in H4. inv H4. 
+    {apply pullOut in H5. rewrite H5. econstructor. eapply specStepChangeUnused; eauto. 
+     eapply IHspec_multistep; eauto. admit. }
+    {admit. }
+   }
   }
   {induction H0. constructor. unfoldTac. rewrite Union_associative. 
    rewrite (Union_commutative thread t).  rewrite <- Union_associative. 
@@ -618,3 +716,54 @@ Proof.
   intros. destruct H; simpl in *. eapply raw_unspecHeapLookupFull; eauto. 
 Qed. 
 
+Ltac invThreadEq :=
+  match goal with
+      |H:(?a,?b,?c,?d) = (?e,?f,?g,?h) |- _ => inv H
+  end. 
+
+Theorem unspecUnspecPool : forall T, unspecPoolAux(unspecPoolAux T) = unspecPoolAux T. 
+Proof.
+  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. 
+  split; intros. 
+  {inversion H; subst. inversion H0; subst. cleanup. 
+   match goal with
+       |H:thread_lookup (unspecPoolAux ?T) ?TID ?t |- _ =>
+        assert(US:unspecPool T (unspecPoolAux T)) by constructor;
+          eapply LookupSame with(tid:=TID) in US; inversion US as [EX1 EX2];
+          inversion EX2; clear EX2
+   end. Focus 2. eassumption. destruct EX1. destruct p. destruct p.
+   copy H4. inv H4. inv H8. econstructor. eassumption. Focus 2. eauto. inv H1.
+   {inv H5; auto; unspecThreadTac; auto. }
+   {inv H5; try solve[invertHyp; unfoldTac; invertHyp;invThreadEq; invertListNeq].
+    symmetry in H11; apply SingletonNeqEmpty in H11; solveByInv. }
+   {inv H5; try solve[invertHyp; unfoldTac; invertHyp;invThreadEq; invertListNeq].
+    symmetry in H11; apply SingletonNeqEmpty in H11; solveByInv. }
+   {inv H5; try solve[invertHyp; unfoldTac; invertHyp;invThreadEq; invertListNeq].
+    symmetry in H11; apply SingletonNeqEmpty in H11; solveByInv. }
+   {inv H5; try solve[invertHyp; unfoldTac; invertHyp;invThreadEq; invertListNeq].
+    symmetry in H11; apply SingletonNeqEmpty in H11; solveByInv. } 
+   {inv H5; try solve[invertHyp; unfoldTac; invertHyp;invThreadEq; invertListNeq].
+    symmetry in H11; apply SingletonNeqEmpty in H11; solveByInv. } 
+   {inv H5; try solve[invertHyp; unfoldTac; invertHyp;invThreadEq; invertListNeq].
+    symmetry in H11; apply SingletonNeqEmpty in H11; solveByInv. }
+   {inv H5; try solve[invertHyp; unfoldTac; invertHyp;invThreadEq; invertListNeq].
+    symmetry in H11; apply SingletonNeqEmpty in H11; solveByInv. 
+    invertHyp. unfoldTac; invertHyp. invThreadEq. auto. }
+  }
+  {inv H. inv H1; inv H2. 
+   {econstructor. econstructor. econstructor. eassumption. eauto. constructor. 
+    auto. auto. constructor. } 
+   {econstructor. econstructor. econstructor. eassumption. unspecThreadTac;
+    eauto. constructor. auto. auto. constructor. }
+   {econstructor. econstructor. econstructor. eassumption. unspecThreadTac;
+    eauto. constructor. auto. auto. constructor. }
+   {econstructor. econstructor. econstructor. eassumption. unspecThreadTac;
+    eauto. constructor. auto. auto. constructor. }
+   {econstructor. econstructor. econstructor. eassumption. unspecThreadTac;
+    eauto. constructor. auto. auto. constructor. }
+   {econstructor. econstructor. econstructor. eassumption. unspecThreadTac;
+    eauto. constructor. auto. auto. constructor. }
+   {econstructor. econstructor. econstructor. eassumption. constructor. constructor. 
+    auto. constructor. constructor. }
+  }
+Qed. 

@@ -1,6 +1,7 @@
 Require Import SfLib. 
 Require Import NonSpec.  
 Require Import AST. 
+Require Import classifiedStep. 
 Require Import Spec.  
 Require Import Heap. 
 Require Import Coq.Sets.Ensembles.
@@ -9,67 +10,55 @@ Require Import Powerset_facts.
 Require Import erasure. 
 Require Import SpecLib. 
 Require Import unspec. 
-
-(*terms that when erased to require the erased thread to be commit*)
-Inductive commitTrm : ptrm -> Prop :=
-|commitApp : forall E ef ea t, pdecompose t E (papp (plambda ef) ea)-> commitTrm t
-|commitProjL : forall t E V1 V2, pdecompose t E (pfst (ppair V1 V2)) -> commitTrm t
-|commitProjR : forall t E V1 V2, pdecompose t E (psnd (ppair V1 V2)) -> commitTrm t
-|commitHandleRet : forall t E N M, pdecompose t E (phandle (pret M) N) -> commitTrm t
-|commitHandleRaise : forall t E N M, pdecompose t E (phandle (praise M) N) -> commitTrm t
-|commitRet : forall M, commitTrm (pret M).   
-  
-Ltac commitFill :=
-  match goal with
-    |H:commitTrm (pfill ?E ?e) |- _ => assert(pdecompose (pfill E e) E e)
-    |H:pdecompose ?t ?E ?e, H':pdecompose ?t ?E' ?e' |- _ => 
-     eapply pctxtUnique in H; eauto; inversion H as [Eq1 Eq2]; inversion Eq2
-  end. 
+Require Import Coq.Logic.ProofIrrelevance. 
 
 Ltac existTac e := let n := fresh in
                    try(assert(n:exists e', eraseTerm e' = e) by apply eTerm; invertHyp);
                    try(assert(n:exists e', eraseCtxt e' = e) by apply eCtxt; invertHyp). 
 
 
-Theorem eraseThreadCommitTrm : forall x t, commitTrm t -> eraseThread x (pSingleton t) ->
-                                       exists tid s2 M, x = (tid,nil,s2,M) /\ eraseTerm M = t.
-Proof.
-  intros. inversion H0; subst. 
-  {exists tid. exists s2. exists M. split; auto. apply SingletonEq in H3. subst. auto. }
-  {unfold pSingleton in *; invertHyp. inv H; try(copy d;
-   match goal with
-       |H:pdecompose ?M ?E ?e, H':decompose ?M' ?E' ?e' |- _ => 
-        rewrite <- decomposeErase in H'; eauto; eapply pctxtUnique in H; eauto; invertHyp 
-   end; inv H3). destruct M'; inv H2. inv d. }
-  {unfold pSingleton in *; invertHyp. inv H; try(copy d;
-   match goal with
-       |H:pdecompose ?M ?E ?e, H':decompose ?M' ?E' ?e' |- _ => 
-        rewrite <- decomposeErase in H'; eauto; eapply pctxtUnique in H; eauto; invertHyp 
-   end; inv H3). destruct M'; inv H2. inv d. }
-  {unfold pSingleton in *; invertHyp. inv H; try(copy d;
-   match goal with
-       |H:pdecompose ?M ?E ?e, H':decompose ?M' ?E' ?e' |- _ => 
-        rewrite <- decomposeErase in H'; eauto; eapply pctxtUnique in H; eauto; invertHyp 
-   end; inv H3). destruct M'; inv H2. inv d. }
-  {unfold pSingleton in *; invertHyp. inv H; try(copy d;
-   match goal with
-       |H:pdecompose ?M ?E ?e, H':decompose ?M' ?E' ?e' |- _ => 
-        rewrite <- decomposeErase in H'; eauto; eapply pctxtUnique in H; eauto; invertHyp 
-   end; inv H3). destruct M'; inv H2. inv d. }
-  {unfold pSingleton in *; invertHyp. inv H; try(copy d;
-   match goal with
-       |H:pdecompose ?M ?E ?e, H':decompose ?M' ?E' ?e' |- _ => 
-        rewrite <- decomposeErase in H'; eauto; eapply pctxtUnique in H; eauto; invertHyp 
-   end; inv H3). destruct M'; inv H2. inv d. }
-  {symmetry in H1. apply SingletonNeqEmpty in H1. inv H1. }
-Qed.
+Ltac eTermTac := 
+  match goal with
+      |H:pbasic_step ?M ?M' |- _ => assert(exists M'', eraseTerm M'' = M') by apply eTerm;
+                                   invertHyp
+  end. 
 
-Theorem erasePoolSingleton : forall T t', erasePoolAux T = pSingleton t' ->
-                                          exists t, tIn T t /\ eraseThread t (pSingleton t'). 
+Theorem eraseBasicStep : forall x t t', 
+                           pbasic_step t t' -> eraseThread x (pSingleton t) ->
+                           exists tid s2 M M', x = (tid, unlocked nil, s2, M) /\ eraseTerm M = t /\
+                                               eraseTerm M' = t'. 
 Proof.
-  intros. apply eqImpliesSameSet in H. unfold Same_set in H. unfold Included in H. inv H. 
-  assert(In ptrm (pSingleton t') t'). constructor. apply H1 in H. inv H. inv H2. inv H5.
-  inv H3; try solve[econstructor; split; eauto; inv H4; eauto]. Qed. 
+  intros. inv H0. 
+  {apply SingletonEq in H3. inversion H; subst; eTermTac; repeat econstructor; eauto. }
+  {apply SingletonEq in H1. subst. copy d. rewrite <- decomposeErase in H0; eauto. 
+   inv H; match goal with
+            |H:pdecompose ?M ?E ?e, H':pdecompose ?M ?E' ?e' |- _ => 
+             eapply pctxtUnique in H; eauto; invertHyp 
+          end; solveByInv. }
+  {apply SingletonEq in H1. subst. copy d. rewrite <- decomposeErase in H0; eauto. 
+   inv H; match goal with
+            |H:pdecompose ?M ?E ?e, H':pdecompose ?M ?E' ?e' |- _ => 
+             eapply pctxtUnique in H; eauto; invertHyp 
+          end; solveByInv. }
+  {apply SingletonEq in H1. subst. copy d. rewrite <- decomposeErase in H0; eauto. 
+   inv H; match goal with
+            |H:pdecompose ?M ?E ?e, H':pdecompose ?M ?E' ?e' |- _ => 
+             eapply pctxtUnique in H; eauto; invertHyp 
+          end; solveByInv. }
+  {apply SingletonEq in H1. subst. copy d. rewrite <- decomposeErase in H0; eauto. 
+   inv H; match goal with
+            |H:pdecompose ?M ?E ?e, H':pdecompose ?M ?E' ?e' |- _ => 
+             eapply pctxtUnique in H; eauto; invertHyp 
+          end; solveByInv. }
+  {apply SingletonEq in H1. subst. copy d. rewrite <- decomposeErase in H0; eauto. 
+   inv H; match goal with
+            |H:pdecompose ?M ?E ?e, H':pdecompose ?M ?E' ?e' |- _ => 
+             eapply pctxtUnique in H; eauto; invertHyp 
+          end; solveByInv. }
+  {symmetry in H3. apply SingletonNeqEmpty in H3. solveByInv. }
+  {symmetry in H3. apply SingletonNeqEmpty in H3. solveByInv. }
+Qed. 
+
 
 Theorem eraseThreadCardinality : forall t t', eraseThread t t' -> 
                                               t' = Empty_set ptrm \/ exists t'', t' = pSingleton t''.
@@ -77,7 +66,90 @@ Proof.
   intros. inv H; eauto. 
 Qed. 
 
-Theorem nonspecImpliesSpec' : forall PH PH' PT pt pt' H T,
+
+Theorem ePool : forall PT, exists T, erasePoolAux T = PT. 
+Proof.
+  Admitted. 
+
+Theorem UnionAdd : forall X T t, Add X T t = Union X T (Singleton X t). 
+Proof.
+  intros. unfold Add. auto. 
+Qed. 
+
+Theorem splitPool : forall T PT pt,
+                      erasePoolAux T = pUnion PT (pSingleton pt) ->
+                      exists T' t', T = tAdd T' t' /\ 
+                                    erasePoolAux T' = PT /\ eraseThread t' (pSingleton pt). 
+Proof.
+  intros. copy H.  unfoldSetEq H. assert(In ptrm (pUnion PT (pSingleton pt)) pt). 
+  apply Union_intror. constructor. apply H2 in H. inv H. inv H3. inv H6. copy H.
+  apply pullOut in H. exists (Subtract thread T (t,s0,s3,M0)). exists (t,s0,s3,M0). 
+  split. rewrite H. unfold tAdd. rewrite <- UnionAdd. rewrite <- add_subtract; auto. 
+  split. Focus 2. clear H. inv H4; inv H5; eauto. eqSets. 
+  Admitted. 
+
+
+
+Theorem simBasicStep : forall t t', pbasic_step (eraseTerm t) (eraseTerm t') ->
+                                    basic_step t t'. 
+Proof.
+  intros. inv H. 
+  {existTac E. existTac e. existTac N. rewrite <-eraseOpenComm in H0.
+   rewrite <- eraseFill in H0. apply eraseTermUnique in H0. subst. econstructor. 
+   rewrite decomposeErase in H2; eauto. }
+  {existTac E. existTac V1. existTac V2. rewrite <- eraseFill in H0.
+   apply eraseTermUnique in H0. subst. econstructor. rewrite decomposeErase in H2; eauto. 
+   simpl. auto. }
+  {existTac E. existTac V1. existTac V2. rewrite <- eraseFill in H0.
+   apply eraseTermUnique in H0. subst. eapply basicProjR. rewrite decomposeErase in H2; eauto. 
+   simpl. auto. }
+  {existTac E. existTac N. existTac M.
+   replace (papp (eraseTerm x0) (eraseTerm x1)) with (eraseTerm (app x0 x1)) in H0; auto. 
+   rewrite <- eraseFill in H0. apply eraseTermUnique in H0. subst. eapply basicBind.  
+   rewrite decomposeErase in H2; eauto. }
+  {existTac E. existTac N. existTac M.
+   replace (praise (eraseTerm x1)) with (eraseTerm (raise x1)) in H0; auto. 
+   rewrite <- eraseFill in H0. apply eraseTermUnique in H0. subst. eapply basicBindRaise.
+   rewrite decomposeErase in H2; eauto. simpl. auto. }
+  {existTac E. existTac N. existTac M. 
+   replace (papp (eraseTerm x0) (eraseTerm x1)) with (eraseTerm (app x0 x1)) in H0; auto. 
+   rewrite <- eraseFill in H0. apply eraseTermUnique in H0. subst. eapply basicHandle. 
+   rewrite decomposeErase in H2; eauto. }
+  {existTac E. existTac M. existTac N. replace(pret (eraseTerm x0)) with (eraseTerm (ret x0)) in H0. 
+   rewrite <- eraseFill in H0. apply eraseTermUnique in H0. subst. eapply basicHandleRet. 
+   rewrite decomposeErase in H2; eauto. simpl. auto. simpl. auto. }
+Qed. 
+
+Theorem decompNeq : forall t E e E' e',
+                      decompose t E e -> pdecompose (eraseTerm t) E' e' -> 
+                      eraseTerm e <> e' -> False. 
+Proof.
+  intros. rewrite <- decomposeErase in H; eauto. eapply pctxtUnique in H0; eauto. 
+  invertHyp. apply H1. auto.
+Qed. 
+
+Ltac inv' := unfoldTac; unfold pSingleton in *; 
+  match goal with
+      |H:Singleton ?X ?T = Empty_set ?X |- _ => apply SingletonNeqEmpty in H; inv H
+      |H:Empty_set ?X = Singleton ?X ?T |- _ => symmetry in H; inv'
+      |H:Singleton ?X ?t = Singleton ?X ?t' |- _ => apply SingletonEq in H; subst
+      |H:eraseTerm ?x = eraseTerm ?y |- _ => apply eraseTermUnique in H; subst
+      |H:decompose ?M ?E ?e,H':pdecompose ?M' ?E' ?e' |- _ =>
+       eapply decompNeq in H'; eauto; try solveByInv; introsInv
+      |_ => invertListNeq
+  end. 
+
+Ltac solveByInv :=
+  match goal with
+      |H:_ |- _ => solve[inv H|inv']
+  end. 
+
+Theorem eraseAuxEq : forall T T', erasePoolAux T = T' -> erasePool T T'. 
+Proof.
+  intros. rewrite <- H. constructor. 
+Qed. 
+
+Theorem nonspecImpliesSpec : forall PH PH' PT pt pt' H T,
                                pstep PH PT pt (pOK PH' PT pt') -> eraseHeap H = PH ->
                                erasePool T (Union ptrm PT pt) ->
                                exists H' T' t' t'',
@@ -85,70 +157,35 @@ Theorem nonspecImpliesSpec' : forall PH PH' PT pt pt' H T,
                                  eraseHeap H' = PH' /\ erasePool (tUnion T' t'') (Union ptrm PT pt') /\
                                  multistep H T' t' (OK H' T' t''). 
 Proof.
-  intros. inversion H0; subst. 
-  {exists H. inversion H2; subst. unfoldSetEq H5. assert(In ptrm (pUnion PT (pSingleton t)) t). 
-   apply Union_intror. constructor. apply H3 in H4. inversion H4; subst. inv H5. 
-   inv H10. apply pullOut in H9. rewrite H9 in H2. exists (Subtract thread T(t0,s0,s3,M0)). 
-   exists (tSingleton(t0,s0,s3,M0)). existTac E. existTac e. existTac arg. econstructor.
-   split. auto. split; auto. clear H9. inv H2. rewrite eraseUnionComm in H13. 
-   copy H6. apply eraseThreadCardinality in H6. inv H6. inv H8. invertHyp. inv H8. 
-   eapply eraseThreadCommitTrm in H2; eauto. invertHyp. Focus 2. eapply commitApp; eauto.
-   inv H2. split. Focus 2. eapply multi_step. rewrite <- union_empty_l at 1. auto. 
-   eapply BetaRed. eapply decomposeErase in H7; eauto. simpl; auto. constructor. 
-   
+  intros. inversion H0; subst.  
+  {inv H2.  apply splitPool in H5. invertHyp. exists H. exists x. exists (tSingleton x0). 
+   eapply eraseBasicStep in H2; eauto. invertHyp. apply simBasicStep in H7. 
+   econstructor. split. unfold tAdd. unfold Add. auto. split; auto. split. 
+   Focus 2. eapply multi_step. rewrite <- union_empty_l at 1. auto. eapply BasicStep. 
+   eauto. unfoldTac. rewrite union_empty_l. constructor.
+   replace (pSingleton (eraseTerm x4)) with (erasePoolAux(tSingleton(x1,unlocked nil,x2,x4))). 
+   rewrite <- eraseUnionComm. constructor. erewrite erasePoolSingleton; eauto. }
+  {existTac E. existTac M. existTac N. inv H2. apply splitPool in H4. invertHyp. 
+   inv H2; try solve[inv'; try inv']. 
+   {unfold pSingleton in *. invertHyp. exists H. econstructor. 
+    econstructor. econstructor. split. unfoldTac. auto. split; auto. split. Focus 2. eapply multi_step. 
+    rewrite <- union_empty_l at 1. auto. eapply Spec. unfoldTac. rewrite union_empty_l. 
+    eapply multi_step. rewrite <- union_empty_l at 1. auto. eapply PopSpec. simpl. 
+    rewrite app_nil_l. auto. unfoldTac. rewrite union_empty_l. constructor. unfoldTac. 
+    rewrite coupleUnion. apply eraseAuxEq. repeat rewrite eraseUnionComm. simpl.
+    erewrite erasePoolSingleton. Focus 2. auto. erewrite erasePoolSingleton; eauto. 
+    rewrite union_empty_r. existTac E. existTac M. existTac N.  rewrite eraseFill. simpl. auto. }
+   {unfold pSingleton in *. invertHyp. exists H. exists x2. econstructor. econstructor. split. 
+    unfoldTac. auto. split; auto. split. Focus 2. constructor. unfoldTac. apply eraseAuxEq. 
+    rewrite eraseUnionComm. erewrite erasePoolSingleton; eauto. 
+    replace (specpe
 
-
-
-econstructor. split; auto. split; auto. clear H9. inv H2. 
-   rewrite eraseUnionComm in H10. copy H6. apply eraseThreadCardinality in H6. inv H6. 
-   inv H8. invertHyp. inv H8. eapply eraseThreadCommitTrm in H2; eauto. Focus 2. 
-   eapply commitApp; eauto. invertHyp. inv H2. existTac E. existTac e. existTac arg. 
-   split. Focus 2. eapply multi_step. rewrite <- union_empty_l at 1. auto. eapply BetaRed. 
-   eapply decomposeErase in H7; eauto. simpl. auto. unfoldTac. rewrite union_empty_l. 
-   apply multi_refl. constructor. 
-
-
-
-Theorem ePool : forall T', exists T, erasePool T T'.
-Admitted.  
-
-Theorem erasePoolEqUnion : forall T PT pt, erasePoolAux T = Union ptrm PT (pSingleton pt) ->
-                     exists PT' pt', erasePoolAux PT' = PT /\
-                                     erasePoolAux pt' = (pSingleton pt) /\ T = tUnion PT' pt'.
-Proof.
-  intros. apply eqImpliesSameSet in H. unfold Same_set in H. unfold Included in H.
-  assert(exists T', erasePool T' PT). apply ePool. inv H0. inv H1. 
-  eErase pt. exists x. exists (tSingleton (nil,nil,nil, x0)). split; auto. split. 
-  erewrite termErasePoolErase; auto. apply Extensionality_Ensembles. unfold Same_set. 
-  unfold Included. split; intros. 
-  {
-
-
-   assert(Ensembles.In ptrm (Union ptrm PT (pSingleton (eraseTerm x0))) (eraseTerm x0)). 
-   apply Union_intror. constructor. eapply inErasure in H5; eauto. apply pullOut in H5.
-   rewrite <- termErasePoolErase with(tid0:=nil)(s2:=nil)in H5. 
-   exists (Subtract thread T (nil,nil,nil,x0)). exists (tSingleton(nil,nil,nil,x0)). 
-   econstructor. split. 
+eapply tEraseSpecRet.
 
 
 
 
 
-Theorem nonspecImpliesSpec : forall PH PH' PT pt pt' H T t,
-                               pstep PH PT pt (pOK PH' PT pt') -> eraseHeap H = PH ->
-                               erasePool T PT -> erasePool t pt ->
-                               exists H' t', eraseHeap H' = PH' /\ erasePool t' pt' /\
-                                             multistep H T t (OK H' T t'). 
-Proof.
-  intros. inversion H0; subst. 
-  {exists H. inversion H3. copy H6. apply erasePoolSingleton in H6. invertHyp. apply pullOut in H1. 
-   rewrite H1. eErase e. eErase arg. eErase E. apply eraseThreadCommitTrm in H4. Focus 2. 
-   econstructor. eauto. invertHyp. rewrite H4. eErase e. econstructor. split; auto. 
-   split. Focus 2. eapply multi_step. auto. eapply BetaRed. clear H1; subst. 
-   eapply decomposeErase in H8; eauto. simpl. eauto. clear H1; subst. eauto. rewrite H1 in H5. 
-   clear H1; subst. rewrite eraseUnionComm in H5. rewrite termErasePoolErase in H5. 
-   apply AddEqSingleton in H5. 
 
 
-
-adsf
+alsdkjfalskdjfh

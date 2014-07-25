@@ -607,6 +607,7 @@ Proof.
    {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
    {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
     rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
+   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
   }
   {split; auto. inv H1. unfoldTac. rewrite coupleUnion. destruct b. 
    {erewrite erasePoolSingleton; eauto. erewrite eraseUnionComm. simpl. 

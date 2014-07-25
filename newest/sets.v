@@ -205,5 +205,15 @@ Proof.
   {inversion H; subst. inversion H0; subst; auto. inversion H0; subst; auto. }
 Qed. 
 
+Theorem UnionSwap : forall X T1 T2 T3,
+                      Union X (Union X T1 T2) T3 = Union X (Union X T1 T3) T2. 
+Proof.
+  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
+  {inversion  H; subst. inversion H0; subst. constructor. constructor. auto. apply Union_intror. 
+  auto. constructor. apply Union_intror. auto. }
+  {inversion H; subst. inversion H0; subst. constructor. constructor. auto. 
+   apply Union_intror. auto. constructor. apply Union_intror. auto. }
+Qed. 
+
 End Ensembles.
 

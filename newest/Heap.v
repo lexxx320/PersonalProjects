@@ -287,3 +287,10 @@ Theorem lookupExtendNeq : forall (T:Type) x H x' v (v':T) p,
 Proof.
   intros. destruct H; simpl in *. apply beq_nat_false_iff in H1. rewrite H1. auto. 
 Qed. 
+
+Axiom heapExtensionality : forall (T:Type) (H H' : rawHeap T),
+                             (forall x, raw_heap_lookup x H = raw_heap_lookup x H') -> H = H'. 
+
+
+
+
