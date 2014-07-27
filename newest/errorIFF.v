@@ -173,10 +173,12 @@ Proof.
      match goal with
          |H:decompose ?M ?E ?e, H' : decompose ?M' ?E' ?e' |- _ => eapply uniqueCtxtDecomp in H; eauto
      end; invertHyp; cleanup].
-    {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto. 
-     inv H6. inv H10. }
-    {unfoldTac; invertHyp. inv H6. copy d; copy d0. eapply uniqueCtxtDecomp in H6; eauto. 
+    {unfoldTac; invertHyp. inv H6; inv H7; copy d; eapply uniqueCtxtDecomp in H6; 
+                           eauto; invertHyp; solveByInv. }
+    {{unfoldTac; invertHyp. inv H6. copy d; copy d0.
+      eapply uniqueCtxtDecomp in H6; eauto. 
      invertHyp. inv H10. rewrite H1 in H7. inv H7. }
+    }
    }
   }
 Qed. 
