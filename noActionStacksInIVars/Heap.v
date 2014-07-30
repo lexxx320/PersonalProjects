@@ -292,3 +292,19 @@ Proof.
   intros. destruct H. simpl. apply raw_lookupReplaceNeq; auto. 
 Qed. 
 
+Theorem raw_replaceSame : forall (T:Type) H x (v:T),
+                        raw_heap_lookup x H = Some v -> raw_replace x v H = H. 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i)eqn:eq. 
+   {inv H0. apply beq_nat_true in eq. subst. auto. }
+   {rewrite IHlist; eauto. }
+  }
+Qed. 
+
+Theorem replaceSame : forall (T: Type) H x (v:T),
+                        heap_lookup x H = Some v -> replace x v H = H. 
+Proof.
+  intros. destruct H. simpl. apply rawHeapsEq. eapply raw_replaceSame; eauto. 
+Qed. 
