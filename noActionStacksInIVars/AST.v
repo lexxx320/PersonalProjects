@@ -188,8 +188,10 @@ Inductive pivar_state : Type :=
 |pempty : pivar_state
 |pfull : ptrm -> pivar_state.
 
+Inductive specStat : Type := SPEC | COMMIT.
+
 Inductive ivar_state : Type :=
-  |sempty : actionStack -> ivar_state
-  |sfull : actionStack -> Ensemble tid -> actionStack -> tid -> trm -> ivar_state. 
+  |sempty : specStat -> ivar_state
+  |sfull : specStat -> list tid -> specStat -> tid -> trm -> ivar_state. 
 (*first spec is who created, second is who wrote*)
 

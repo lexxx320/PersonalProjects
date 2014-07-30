@@ -18,15 +18,11 @@ Definition commit a :=
 (*------------------------------------Unspec Definitions----------------------------*)
 Fixpoint raw_unspecHeap (H : rawHeap ivar_state) :=
   match H with
-      |(i, sempty a)::H' => if commit a 
-                            then (i, sempty a)::raw_unspecHeap H'
-                            else raw_unspecHeap H'
-      |(i, sfull a1 a2 a3 a4 a5) :: H' =>
-       if commit a1
-       then if commit a3
-            then (i, sfull a1 (Empty_set tid) a3 a4 a5)::raw_unspecHeap H'
-            else (i, sempty a1) :: raw_unspecHeap H'
-       else raw_unspecHeap H'
+      |(i, sempty COMMIT)::H' => (i, sempty COMMIT)::raw_unspecHeap H'
+      |(i, sempty SPEC)::H' => raw_unspecHeap H'
+      |(i, sfull SPEC a2 a3 a4 a5) :: H' => raw_unspecHeap H'
+      |(i, sfull COMMIT a2 SPEC a4 a5) :: H' => (i, sempty COMMIT)::raw_unspecHeap H'
+      |(i, sfull COMMIT a2 COMMIT a4 a5) :: H' => (i, sfull COMMIT nil COMMIT a4 a5)::raw_unspecHeap H'
       |nil => nil
   end. 
 
@@ -38,17 +34,17 @@ Theorem unspecUnique : forall h S,
 Proof.
   induction h; intros; auto. simpl in *. destruct a. 
   destruct i0. 
-  {destruct (commit a). 
-   {inv H. eauto. }
+  {destruct s. 
    {inv H. apply uniqueSubset with (S:= Add AST.id S i). apply IHh. 
     auto. unfold Included. intros. constructor. auto. }
+   {inv H. constructor. eauto. eauto. }
   }
-  {destruct (commit a). 
-   {destruct (commit a0). 
+  {destruct s. 
+   {inv H. eapply uniqueSubset. eauto. unfold Included. intros. constructor. auto. }
+   {destruct s0. 
     {inv H. constructor; auto. }
     {inv H. constructor; auto. }
    }
-   {inv H. eapply uniqueSubset. eauto. unfold Included. intros. constructor. auto. }
   }
 Qed. 
 
@@ -165,43 +161,49 @@ Proof.
   intros. inversion H; subst. inv H0. inv H1. inv H0. inv H4. inv H2; try solve[inv H3; eauto]. 
 Qed. 
 
-Theorem raw_unspecHeapRBNew : forall H x S A,
-                            raw_heap_lookup x H = Some(sempty (aCons S A)) ->
+Theorem raw_unspecHeapRBNew : forall H x,
+                            raw_heap_lookup x H = Some(sempty SPEC) ->
                             raw_unspecHeap H = raw_unspecHeap (raw_remove H x). 
 Proof.
   induction H; intros. 
   {inv H. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. unfold aCons. destruct A; auto. }
-   {erewrite IHlist; eauto. destruct i0; simpl; auto. }
+  {simpl in *. destruct a. destruct i0. 
+   {destruct s.
+    {destruct (beq_nat x i) eqn:eq; simpl; auto.  }
+    {destruct (beq_nat x i). inv H0. simpl. erewrite IHlist; eauto. }
+   }
+   {destruct s. 
+    {destruct (beq_nat x i); eauto. }
+    {destruct s0. destruct (beq_nat x i); eauto. inv H0. simpl.
+     erewrite IHlist; eauto. destruct (beq_nat x i). inv H0. 
+     simpl. erewrite IHlist; eauto. }
+   }
   }
 Qed. 
 
 (*---------------------Unspec Heap Equality Theorems-----------------------*)
-Theorem unspecHeapRBNew : forall H x S A,
-                            heap_lookup x H = Some(sempty (aCons S A)) ->
+Theorem unspecHeapRBNew : forall H x,
+                            heap_lookup x H = Some(sempty SPEC) ->
                             unspecHeap H = unspecHeap (remove H x). 
 Proof.
   intros. destruct H. simpl in *. eapply raw_unspecHeapRBNew in H0. 
   eapply rawHeapsEq; auto. 
 Qed. 
 
-Theorem raw_unspecHeapRBWrite : forall H x sc S A TID N,
-                                  raw_heap_lookup x H = Some(sfull sc (Empty_set tid) (aCons S A) TID N) ->
+Theorem raw_unspecHeapRBWrite : forall H x sc TID N,
+                                  raw_heap_lookup x H = Some(sfull sc nil SPEC TID N) ->
                                   raw_unspecHeap (raw_replace x (sempty sc) H) = (raw_unspecHeap H). 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {simpl in *. inv H0. destruct (commit sc) eqn:eq2. 
-    unfold commit. destruct A; simpl; auto. apply beq_nat_true in eq. subst; auto. 
-    apply beq_nat_true in eq; subst; auto. apply beq_nat_true in eq. subst. auto. auto. }
+   {simpl in *. inv H0. destruct sc. auto. apply beq_nat_true in eq. subst; auto. }
    {simpl in *. erewrite IHlist; eauto. }
   }
 Qed. 
 
-Theorem unspecHeapRBWrite : forall H x sc S A TID N,
-                              heap_lookup x H = Some(sfull sc (Empty_set tid) (aCons S A) TID N) ->
+Theorem unspecHeapRBWrite : forall H x sc TID N,
+                              heap_lookup x H = Some(sfull sc nil SPEC TID N) ->
                               unspecHeap (replace x (sempty sc) H) = (unspecHeap H). 
 Proof.
   intros. destruct H. simpl in *. eapply raw_unspecHeapRBWrite in H0. 
@@ -215,7 +217,8 @@ Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {simpl. inv H0. apply beq_nat_true in eq. subst. destruct (commit sc); auto. }
+   {simpl. inv H0. apply beq_nat_true in eq. subst. destruct sc. auto. 
+    destruct S; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
 Qed. 
@@ -231,10 +234,9 @@ Qed.
 Theorem raw_unspecUnspecHeap : forall H, raw_unspecHeap(raw_unspecHeap H) = raw_unspecHeap H. 
 Proof.
   induction H; intros; auto. simpl. destruct a. destruct i0. 
-  {destruct (commit a) eqn:eq. simpl. rewrite eq. rewrite IHlist; auto. auto. }
-  {destruct (commit a) eqn:eq1. simpl. destruct (commit a0) eqn:eq2. 
-   simpl. rewrite eq1. rewrite eq2. rewrite IHlist; eauto. simpl. 
-   rewrite eq1. rewrite IHlist; auto. auto. }
+  {destruct s; auto. simpl. rewrite IHlist; auto. }
+  {destruct s; auto. destruct s0. simpl. rewrite IHlist; auto. simpl. 
+   rewrite IHlist; auto. }
 Qed. 
 
 Theorem unspecUnspecHeap : forall H, unspecHeap(unspecHeap H) = unspecHeap H. 
@@ -242,85 +244,128 @@ Proof.
   intros. destruct H. apply rawHeapsEq. apply raw_unspecUnspecHeap. 
 Qed. 
 
-Theorem raw_unspecHeapCommitNewFull : forall H x S a b c d ds t N,
+Theorem raw_unspecHeapCommitNewFull : forall H x S ds t N,
                  unique ivar_state S H ->                        
-                 raw_heap_lookup x H = Some(sfull (aCons a b) ds (aCons c d) t N) ->
-                 raw_unspecHeap(raw_replace x (sfull (unlocked nil) ds (aCons c d) t N) H) = 
-                 raw_extend x (sempty (unlocked nil)) (raw_unspecHeap H). 
+                 raw_heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                 raw_unspecHeap(raw_replace x (sfull COMMIT ds SPEC t N) H) = 
+                 raw_extend x (sempty COMMIT) (raw_unspecHeap H). 
 Proof.
   induction H; intros. 
   {inv H0. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H1. destruct (commit (aCons a0 b)) eqn:eq1. destruct b; simpl in *; solveByInv. 
-    simpl. destruct (commit (aCons c d)) eqn:eq2. destruct d; simpl in *; solveByInv.
-    unfold raw_extend. auto. }
-   {simpl. inv H0. erewrite IHlist; eauto. destruct i0. 
-    {destruct (commit a).  
-     {apply heapExtensionality. intros. destruct (beq_nat x0 i)eqn:eq2.  
-      {apply beq_nat_true in eq2. subst. simpl. rewrite <- beq_nat_refl. 
-       rewrite beq_nat_sym in eq. rewrite eq. auto. } 
-      {simpl. rewrite eq2. destruct (beq_nat x0 x) eqn:eq3; auto. }
-     }
-     {auto. }
-    }
-    {destruct (commit a). 
-     {destruct (commit a1). 
-      {unfold raw_extend. apply heapExtensionality. intros. destruct (beq_nat x0 i)eqn:eq1. 
-       {simpl. rewrite eq1. destruct (beq_nat x0 x)eqn:eq2. 
-        {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. rewrite eq2 in eq. 
-         rewrite <- beq_nat_refl in eq. inv eq. }
-        {auto. }
-       }
-       {simpl. rewrite eq1. destruct (beq_nat x0 x); eauto. }
-      }
-      {unfold raw_extend. apply heapExtensionality. intros. simpl. destruct (beq_nat x0 i) eqn:eq1. 
-       {destruct (beq_nat x0 x) eqn:eq2. apply beq_nat_true in eq1. apply beq_nat_true in eq2. 
-        subst. rewrite eq2 in eq. rewrite <- beq_nat_refl in eq. inv eq. auto. 
-       }
-       {destruct (beq_nat x0 x) eqn:eq2; auto. }
-      }
-     }
-     {auto. }
-    }
-   }
-  }
+   {inv H1. unfold raw_extend. simpl. auto. }
+   {simpl. inv H0. erewrite IHlist; eauto. destruct i0. destruct s. auto. 
+    unfold raw_extend. apply heapExtensionality. intros. simpl.
+    destruct (beq_nat x0 i) eqn:eq1. apply beq_nat_true in eq1. subst. 
+    rewrite beq_nat_sym in eq. rewrite eq. auto. destruct (beq_nat x0 x) eqn:eq2; auto. 
+    destruct s; auto. destruct s0. unfold raw_extend. apply heapExtensionality. intros. 
+    simpl. destruct (beq_nat x0 i) eqn:eq1. apply beq_nat_true in eq1. subst. 
+    rewrite beq_nat_sym in eq. rewrite eq. auto. destruct (beq_nat x0 x); auto.
+    unfold raw_extend. apply heapExtensionality. intros. simpl. destruct (beq_nat x0 i) eqn:eq1. 
+    destruct (beq_nat x0 x) eqn:eq2. apply beq_nat_true in eq1. apply beq_nat_true in eq2.
+    subst. rewrite eq2 in eq. apply beq_nat_false in eq. exfalso. apply eq. auto. auto. 
+    destruct (beq_nat x0 x); auto. }
+}
 Qed. 
 
-Theorem unspecHeapCommitNewFull : forall H x a b c d ds t N p,
-                 heap_lookup x H = Some(sfull (aCons a b) ds (aCons c d) t N) ->
-                 unspecHeap(replace x (sfull (unlocked nil) ds (aCons c d) t N) H) = 
-                 extend x (sempty (unlocked nil)) (unspecHeap H) p. 
+Theorem unspecHeapCommitNewFull : forall H x ds t N p,
+                 heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                 unspecHeap(replace x (sfull COMMIT ds SPEC t N) H) = 
+                 extend x (sempty COMMIT) (unspecHeap H) p. 
 Proof.
   intros. destruct H; simpl in *. apply rawHeapsEq.
   eapply raw_unspecHeapCommitNewFull; eauto. 
 Qed. 
 
-(*----------------------Unspec Heap Lookup Theorems---------------------*)
-
-Theorem raw_lookupUnspecFull : forall H x ds t N, 
-                             raw_heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) t N) ->
-                             raw_heap_lookup x (raw_unspecHeap H) =
-                             Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) t N).
+Theorem raw_unspecHeapCommitCreateFull : forall H x ds tid M,
+         raw_heap_lookup x H = Some(sfull COMMIT ds SPEC tid M) ->
+         raw_unspecHeap (raw_replace x (sfull COMMIT ds COMMIT tid M) H) =
+         raw_replace x (sfull COMMIT nil COMMIT tid M) (raw_unspecHeap H). 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
    {inv H0. simpl. rewrite eq. auto. }
-   {destruct i0. destruct (commit a); eauto. simpl. rewrite eq. eauto. destruct (commit a); eauto.
-    destruct (commit a0). simpl. rewrite eq. eauto. simpl. rewrite eq; eauto. }
+   {simpl. erewrite IHlist; eauto. destruct i0. destruct s. auto. simpl. rewrite eq. 
+    auto. destruct s; auto. destruct s0; simpl; rewrite eq; auto. }
+  }
+Qed. 
+
+Theorem unspecHeapCommitCreateFull : forall H x ds tid M,
+         heap_lookup x H = Some(sfull COMMIT ds SPEC tid M) ->
+         unspecHeap (replace x (sfull COMMIT ds COMMIT tid M) H) =
+         replace x (sfull COMMIT nil COMMIT tid M) (unspecHeap H). 
+Proof. intros. destruct H. simpl. apply rawHeapsEq. eapply raw_unspecHeapCommitCreateFull; eauto. 
+Qed. 
+
+
+
+(*----------------------Unspec Heap Lookup Theorems---------------------*)
+
+Theorem raw_lookupUnspecFull : forall H x ds t N, 
+                             raw_heap_lookup x H = Some(sfull COMMIT ds COMMIT t N) ->
+                             raw_heap_lookup x (raw_unspecHeap H) =
+                             Some(sfull COMMIT nil COMMIT t N).
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {destruct i0. destruct s; eauto. simpl. rewrite eq. eauto. destruct s. eauto. 
+    destruct s0. simpl. rewrite eq. eauto. simpl. rewrite eq; eauto. }
   }
 Qed. 
  
 Theorem lookupUnspecFull : forall H x ds t N, 
-                             heap_lookup x H = Some(sfull (unlocked nil) ds (unlocked nil) t N) ->
+                             heap_lookup x H = Some(sfull COMMIT ds COMMIT t N) ->
                              heap_lookup x (unspecHeap H) = 
-                             Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) t N).
+                             Some(sfull COMMIT nil COMMIT t N).
 Proof.
   intros. destruct H. simpl. eapply raw_lookupUnspecFull; eauto.
 Qed. 
 
+Theorem raw_unspecHeapLookupFull : forall H  x a b c,
+                                 raw_heap_lookup x H = Some(sfull COMMIT a COMMIT b c) ->
+                                 raw_heap_lookup x (raw_unspecHeap H) = 
+                                 Some(sfull COMMIT nil COMMIT b c).
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {apply IHlist in H0. destruct i0. destruct s; eauto. simpl. rewrite eq. eauto. 
+    destruct s; eauto. destruct s0; eauto. simpl. rewrite eq. eauto. simpl. rewrite eq; eauto. }
+  }
+Qed. 
 
+Theorem unspecHeapLookupFull : forall H x a b c,
+                                 heap_lookup x H = Some(sfull COMMIT a COMMIT b c) ->
+                                 heap_lookup x (unspecHeap H) = 
+                                 Some(sfull COMMIT nil COMMIT b c).
+Proof.
+  intros. destruct H; simpl in *. eapply raw_unspecHeapLookupFull; eauto. 
+Qed. 
 
+Theorem raw_lookupUnspecEmpty : forall x H ds t N,
+                              raw_heap_lookup x H = Some(sfull COMMIT ds SPEC t N) ->
+                              raw_heap_lookup x (raw_unspecHeap H) = Some(sempty COMMIT). 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {destruct i0. destruct s; eauto. simpl. rewrite eq. eauto. destruct s. 
+    eauto. destruct s0; simpl; rewrite eq; eauto. }
+  }
+Qed. 
+Theorem lookupUnspecEmpty : forall x H ds t N,
+                              heap_lookup x H = Some(sfull COMMIT ds SPEC t N) ->
+                              heap_lookup x (unspecHeap H) = Some(sempty COMMIT). 
+Proof.
+  intros. destruct H; simpl. eapply raw_lookupUnspecEmpty; eauto. 
+Qed. 
+
+(*------Other Stuff--------*)
 
 Theorem rollbackUnspeculatedHeap : forall H H' tid T T' S, 
                                      rollback tid S H T H' T' -> unspecHeap H = unspecHeap H'. 
@@ -433,41 +478,31 @@ Ltac helper :=
       assert(exists t'', unspecThread t' t'') by apply unspecThreadTotal; invertHyp
   end. 
 
-Theorem raw_unspecHeapAddWrite : forall x sc H a b TID N,
+Theorem raw_unspecHeapAddWrite : forall x sc H TID N,
                                raw_heap_lookup x H = Some(sempty sc) -> 
-                               raw_unspecHeap (raw_replace x (sfull sc (Empty_set tid) (aCons a b) TID N) H) = 
+                               raw_unspecHeap (raw_replace x (sfull sc nil SPEC TID N) H) = 
                                raw_unspecHeap H. 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {simpl. inv H0. apply beq_nat_true in eq. subst. destruct (commit sc); auto. 
-    destruct b; simpl; auto. }
+   {simpl. inv H0. apply beq_nat_true in eq. subst. destruct sc; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
 Qed. 
 
-Theorem unspecHeapAddWrite : forall x sc H a b TID N,
+Theorem unspecHeapAddWrite : forall x sc H TID N,
                                heap_lookup x H = Some(sempty sc) -> 
-                               unspecHeap (replace x (sfull sc (Empty_set tid) (aCons a b) TID N) H) = unspecHeap H. 
+                               unspecHeap (replace x (sfull sc nil SPEC TID N) H) = unspecHeap H. 
 Proof.
   intros. destruct H. simpl in *. eapply raw_unspecHeapAddWrite in H0; eauto.
   apply rawHeapsEq; eauto. 
 Qed. 
 
-Theorem raw_unspecHeapExtend : forall H a b x,
-       raw_unspecHeap (raw_extend x (sempty (aCons a b)) H) = raw_unspecHeap H.
+Theorem unspecHeapExtend : forall x H p,
+     unspecHeap (extend x (sempty SPEC) H p) = unspecHeap H. 
 Proof. 
-  induction H; intros. 
-  {simpl. destruct b; simpl; auto. }
-  {simpl in *. destruct a. destruct b; simpl; auto. }
-Qed. 
-  
-Theorem unspecHeapExtend : forall x H a b p,
-     unspecHeap (extend x (sempty (aCons a b)) H p) = unspecHeap H. 
-Proof. 
-  intros. destruct H. simpl in *.  
-  eapply rawHeapsEq. eapply raw_unspecHeapExtend.  
+  intros. destruct H; simpl in *. apply rawHeapsEq. auto. 
 Qed. 
 
 Ltac uCons a b := replace (unlocked (a::b)) with (aCons a (unlocked b)); auto. 
@@ -693,28 +728,7 @@ Proof.
    auto. }
 Qed. 
 
-Theorem raw_unspecHeapLookupFull : forall H  x a b c,
-                                 raw_heap_lookup x H = Some(sfull (unlocked nil) a (unlocked nil) b c) ->
-                                 raw_heap_lookup x (raw_unspecHeap H) = 
-                                 Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) b c).
-Proof.
-  induction H; intros. 
-  {inv H. }
-  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. simpl. rewrite eq. auto. }
-   {apply IHlist in H0. destruct i0. destruct (commit a). simpl; rewrite H0. rewrite eq. 
-    auto. auto. destruct (commit a). destruct (commit a1). simpl. rewrite eq; auto. simpl. rewrite eq; auto. 
-    auto. }
-  }
-Qed. 
 
-Theorem unspecHeapLookupFull : forall H x a b c,
-                                 heap_lookup x H = Some(sfull (unlocked nil) a (unlocked nil) b c) ->
-                                 heap_lookup x (unspecHeap H) = 
-                                 Some(sfull (unlocked nil) (Empty_set tid) (unlocked nil) b c).
-Proof.
-  intros. destruct H; simpl in *. eapply raw_unspecHeapLookupFull; eauto. 
-Qed. 
 
 Ltac invThreadEq :=
   match goal with

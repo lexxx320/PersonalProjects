@@ -36,18 +36,12 @@ Fixpoint eraseTerm (t:trm) : ptrm :=
 Fixpoint raw_eraseHeap (h:rawHeap ivar_state) : rawHeap pivar_state :=
    match h with
      | nil => []
-     | (i, sempty a) :: H' =>
-       if commit a
-       then (i, pempty) :: raw_eraseHeap H'
-       else raw_eraseHeap H'
-     | (i, sfull a1 _ a3 a4 a5) :: H' =>
-       if commit a1
-       then
-         if commit a3
-         then (i, pfull (eraseTerm a5)) :: raw_eraseHeap H'
-         else (i, pempty) :: raw_eraseHeap H'
-       else raw_eraseHeap H'
-  end.
+     | (i, sempty COMMIT)::H' => (i, pempty) :: raw_eraseHeap H'
+     | (i, sempty SPEC)::H' => raw_eraseHeap H'
+     | (i, sfull COMMIT _ COMMIT _ N)::H' => (i, pfull (eraseTerm N))::raw_eraseHeap H'
+     | (i, sfull COMMIT _ SPEC _ _)::H' => (i, pempty)::raw_eraseHeap H'
+     | (i, sfull SPEC _ _ _ _) :: H' => raw_eraseHeap H'
+   end. 
 
 Theorem eraseUnique : forall H S,
                         unique ivar_state S H ->
@@ -57,22 +51,13 @@ Proof.
   {simpl. constructor. }
   {simpl. destruct a. 
    {destruct i0. 
-    {destruct (commit a). 
-     {inv H0. constructor. auto. eauto. }
-     {inv H0. eapply IHlist. eapply uniqueSubset; eauto. unfold Included. 
-      intros. constructor; auto. }
-    }
-    {destruct (commit a). 
-     {destruct (commit a0). 
-      {inv H0. auto. }
-      {inv H0. constructor. auto. auto. }
-     }
-     {inv H0. eapply IHlist. eapply uniqueSubset; eauto. unfold Included. intros. 
-      constructor. auto.  }
-    }
+    {inv H0. destruct s; eauto. eapply uniqueSubset; eauto. constructor. auto. }
+    {inv H0. destruct s. eapply uniqueSubset; eauto. constructor. auto. destruct s0. 
+     constructor; auto. constructor; auto. }
    }
   }
 Qed. 
+
 
 Definition eraseHeap H := 
   match H with
@@ -165,9 +150,9 @@ Proof.
   induction H; intros. 
   {auto. }
   {simpl in *. destruct a. destruct i0. 
-   {simpl. destruct (commit a)eqn:eq. simpl. rewrite eq. rewrite IHlist. auto. eauto. }
-   {destruct (commit a)eqn:eq1; auto. destruct (commit a0)eqn:eq2; auto. simpl. rewrite eq1. 
-    rewrite eq2. rewrite IHlist; auto. simpl. rewrite eq1. rewrite IHlist. auto. }
+   {simpl. destruct s. auto. simpl. rewrite IHlist; auto. }
+   {destruct s; auto. destruct s0. simpl. rewrite IHlist; auto. simpl. 
+    rewrite IHlist; auto. }
   }
 Qed. 
 
@@ -519,9 +504,7 @@ Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. destruct (commit sc) eqn:eq1; auto. destruct (commit s)eqn:eq2. simpl. 
-    apply beq_nat_true in eq. subst; auto. rewrite eq1. rewrite eq2. auto. simpl. rewrite eq1.  
-    rewrite eq2. apply beq_nat_true in eq. subst; auto. simpl. rewrite eq1. auto. }
+   {simpl. apply beq_nat_true in eq. subst. inv H0. destruct sc; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
 Qed. 
@@ -534,42 +517,32 @@ Proof.
   eauto. 
 Qed. 
 
-Theorem raw_eraseHeapWrite : forall H x sc a b TID N ds, 
+Theorem raw_eraseHeapWrite : forall H x sc TID N ds, 
                                raw_heap_lookup x H = Some(sempty sc) ->
-                               raw_eraseHeap (raw_replace x (sfull sc ds (aCons a b) TID N) H) = raw_eraseHeap H. 
+                               raw_eraseHeap (raw_replace x (sfull sc ds SPEC TID N) H) = raw_eraseHeap H. 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq.
-   {inv H0. apply beq_nat_true in eq. subst.  destruct (commit sc) eqn:eq2; auto. simpl. 
-    rewrite eq2. destruct b; simpl; auto. simpl. rewrite eq2. auto. }
+   {inv H0. apply beq_nat_true in eq. subst.  destruct sc; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
-Qed. 
+Qed.  
 
-Theorem eraseHeapWrite : forall H x sc a b TID N ds, 
+Theorem eraseHeapWrite : forall H x sc TID N ds, 
                                heap_lookup x H = Some(sempty sc) ->
-                               eraseHeap (replace x (sfull sc ds (aCons a b) TID N) H) = eraseHeap H. 
+                               eraseHeap (replace x (sfull sc ds SPEC TID N) H) = eraseHeap H. 
 Proof.
   intros. destruct H; simpl in *. apply rawHeapsEq. apply raw_eraseHeapWrite. auto. 
 Qed. 
 
-Theorem raw_eraseHeapNew : forall H a b x,
-                         raw_eraseHeap (raw_extend x (sempty (aCons a b)) H) = 
-                         raw_eraseHeap H.
-Proof. 
-  induction H; intros. 
-  {simpl. destruct b; simpl; auto. }
-  {simpl in *. destruct a. simpl. destruct b; auto. }
-Qed.
-  
-Theorem eraseHeapNew : forall x H a b p,
-                         eraseHeap (extend x (sempty (aCons a b)) H p) =
+Theorem eraseHeapNew : forall x H p,
+                         eraseHeap (extend x (sempty SPEC) H p) =
                          eraseHeap H.                  
 Proof.
-  intros. destruct H. simpl in *.  
-  eapply rawHeapsEq. eapply raw_eraseHeapNew. 
+  intros. destruct H. simpl in *.  eapply rawHeapsEq. auto. 
 Qed. 
+
 
 Theorem erasePoolDeterminism : forall T T' T'', 
                                  erasePool T T' -> erasePool T T'' ->
