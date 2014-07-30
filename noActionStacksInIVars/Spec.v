@@ -367,8 +367,8 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
                step h T (tSingleton t1) 
                     (OK h T (tSingleton (tid, unlocked nil, s2, fill E' (raise E))))
 |PopRead : forall TID t s1 s1' s2 M M' N T h x ds E d h' ds1 ds2, 
-             s1 = unlocked (s1' ++ [rAct x M' E d]) -> ds = ds1 ++ [TID] ++ ds2 ->
-             heap_lookup x h = Some (sfull COMMIT ds COMMIT t N) ->
+             s1 = unlocked (s1' ++ [rAct x M' E d]) -> ds = ds1 ++ [TID] ++ ds2 -> 
+             ~ List.In TID ds2 -> heap_lookup x h = Some (sfull COMMIT ds COMMIT t N) ->
              h' = replace x (sfull COMMIT (ds1++ds2) COMMIT t N) h ->
              step h T (tSingleton (TID, s1, s2, M)) (OK h' T (tSingleton (TID, unlocked s1', (rAct x M' E d)::s2, M)))
 |PopWrite : forall tid s1 s1' s2 M M' M'' T h h' x ds E d,

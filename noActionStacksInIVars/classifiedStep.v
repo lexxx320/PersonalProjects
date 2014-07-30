@@ -67,7 +67,7 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
                     (OK h T (tSingleton (tid, (unlocked nil), s2, fill E' (raise E))))
 |CPopRead : forall TID t s1 s1' s2 M M' N T h x ds E d h' ds1 ds2, 
              s1 = unlocked (s1' ++ [rAct x M' E d]) -> ds = ds1 ++ [TID] ++ ds2 ->
-             heap_lookup x h = Some (sfull COMMIT ds COMMIT t N) ->
+             ~List.In TID ds2 -> heap_lookup x h = Some (sfull COMMIT ds COMMIT t N) ->
              h' = replace x (sfull COMMIT (ds1++ds2) COMMIT t N) h ->
              prog_step h T (tSingleton (TID, s1, s2, M)) 
                        (OK h' T (tSingleton (TID, unlocked s1', (rAct x M' E d)::s2, M)))
