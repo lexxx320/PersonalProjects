@@ -142,31 +142,21 @@ Proof.
     {eapply IHspec_multistep in H1;[idtac|eauto|eauto|eauto|eauto|eauto|eauto]. invertHyp. 
      exists x. exists x1. split. econstructor. eapply SBasicStep; eauto. eassumption. 
      split. eassumption. exists x2. split. assumption. eassumption. }
-    {copy H3. eapply consedActEq in H3. Focus 2. apply Union_intror. simpl. 
-     rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. invertHyp. 
-     apply eraseTrmApp in H4. inv H4.  exists h'. exists T. split. constructor. split. 
-     simpl in *. econstructor. eapply SFork; eauto. eassumption. econstructor. split. 
-     constructor. eauto. }
-    {copy H3. eapply consedActEq in H3. Focus 2. apply Union_intror. simpl. 
-     rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. invertHyp. 
-     apply eraseTrmApp in H4. inv H4.  exists H. exists T. split. constructor. split. 
-     simpl in *. econstructor. eapply SGet; eauto. eassumption. econstructor. split. 
-     constructor. eauto. }
-    {copy H3. eapply consedActEq in H3. Focus 2. apply Union_intror. simpl. 
-     rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. invertHyp. 
-     apply eraseTrmApp in H4. inv H4.  exists H. exists T. split. constructor. split. 
-     simpl in *. econstructor. eapply SPut; eauto. eassumption. econstructor. split. 
-     constructor. eauto. }
-    {copy H3. eapply consedActEq in H3. Focus 2. apply Union_intror. simpl. 
-     rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. invertHyp. 
-     apply eraseTrmApp in H4. inv H4.  exists H. exists T. split. constructor. split. 
-     simpl in *. econstructor. eapply SNew; eauto. eassumption. econstructor. split. 
-     constructor. eauto. }
-    {copy H3. eapply consedActEq in H3. Focus 2. apply Union_intror. simpl. 
-     rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. invertHyp. 
-     apply eraseTrmApp in H4. inv H4. exists h'. exists T. split. constructor. split. 
-     simpl in *. econstructor. eapply SSpec; eauto. eassumption. econstructor. split. 
-     constructor. eauto. }
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H4. inv H4. exists h'. 
+     exists T. split. constructor. split. simpl in *. econstructor. eapply SFork; eauto. 
+     eassumption. econstructor. split. constructor. eauto. }
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H4. inv H4. 
+     exists H. exists T. split. constructor. split. simpl in *. econstructor. 
+     eapply SGet; eauto. eassumption. econstructor. split. constructor. eauto. }
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H4. inv H4.  
+     exists H. exists T. split. constructor. split. simpl in *. econstructor.
+     eapply SPut; eauto. eassumption. econstructor. split. constructor. eauto. }
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H4. inv H4.  
+     exists H. exists T. split. constructor. split. simpl in *. econstructor.
+     eapply SNew; eauto. eassumption. econstructor. split. constructor. eauto. }
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H4. inv H4. 
+     exists h'. exists T. split. constructor. split. simpl in *. econstructor. 
+     eapply SSpec; eauto. eassumption. econstructor. split. constructor. eauto. }
    }
    }
    Grab Existential Variables. rewrite lookupReplaceNeq; eauto. 
@@ -239,7 +229,7 @@ Proof.
    }
    {inv H9. apply UnionEqTID in x. invertHyp. inv H6. 
     inversion H7; subst; unfoldTac; invertHyp; invThreadEq.  
-    {copy H3. eapply nonEmptyStack in H3. destruct s1. exfalso. apply H3. auto. 
+    {copy H3. eapply stackNonNil in H3. destruct s1. exfalso. apply H3. auto. 
      econstructor. eapply SBasicStep; eauto. constructor. eapply IHspec_multistep; eauto. 
      eapply spec_multi_trans. eassumption. econstructor. eapply SBasicStep; eauto. constructor. 
      eauto. intros c. subst. apply eraseTrmApp in H0. inv H0; inv H10; falseDecomp. }

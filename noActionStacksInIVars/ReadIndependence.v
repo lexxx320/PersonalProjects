@@ -95,8 +95,6 @@ Proof.
 Qed. 
 
 
-Ltac consedActTac H :=
-  eapply consedActEq in H;[idtac|apply Union_intror; rewrite app_nil_l; constructor|apply Union_intror; constructor].
 
 
 Theorem readSimPureSteps : forall H T H' T' TID x M' t0 E M'' d N N' N'' s2 s1' ds1 ds1' ds2,
@@ -162,19 +160,19 @@ Proof.
     {eapply IHspec_multistep in H4;[idtac|eauto|eauto|eauto|eauto|eauto|eauto]. invertHyp. 
      econstructor. econstructor. split. econstructor. eapply SBasicStep; eauto. eassumption. 
      split. eauto. econstructor. split. eauto. eauto. }
-    {copy H3. consedActTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists h'. exists T. 
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists h'. exists T. 
      split. constructor. split. simpl. econstructor. eapply SFork; eauto. eassumption. 
      econstructor. split. constructor. eauto. }
-    {copy H3. consedActTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists H. exists T. 
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists H. exists T. 
      split. constructor. split. simpl. econstructor. eapply SGet; eauto. eassumption. 
      econstructor. split. constructor. eauto. }
-    {copy H3. consedActTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists H. exists T. 
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists H. exists T. 
      split. constructor. split. simpl. econstructor. eapply SPut; eauto. eassumption. 
      econstructor. split. constructor. eauto. }
-    {copy H3. consedActTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists H. exists T. 
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists H. exists T. 
      split. constructor. split. simpl. econstructor. eapply SNew; eauto. eassumption. 
      econstructor. split. constructor. eauto. }
-    {copy H3. consedActTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists h'. exists T. 
+    {copy H3. nonEmptyStackTac H3. invertHyp. apply eraseTrmApp in H0. inv H0. exists h'. exists T. 
      split. constructor. split. simpl. econstructor. eapply SSpec; eauto. eassumption. 
      econstructor. split. constructor. eauto. }
    }
@@ -265,7 +263,7 @@ Proof.
    }
    {inv H9. apply UnionEqTID in x. invertHyp. inv H6. 
     inversion H7; subst; unfoldTac; invertHyp; invThreadEq.  
-    {copy H3. eapply nonEmptyStack in H3. destruct s1. exfalso. apply H3. auto. 
+    {copy H3. eapply stackNonNil in H3. destruct s1. exfalso. apply H3. auto. 
      econstructor. eapply SBasicStep; eauto. constructor. eapply IHspec_multistep; eauto. 
      eapply spec_multi_trans. eassumption. econstructor. eapply SBasicStep; eauto. constructor. 
      eauto. intros c. subst. apply eraseTrmApp in H0. inv H0; inv H10; falseDecomp. }

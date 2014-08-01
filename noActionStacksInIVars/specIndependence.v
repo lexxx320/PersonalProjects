@@ -1,5 +1,5 @@
 Require Import SfLib.           
-Require Import NonSpec.   
+Require Import NonSpec.    
 Require Import Spec.  
 Require Import Coq.Sets.Ensembles. 
 Require Import erasure. 
@@ -48,9 +48,6 @@ Proof.
   }
 Qed. 
 
-Ltac specActEq H := 
-  eapply firstSpecActEq in H; [idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                               apply Union_intror; constructor]. 
 
 Theorem wrapDistributeApp : forall s a N E e p, 
                               wrapActs(s++[a]) N E e p = wrapActs(s) N E e p++ wrapActs[a] N E e p.
@@ -92,23 +89,24 @@ Proof.
     {unfoldTac; invertHyp. inv H2. eapply IHspec_multistep in H0. Focus 3. 
      auto. Focus 2. auto. invertHyp. exists x. exists x2. split; eauto. econstructor. 
      eapply SBasicStep; eauto. assumption. }
-    {unfoldTac; invertHyp. invThreadEq. copy H1. specActEq H1. subst. 
-     apply eraseTrmApp in H0. inv H0.  exists h'. exists T. split. constructor. 
+    {unfoldTac; invertHyp. invThreadEq. copy H1. simpl in *. firstActTac H1. subst. 
+     apply eraseTrmApp in H0. inv H0.  econstructor. econstructor. split. constructor. 
      econstructor. eapply SFork. auto. eauto. }
-    {unfoldTac; invertHyp. inv H2. copy H1. specActEq H1. subst. exists h. exists T. 
-     apply eraseTrmApp in H0. inv H0. split. constructor. econstructor. 
-     eauto. eauto. }
-    {unfoldTac; invertHyp. inv H2. copy H1. specActEq H1. subst. exists h. exists T. 
-     apply eraseTrmApp in H0. inv H0. split. constructor. econstructor. 
-     eauto. eauto. }
-    {unfoldTac; invertHyp. inv H2. copy H1. specActEq H1. subst. exists h. exists T. 
-     apply eraseTrmApp in H0. inv H0. split. constructor. econstructor. 
-     eauto. eauto. }
-    {unfoldTac; invertHyp. inv H7. copy H1. specActEq H1. subst. apply eraseTrmApp in H0. 
-     inv H0. exists h'. exists T. split. constructor. econstructor. eauto. eauto. }
+    {unfoldTac; invertHyp. invThreadEq. copy H1. simpl in *. firstActTac H1. subst. 
+     apply eraseTrmApp in H0. inv H0.  econstructor. econstructor. split. constructor. 
+     econstructor. eapply SGet; auto. eauto. eauto. }
+    {unfoldTac; invertHyp. invThreadEq. copy H1. simpl in *. firstActTac H1. subst. 
+     apply eraseTrmApp in H0. inv H0.  econstructor. econstructor. split. constructor. 
+     econstructor. eapply SPut; auto. eauto. eauto. }
+    {unfoldTac; invertHyp. invThreadEq. copy H1. simpl in *. firstActTac H1. subst. 
+     apply eraseTrmApp in H0. inv H0.  econstructor. econstructor. split. constructor. 
+     econstructor. eapply SNew; auto. eauto. }
+    {unfoldTac; invertHyp. invThreadEq. copy H1. simpl in *. firstActTac H1. subst. 
+     apply eraseTrmApp in H0.  inv H0.  econstructor. econstructor. split. constructor. 
+     econstructor. eapply SSpec; auto. eauto. }
    }
   }
-Qed. 
+Qed.
 
 Ltac monoActs H :=
   eapply monotonicActions in H;[idtac|apply Union_intror; constructor|apply Union_intror;constructor].
@@ -240,7 +238,7 @@ Proof.
   intros. inv H;
           try solve[apply decomposeEq in H0; subst; apply notValFill; introsInv].
 Qed.  
-
+ 
 Theorem nonEmptySpecStack : forall H H' tid s1 s1' a s2 M M' T T' N,
                  spec_multistep H T H' T' -> tIn T (tid,specStack (s1++[a]) N,s2,M) -> 
                  tIn T' (tid,specStack(s1') N,s2,M') -> exists s, s1' = s ++ [a]. 
@@ -267,7 +265,7 @@ Proof.
   }
 Qed. 
 
-Theorem nonEmptyStack : forall s1 s1' s2 x M M' tid N H H' T T' z,
+Theorem nonNilSpecStack : forall s1 s1' s2 x M M' tid N H H' T T' z,
         eraseTrm (s1'++[x]) z M' ->
         spec_multistep H (tUnion T (tSingleton(tid,specStack nil N,s2, M')))
                        H' (tUnion T' (tSingleton(tid,specStack s1 N,s2,M))) ->
@@ -378,7 +376,7 @@ Proof.
     inv H; unfoldTac; invertHyp; invThreadEq.  
     {copy H10. eapply simBasicStep' in H; eauto. Focus 2. copy H.
      apply basicStepNotVal in H. auto. econstructor. eapply SBasicStep; eauto.
-     eapply nonEmptyStack in H1. destruct s1. exfalso; apply H1. auto. 
+     eapply nonNilSpecStack in H1. destruct s1. exfalso; apply H1. auto. 
      destruct a; simpl; constructor. eauto. eapply basicStepNeq in H10; eauto. 
      eapply IHspec_multistep; eauto. eapply spec_multi_trans. eassumption. 
      econstructor. eapply SBasicStep. eauto. eauto. constructor. }

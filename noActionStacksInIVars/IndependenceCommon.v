@@ -177,36 +177,15 @@ Ltac lookupTac :=
      assert(heap_lookup x' (extend x v H p) = Some v') by (apply lookupExtendNeq; eauto)
   end. 
 
-Theorem consedActEq : forall H H' tid s1 s1' a b s2 M M' T T',
-                 spec_multistep H T H' T' -> tIn T (tid,unlocked (s1++[a;b]),s2,M) -> 
-                 tIn T' (tid,unlocked(s1'++[b]),s2,M') -> exists s, s1' = s ++ [a]. 
-Proof.
-  intros. genDeps{s1';s1;s2;a;b;M;M';tid}. induction H0; intros. 
-  {assert(thread_lookup p2 tid (tid,unlocked(s1++[a;b]),s2,M)). econstructor. eauto. auto. 
-   assert(thread_lookup p2 tid (tid,unlocked(s1'++[b]),s2,M')). econstructor. eauto. auto.
-   eapply uniqueThreadPool in H; eauto. inv H. destruct s1'. simpl in *. destruct s1; inv H4. 
-   destruct s1; inv H5. alignTac a0 s1'. rewrite H in H4. replace [a;b] with ([a]++[b]) in H4; auto. 
-   rewrite app_assoc in H4. apply app_inj_tail in H4. invertHyp. apply app_inj_tail in H3. invertHyp. 
-   econstructor. rewrite H. eauto. }
-  {inv H1. 
-   {eapply IHspec_multistep. constructor. eauto. eauto. }
-   {copy H. apply specStepSingleton in H. invertHyp. inv H3. inv H1. 
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
-    {unfoldTac; invertHyp; invThreadEq. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H5. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-   }
-  }
-Qed. 
+Ltac nonEmptyStackTac H :=
+  eapply nonEmptyStack in H;
+  [ idtac
+  | apply InL; constructor
+  | solveSet
+  | simpl; try rewrite app_nil_l; eauto   
+  | simpl; eauto]. 
 
-Theorem nonEmptyStack : forall s1 a s1' s2 x M M' tid H H' T T' z,
+Theorem stackNonNil : forall s1 a s1' s2 x M M' tid H H' T T' z,
         eraseTrm (s1'++[x]) z M' ->
         spec_multistep H (tUnion T (tSingleton(tid,unlocked [a],s2, M')))
                        H' (tUnion T' (tSingleton(tid,unlocked (s1 ++ [a]),s2,M))) ->
@@ -223,33 +202,27 @@ Proof.
    {inv H6. apply eraseTrmApp in H0. inv H0. 
     {inv H; unfoldTac; invertHyp; invThreadEq; try solve[falseDecomp]. 
      {inv H3; falseDecomp. }
-     {simpl in *. eapply consedActEq in H1.  Focus 2. apply Union_intror. rewrite app_nil_l. 
-      constructor. Focus 2. apply Union_intror. constructor. invertHyp. introsInv. invertListNeq. }
+     {simpl in *. nonEmptyStackTac H1. invertHyp. introsInv. invertListNeq. }
     }
     {inv H; unfoldTac; invertHyp; invThreadEq; try solve[falseDecomp]. 
      {inv H3; falseDecomp. }
-     {simpl in *. eapply consedActEq in H1. Focus 2. apply Union_intror. rewrite app_nil_l. 
-      constructor. Focus 2. apply Union_intror. constructor. invertHyp. introsInv. invertListNeq. }
+     {simpl in *. nonEmptyStackTac H1. invertHyp. introsInv. invertListNeq. }
     }
     {inv H; unfoldTac; invertHyp; invThreadEq; try solve[falseDecomp]. 
      {inv H3; falseDecomp. }
-     {simpl in *. eapply consedActEq in H1. Focus 2. apply Union_intror. rewrite app_nil_l. 
-      constructor. Focus 2. apply Union_intror. constructor. invertHyp. introsInv. invertListNeq. }
+     {simpl in *. nonEmptyStackTac H1. invertHyp. introsInv. invertListNeq. }
     }
     {inv H; unfoldTac; invertHyp; invThreadEq; try solve[falseDecomp]. 
      {inv H3; falseDecomp. }
-     {simpl in *. eapply consedActEq in H1. Focus 2. apply Union_intror. rewrite app_nil_l. 
-      constructor. Focus 2. apply Union_intror. constructor. invertHyp. introsInv. invertListNeq. }
+     {simpl in *. nonEmptyStackTac H1. invertHyp. introsInv. invertListNeq. }
     }
     {inv H; unfoldTac; invertHyp; invThreadEq; try solve[falseDecomp]. 
      {inv H3; falseDecomp. }
-     {simpl in *. eapply consedActEq in H1. Focus 2. apply Union_intror. rewrite app_nil_l. 
-      constructor. Focus 2. apply Union_intror. constructor. invertHyp. introsInv. invertListNeq. }
+     {simpl in *. nonEmptyStackTac H1. invertHyp. introsInv. invertListNeq. }
     }
    }
   }
 Qed. 
-
 
 Theorem numForksDistribute : forall a b, numForks'(a++b) = plus(numForks' a) (numForks' b). 
 Proof.
@@ -257,3 +230,16 @@ Proof.
   {auto. }
   {simpl. destruct a; auto. rewrite IHa. auto. }
 Qed. 
+
+Ltac proofsEq p p' := assert(p = p') by apply proof_irrelevance; subst. 
+Ltac consedActTac H :=
+  eapply consedActEq in H;[idtac|apply Union_intror; rewrite app_nil_l; constructor|apply Union_intror; constructor].
+Ltac heapsDisagree :=
+  match goal with
+      |H:heap_lookup ?x ?h = ?v, H':heap_lookup ?x ?h = ?v' |- _ => 
+       solve[rewrite H in H'; inv H']
+  end. 
+
+Ltac varsEq a b := let n := fresh 
+                    in destruct (beq_nat a b) eqn:n;[apply beq_nat_true in n; subst|apply beq_nat_false in n]. 
+

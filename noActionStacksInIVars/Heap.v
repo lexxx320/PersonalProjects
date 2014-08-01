@@ -308,3 +308,25 @@ Theorem replaceSame : forall (T: Type) H x (v:T),
 Proof.
   intros. destruct H. simpl. apply rawHeapsEq. eapply raw_replaceSame; eauto. 
 Qed. 
+
+Theorem extendExtendSwitch : forall (T:Type) x x' (v v':T) H p p' p'' p''', 
+                               extend x v (extend x' v' H p) p' = 
+                               extend x' v' (extend x v H p'') p'''. 
+Proof.
+  intros. destruct H. simpl in *. eapply rawHeapsEq. destruct (beq_nat x x') eqn:eq. 
+  inv p'. unfold raw_extend. apply heapExtensionality. intros. 
+  simpl. destruct (beq_nat x0 x) eqn:eq1. 
+  {destruct (beq_nat x0 x') eqn:eq2. 
+   {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. apply beq_nat_false in eq. 
+    exfalso. apply eq. auto. }
+   {auto. }
+  }
+  {destruct (beq_nat x0 x') eqn:eq2; auto. }
+Qed. 
+
+Theorem replaceExtendOverwrite : forall (T:Type) x H (v v':T) p p',
+                                   replace x v (extend x v' H p) = extend x v H p'. 
+Proof.
+  intros. destruct H. apply rawHeapsEq. unfold raw_extend. simpl. rewrite <- beq_nat_refl. 
+  auto. 
+Qed. 

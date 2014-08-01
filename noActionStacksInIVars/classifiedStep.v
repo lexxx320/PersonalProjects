@@ -210,111 +210,123 @@ Qed.
 Ltac unfoldTac := unfold tAdd in *; unfold Add in *; unfold tUnion in *; unfold tSingleton in *;
                   unfold tCouple in *. 
 
-Theorem consedActEq : forall H H' tid s1 s1' a b c s2 M M' T T',
-                 spec_multistep H T H' T' -> tIn T (tid,unlocked (s1++[a;b]),s2,M) -> 
-                 tIn T' (tid,unlocked(s1'++[c;b]),s2,M') -> a = c. 
+Definition stackList s :=
+  match s with
+      |locked s' => s'
+      |unlocked s' => s'
+      |specStack s' N => s'
+  end. 
+
+ 
+
+Theorem consedActEq : forall H H' tid s1 s1' s1'' s1''' a b c s2 M M' T T',
+                 spec_multistep H T H' T' -> tIn T (tid,s1,s2,M) -> tIn T' (tid,s1'',s2,M') ->
+                 stackList s1 = s1'++[a;b] -> stackList s1'' = s1'''++[c;b] ->
+                  a = c. 
 Proof.
-  intros. genDeps{s1';s1;s2;a;b;c;M;M';tid}. induction H0; intros. 
-  {assert(thread_lookup p2 tid (tid,unlocked(s1++[a;b]),s2,M)). econstructor. eauto. auto. 
-   assert(thread_lookup p2 tid (tid,unlocked(s1'++[c;b]),s2,M')). econstructor. eauto. auto.
-   eapply uniqueThreadPool in H; eauto. inv H. replace [a;b] with ([a]++[b]) in H4; auto. 
-   replace [c;b] with ([c]++[b]) in H4; auto. repeat rewrite app_assoc in H4. 
-   apply app_inj_tail in H4. inv H4. apply lastElementEq in H. subst. auto. }
+  intros. genDeps{s1';s1;s1'';s1''';s2;a;b;c;M;M';tid}. induction H0; intros. 
+  {assert(thread_lookup p2 tid (tid,s1,s2,M)). econstructor. eauto. auto. 
+   assert(thread_lookup p2 tid (tid,s1'',s2,M')). econstructor. eauto. auto.
+   eapply uniqueThreadPool in H; eauto. inv H. destruct s1; simpl in *; subst; 
+   replace [a;b] with ([a]++[b]) in H4; auto; replace [c;b] with ([c]++[b]) in H4; auto; 
+   repeat rewrite app_assoc in H4; apply app_inj_tail in H4; invertHyp; 
+   apply lastElementEq in H; auto. }
   {inv H1. 
-   {eapply IHspec_multistep. constructor. eauto. eauto. }
-   {copy H. apply specStepSingleton in H. invertHyp. inv H3. inv H1. 
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep; eauto. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H5. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
+   {eapply IHspec_multistep; eauto. constructor. eauto. }
+   {copy H. apply specStepSingleton in H. invertHyp. inv H5.  inv H1. 
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep; eauto. apply Union_intror. constructor. }
+    {unfoldTac; invertHyp; inv H. eapply IHspec_multistep. Focus 2. eauto. Focus 2. apply Union_intror. 
+     constructor. eauto. destruct s1; simpl in *; subst; rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp; inv H. eapply IHspec_multistep. Focus 2. eauto. Focus 2. apply Union_intror. 
+     constructor. eauto. destruct s1; simpl in *; subst; rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp; inv H. eapply IHspec_multistep. Focus 2. eauto. Focus 2. apply Union_intror. 
+     constructor. eauto. destruct s1; simpl in *; subst; rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp; inv H. eapply IHspec_multistep. Focus 2. eauto. Focus 2. apply Union_intror. 
+     constructor. eauto. destruct s1; simpl in *; subst; rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp; inv H7. eapply IHspec_multistep. Focus 2. eauto. Focus 2. apply Union_intror. 
+     constructor. eauto. destruct s1; simpl in *; subst; rewrite app_comm_cons; eauto. }
+   }
+  }
+Qed.  
+
+Theorem firstActEq : forall H H' tid s1 s1' a b s2 M M' T T' S S',
+                 spec_multistep H T H' T' -> tIn T (tid,s1,s2,M) -> tIn T' (tid,s1',s2,M') ->
+                 stackList s1 = S ++ [a] -> stackList s1' = S' ++ [b] ->
+                  a = b. 
+Proof.
+  intros. genDeps{s1';s1;s2;a;b;S;S';M;M';tid}. induction H0; intros. 
+  {assert(thread_lookup p2 tid (tid,s1,s2,M)). econstructor. eauto. auto. 
+   assert(thread_lookup p2 tid (tid,s1',s2,M')). econstructor. eauto. auto.
+   eapply uniqueThreadPool in H; eauto. inv H. destruct s1; simpl in *; subst; 
+   apply lastElementEq in H4; auto. }
+  {inv H1. 
+   {eapply IHspec_multistep; eauto. constructor. eauto. }
+   {copy H. apply specStepSingleton in H. invertHyp. inv H5. inv H1. 
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep; eauto. apply Union_intror. constructor. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep;[idtac|idtac|eauto|eauto].
+     apply Union_intror.  constructor. destruct s1; simpl in *; subst;
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep;[idtac|idtac|eauto|eauto].
+     apply Union_intror.  constructor. destruct s1; simpl in *; subst;
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep;[idtac|idtac|eauto|eauto].
+     apply Union_intror.  constructor. destruct s1; simpl in *; subst;
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep;[idtac|idtac|eauto|eauto].
+     apply Union_intror.  constructor. destruct s1; simpl in *; subst;
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H7. eapply IHspec_multistep;[idtac|idtac|eauto|eauto].
+     apply Union_intror.  constructor. destruct s1; simpl in *; subst;
+     rewrite app_comm_cons; eauto. }
    }
   }
 Qed. 
 
-Theorem lockedFirstActEq : forall H H' tid s1 s1' a c s2 M M' T T',
-                 spec_multistep H T H' T' -> tIn T (tid,locked (s1++[a]),s2,M) -> 
-                 tIn T' (tid,locked(s1'++[c]),s2,M') -> a = c. 
+Theorem nonEmptyStack : forall H H' tid s1 S S' s1' a b s2 M M' T T',
+                 spec_multistep H T H' T' -> tIn T (tid,s1,s2,M) ->  tIn T' (tid,s1',s2,M') ->
+                 stackList s1 = S ++ [a;b] -> stackList s1' = S' ++ [b] -> 
+                 exists s, S' = s ++ [a]. 
 Proof.
-  intros. genDeps{s1';s1;s2;a;c;M;M';tid}. induction H0; intros. 
-  {assert(thread_lookup p2 tid (tid,locked(s1++[a]),s2,M)). econstructor. eauto. auto. 
-   assert(thread_lookup p2 tid (tid,locked(s1'++[c]),s2,M')). econstructor. eauto. auto.
-   eapply uniqueThreadPool in H; eauto. inv H. eapply lastElementEq. eauto. }
+  intros. genDeps{s1';s1;s2;a;b;M;M';tid;S;S'}. induction H0; intros. 
+  {assert(thread_lookup p2 tid (tid,s1,s2,M)). econstructor. eauto. auto. 
+   assert(thread_lookup p2 tid (tid,s1',s2,M')). econstructor. eauto. auto.
+   eapply uniqueThreadPool in H; eauto. inv H. destruct s1; simpl in *; subst; 
+   replace [a;b] with ([a]++[b]) in H4; auto; rewrite app_assoc in H4; 
+   apply app_inj_tail in H4; invertHyp; eauto. }
   {inv H1. 
-   {eapply IHspec_multistep. constructor. eauto. eauto. }
-   {copy H. apply specStepSingleton in H. invertHyp. inv H3. inv H1. 
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H5. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
+   {eapply IHspec_multistep; eauto. constructor. eauto. }
+   {copy H. apply specStepSingleton in H. invertHyp. inv H5. inv H1. 
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep; eauto. apply Union_intror. constructor. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. 
+     constructor. Focus 2. eauto. Focus 2. eauto. destruct s1; simpl in *; subst; 
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. 
+     constructor. Focus 2. eauto. Focus 2. eauto. destruct s1; simpl in *; subst; 
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. 
+     constructor. Focus 2. eauto. Focus 2. eauto. destruct s1; simpl in *; subst; 
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. 
+     constructor. Focus 2. eauto. Focus 2. eauto. destruct s1; simpl in *; subst; 
+     rewrite app_comm_cons; eauto. }
+    {unfoldTac; invertHyp. inv H7. eapply IHspec_multistep. apply Union_intror. 
+     constructor. Focus 2. eauto. Focus 2. eauto. destruct s1; simpl in *; subst; 
+     rewrite app_comm_cons; eauto. }
    }
   }
+Qed.  
+
+Theorem InL : forall X T1 T2 t, In X T2 t -> In X (Union X T1 T2) t. 
+Proof.
+  intros. apply Union_intror. auto. 
 Qed. 
 
-Theorem firstActEq : forall H H' tid s1 s1' a c s2 M M' T T',
-                 spec_multistep H T H' T' -> tIn T (tid,unlocked (s1++[a]),s2,M) -> 
-                 tIn T' (tid,unlocked(s1'++[c]),s2,M') -> a = c. 
-Proof.
-  intros. genDeps{s1';s1;s2;a;c;M;M';tid}. induction H0; intros. 
-  {assert(thread_lookup p2 tid (tid,unlocked(s1++[a]),s2,M)). econstructor. eauto. auto. 
-   assert(thread_lookup p2 tid (tid,unlocked(s1'++[c]),s2,M')). econstructor. eauto. auto.
-   eapply uniqueThreadPool in H; eauto. inv H. apply lastElementEq in H4. subst. auto. }
-  {inv H1. 
-   {eapply IHspec_multistep. constructor. eauto. eauto. }
-   {copy H. apply specStepSingleton in H. invertHyp. inv H3. inv H1. 
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H5. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-   }
-  }
-Qed. 
+Hint Resolve InL. 
+ 
+Ltac solveSet := try(solve[eauto with sets]); try solve[eapply InL; eauto with sets]. 
 
-Theorem firstSpecActEq : forall H H' tid s1 s1' a c s2 M M' T T' N,
-                 spec_multistep H T H' T' -> tIn T (tid,specStack (s1++[a]) N,s2,M) -> 
-                 tIn T' (tid,specStack(s1'++[c])N,s2,M') -> a = c. 
-Proof.
-  intros. genDeps{s1';s1;s2;a;c;M;M';tid}. induction H0; intros. 
-  {assert(thread_lookup p2 tid (tid,specStack(s1++[a]) N,s2,M)). econstructor. eauto. auto. 
-   assert(thread_lookup p2 tid (tid,specStack(s1'++[c]) N,s2,M')). econstructor. eauto. auto.
-   eapply uniqueThreadPool in H; eauto. inv H. apply lastElementEq in H4. subst. auto. }
-  {inv H1. 
-   {eapply IHspec_multistep. constructor. eauto. eauto. }
-   {copy H. apply specStepSingleton in H. invertHyp. inv H3. inv H1. 
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-    {unfoldTac; invertHyp. inv H5. eapply IHspec_multistep. apply Union_intror. simpl. 
-     rewrite app_comm_cons. constructor. eauto. }
-   }
-  }
-Qed. 
+Ltac firstActTac H := eapply firstActEq in H;
+                     [idtac|apply InL; constructor|solveSet|simpl;try rewrite app_nil_l; eauto|simpl;eauto].
 
 Theorem spec_multistepWriteFull : forall x H H' T T' sc ds s t N N' s1 s2 tid E M M' M'' d,
                                     heap_lookup x H = Some(sfull sc ds s t N') ->
@@ -329,18 +341,12 @@ Proof.
    {eapply specStepFullIVar in H; eauto. invertHyp. eapply IHspec_multistep; eauto. 
     constructor; eauto. }
    {copy H. apply specStepSingleton in H2. invertHyp. inv H4. inv H. 
-    {unfoldTac; invertHyp. inv H2. eapply IHspec_multistep; eauto. apply Union_intror. 
-     constructor. }
-    {unfoldTac; invertHyp. inv H2.  eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
-    {unfoldTac; invertHyp. inv H2. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
-    {unfoldTac; invertHyp. inv H2. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. rewrite H0 in H4. inv H4. }
-    {unfoldTac; invertHyp. inv H2. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
-    {unfoldTac; invertHyp. inv H6. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-    rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
+    {unfoldTac; invertHyp. inv H2. eapply IHspec_multistep; eauto. solveSet. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. solveByInv. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. solveByInv. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. inv H1. rewrite H4 in H0. inv H0. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. solveByInv. }
+    {unfoldTac; invertHyp. inv H6. firstActTac H1. solveByInv. }
    }
   }
 Qed. 
@@ -361,6 +367,57 @@ Proof.
   {unfold tSingleton in *; invertHyp. destruct (beq_nat x x0)eqn:eq. 
    {apply beq_nat_true in eq. subst. eapply spec_multistepWriteFull in H2; eauto. 
     inv H2. erewrite HeapLookupReplace; eauto. }
+   {apply beq_nat_false in eq. rewrite lookupReplaceNeq; eauto. }
+  }
+  {unfold tSingleton in *; invertHyp. destruct (beq_nat x x0)eqn:eq. 
+   {apply beq_nat_true in eq. subst. copy p. rewrite H0 in H1. inv H1. }
+   {apply beq_nat_false in eq. apply lookupExtendNeq; auto. }
+  }
+Qed. 
+ 
+Theorem smultiEmptyFull : forall H T H' T' x a b c d e,
+                            spec_multistep H T H' T' ->
+                            heap_lookup x H = Some(sfull a b c d e) ->
+                            heap_lookup x H' = Some(sempty a) -> False. 
+Proof.
+  intros. genDeps{a; b; c; d; e}. induction H0; intros. 
+  {rewrite H1 in H2. inv H2. }
+  {inv H; eauto. 
+   {destruct (beq_nat x x0)eqn:eq.
+    {apply beq_nat_true in eq. subst. rewrite H3 in H1. inv H1. 
+     eapply IHspec_multistep. erewrite HeapLookupReplace; eauto. eauto. }
+    {apply beq_nat_false in eq. eapply IHspec_multistep. rewrite lookupReplaceNeq; eauto. 
+     eauto. } 
+   }
+   {destruct (beq_nat x x0)eqn:eq. 
+    {apply beq_nat_true in eq. subst. rewrite H3 in H1. inv H1. }
+    {apply beq_nat_false in eq. eapply IHspec_multistep. rewrite lookupReplaceNeq; eauto. 
+     eauto. } 
+   }
+   {destruct (beq_nat x x0) eqn:eq. 
+    {apply beq_nat_true in eq. subst. copy p. rewrite H in H1. inv H1. }
+    {apply beq_nat_false in eq. eapply IHspec_multistep. erewrite lookupExtendNeq; eauto. 
+     auto. }
+   }
+  }
+Qed.
+
+Theorem specStepEmptyIVar' : forall x H H' H'' T T' t t' s,
+                              heap_lookup x H = Some(sempty s) -> 
+                              spec_step H T (tSingleton t) H' T t' ->
+                              spec_multistep H' (tUnion T t') H'' T' ->
+                              heap_lookup x H'' = Some(sempty s) ->
+                              heap_lookup x H' = Some(sempty s). 
+Proof. 
+  intros. inv H1; eauto. 
+  {unfold tSingleton in *; invertHyp. destruct (beq_nat x x0)eqn:eq. 
+   {apply beq_nat_true in eq. subst. rewrite H5 in H0. inv H0. }
+   {apply beq_nat_false in eq. rewrite lookupReplaceNeq; eauto. }
+  }
+  {unfold tSingleton in *; invertHyp. destruct (beq_nat x x0)eqn:eq. 
+   {apply beq_nat_true in eq. subst. eapply smultiEmptyFull in H2; eauto.
+    contradiction. erewrite HeapLookupReplace; eauto. rewrite H0 in H5. inv H5. 
+    auto. }
    {apply beq_nat_false in eq. rewrite lookupReplaceNeq; eauto. }
   }
   {unfold tSingleton in *; invertHyp. destruct (beq_nat x x0)eqn:eq. 
@@ -407,17 +464,11 @@ Proof.
    {copy H. apply specStepSingleton in H2. invertHyp. inv H4. inv H. 
     {unfoldTac; invertHyp. inv H2. eapply IHspec_multistep; eauto. apply Union_intror. 
      constructor. }
-    {unfoldTac; invertHyp. inv H2.  eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
-    {unfoldTac; invertHyp. inv H2. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
-    {unfoldTac; invertHyp. inv H2. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
-    {unfoldTac; invertHyp. inv H2. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-     rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. copy p. rewrite H in H0. 
-     inv H0. }
-    {unfoldTac; invertHyp. inv H6. eapply firstActEq in H1. Focus 2. apply Union_intror. 
-    rewrite app_nil_l. constructor.  Focus 2. eauto. inv H1. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. solveByInv. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. solveByInv. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. solveByInv. }
+    {unfoldTac; invertHyp. inv H2. firstActTac H1. inv H1. copy p. rewrite H in H0. solveByInv. }
+    {unfoldTac; invertHyp. inv H6. firstActTac H1. solveByInv. }
    }
   }
 Qed. 
