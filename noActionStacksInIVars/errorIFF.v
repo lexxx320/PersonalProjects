@@ -32,8 +32,6 @@ Proof.
   intros. destruct H. simpl in *. eapply raw_eraseFull; eauto. 
 Qed. 
   
-Ltac eqSets := apply Extensionality_Ensembles; unfold Same_set; unfold Included; split; intros.
-Ltac unfoldSetEq H := apply eqImpliesSameSet in H; unfold Same_set in H; unfold Included in H; inv H.
 
 Ltac existTac e := let n := fresh in
                    try(assert(n:exists e', eraseTerm e' = e) by apply eTerm; inv n);

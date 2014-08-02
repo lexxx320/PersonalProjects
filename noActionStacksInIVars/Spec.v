@@ -352,7 +352,7 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
               wf = decomposeWF t E (specRun (ret N1) N0) p ->
               s1' = (wrapActs s1 N1 E (specRun (ret N1) N0) wf) ->
               step h T (tCouple t1 t2) 
-                   (OK h T (tSingleton(tid,unlocked s1', s2, fill E (specJoin (ret N1) M)))) 
+                   (OK h T (tSingleton(2::tid,unlocked s1', s2', fill E (specJoin (ret N1) M)))) 
 |SpecRB : forall t E' h h' tid T T' E M' N0 s2 s1' s2' t1 t2 TRB, 
             decompose t E' (specRun (raise E) N0) -> 
             t1 = (tid,unlocked nil,s2,t) -> t2 = (2::tid, locked s1',s2',M') -> 

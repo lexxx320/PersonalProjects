@@ -346,19 +346,51 @@ Proof.
 Qed.   
 
 
-Theorem foldWrapActs : forall l E0 M0 M e E N1 n d d' p,
-unlocked((fAct (fill E (specJoin (ret N1) M)) (joinCtxts E (specJoinCtxt E0 (ret N1))) M0 d n)::(wrapActs l N1 E e p)) = 
-unlocked(wrapActs ((fAct M E0 M0 d' n)::l) N1 E e p).
-Admitted. 
+Inductive destructAct : action -> trm -> ctxt -> action -> trm -> ctxt -> Prop :=
+|destRead : forall x t E t' E' d' d, 
+              destructAct(rAct x t E d) t E (rAct x t' E' d') t' E'
+|destWrite : forall x t E t' E' M d' d, 
+               destructAct(wAct x t E M d) t E (wAct x t' E' M d') t' E'
+|destNew : forall t' E' t E d x d', 
+             destructAct(nAct t E d x) t E (nAct t' E' d' x) t' E'
+|destFork : forall t E M d n t' E' d', 
+              destructAct(fAct t E M d n) t E (fAct t' E' M d' n) t' E'
+|destSR : forall t E M N d t' E' d', 
+            destructAct(srAct t E M N d) t E (srAct t' E' M N d') t' E'. 
+Hint Constructors destructAct. 
+Theorem foldWrapActs : forall a b l E0 M e E N1 p,
+      destructAct a (fill E (specJoin (ret N1) M)) 
+                  (joinCtxts E (specJoinCtxt E0 (ret N1))) 
+                  b M E0 ->
+      unlocked(a::wrapActs l N1 E e p) = unlocked(wrapActs(b:: l) N1 E e p).
+Proof.
+  intros. inv H. 
+  {simpl. proofsEq d0 (wrapDecompose' E M E0 (get (fvar x)) e N1 d'0 p). 
+   auto. }
+  {simpl. proofsEq d0 (wrapDecompose' E M E0 (put (fvar x) M0) e N1 d'0 p). 
+   auto. }
+  {simpl. proofsEq d0 (wrapDecompose' E M E0 new e N1 d'0 p). auto. }
+  {simpl. proofsEq d0 (wrapDecompose' E M E0 (fork M0) e N1 d'0 p); auto. }
+  {simpl. proofsEq d0 (wrapDecompose' E M E0 (spec M0 N) e N1 d'0 p); auto. }
+Qed. 
 
-Theorem simSpecJoin' : forall H T H' T' H'' T'' tid tid' s2 s2' M M' y s1 s1' N0 N1 E e p x z,  
-        eraseTrm (s1'++[y]) z x ->                 
-        spec_multistep H'' (tUnion T'' (tSingleton(tid,specStack nil N0, s2, x))) 
-                       H (tUnion T (tSingleton(tid,specStack s1 N0,s2,M))) -> 
-        spec_multistep H (tUnion T (tSingleton(tid,specStack s1 N0, s2, M)))
-                       H' (tUnion T' (tSingleton(tid,specStack(s1'++[y]) N0, s2, M'))) -> ~val e ->
-        spec_multistep H (tUnion T (tSingleton(tid',unlocked (wrapActs s1 N1 E e p),s2',fill E (specJoin(ret N1)M))))
-           H' (tUnion T' (tSingleton(tid',unlocked(wrapActs(s1'++[y]) N1 E e p),s2',fill E (specJoin(ret N1)M')))).
+Theorem numForks'Wrap : forall s1 N1 E e p,
+                         numForks' (wrapActs s1 N1 E e p) = numForks' s1. 
+Proof.
+  induction s1; intros. 
+  {auto. }
+  {simpl. destruct a; eauto. simpl. erewrite IHs1. eauto. }
+Qed. 
+
+Theorem simSpecJoin' : forall H T H' T' H'' T'' tid s2 M M' y s1 s1' N0 N1 E e p x z,  
+   eraseTrm (s1'++[y]) z x ->                 
+   spec_multistep H'' (tUnion T'' (tSingleton(tid,specStack nil N0, s2, x))) 
+                  H (tUnion T (tSingleton(tid,specStack s1 N0,s2,M))) -> 
+   spec_multistep H (tUnion T (tSingleton(tid,specStack s1 N0, s2, M)))
+                  H' (tUnion T' (tSingleton(tid,specStack(s1'++[y]) N0, s2, M'))) -> 
+   ~val e ->
+   spec_multistep H (tUnion T (tSingleton(tid,unlocked (wrapActs s1 N1 E e p),s2,fill E (specJoin(ret N1)M))))
+                  H' (tUnion T' (tSingleton(tid,unlocked(wrapActs(s1'++[y]) N1 E e p),s2,fill E (specJoin(ret N1)M')))).
 Proof.
   intros. dependent induction H2. 
   {apply UnionEqTID in x. invertHyp. inv H. constructor. }
@@ -380,7 +412,51 @@ Proof.
      destruct a; simpl; constructor. eauto. eapply basicStepNeq in H10; eauto. 
      eapply IHspec_multistep; eauto. eapply spec_multi_trans. eassumption. 
      econstructor. eapply SBasicStep. eauto. eauto. constructor. }
-    {econstructor. apply SFork with (E:=joinCtxts E (specJoinCtxt E0 (ret N1)))(M:=M0); auto. 
-     unfoldTac. rewrite coupleUnion. rewrite <- Union_associative. rewrite UnionSwap. 
-     rewrite joinFill. simpl. erewrite foldWrapActs. eapply IHspec_multistep; eauto. 
-     eapply spec_multi_trans. Focus 2. Admitted. 
+    {econstructor. apply SFork with(E:=joinCtxts E (specJoinCtxt E0(ret N1)))(M:=M0).
+     auto. unfoldTac. rewrite coupleUnion. rewrite <- Union_associative. 
+     rewrite UnionSwap. rewrite joinFill. simpl. erewrite foldWrapActs; auto. 
+     eapply IHspec_multistep; eauto. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SFork; eauto. simpl. rewrite UnionSwap. 
+     rewrite Union_associative. rewrite <- coupleUnion. repeat rewrite numForks'Wrap. 
+     constructor. rewrite Union_associative. rewrite <- coupleUnion. 
+     rewrite couple_swap. rewrite numForks'Wrap. simpl. auto. }
+    {econstructor. eapply SGet with(E:=joinCtxts E (specJoinCtxt E0(ret N1))); eauto. 
+     rewrite joinFill. simpl. erewrite foldWrapActs; auto. 
+     eapply IHspec_multistep; simpl; eauto. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SGet; eauto. constructor. }
+    {econstructor. eapply SPut with(E:=joinCtxts E (specJoinCtxt E0(ret N1))); eauto. 
+     rewrite joinFill. simpl. erewrite foldWrapActs; auto. 
+     eapply IHspec_multistep; simpl; eauto. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SPut; eauto. constructor. }
+    {econstructor. eapply SNew with(E:=joinCtxts E (specJoinCtxt E0(ret N1))); eauto. 
+     rewrite joinFill. simpl. erewrite foldWrapActs; auto. 
+     eapply IHspec_multistep; simpl; eauto. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SNew; eauto. constructor. }
+    {econstructor. eapply SSpec with(E:=joinCtxts E (specJoinCtxt E0(ret N1)));eauto. 
+     rewrite joinFill. simpl. erewrite foldWrapActs; auto. unfoldTac. 
+     rewrite couple_swap. rewrite coupleUnion. rewrite <- Union_associative.
+     eapply IHspec_multistep; simpl; eauto. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SSpec; eauto. rewrite Union_associative. 
+     rewrite <- coupleUnion. rewrite couple_swap. constructor.
+     rewrite Union_associative. rewrite <- coupleUnion. rewrite couple_swap. 
+     auto. }
+   }
+  }
+  Grab Existential Variables. 
+  {eapply decomposeJoin; eauto. constructor. auto. auto. copy d. 
+   apply decomposeEq in H. subst. apply notValFill. introsInv. eauto. 
+   introsInv. }
+  {eapply decomposeJoin; eauto. constructor. auto. copy d. 
+   apply decomposeEq in H. subst. apply notValFill. introsInv. eauto. 
+   introsInv. }
+  {eapply decomposeJoin; eauto. constructor. auto. copy d. 
+   apply decomposeEq in H. subst. apply notValFill. introsInv. eauto. 
+   introsInv. }
+  {eapply decomposeJoin; eauto. constructor. auto. copy d. 
+   apply decomposeEq in H. subst. apply notValFill. introsInv. eauto. 
+   introsInv. }
+  {eapply decomposeJoin; eauto. constructor. auto. copy d. 
+   apply decomposeEq in H. subst. apply notValFill. introsInv. eauto. 
+   introsInv. }
+Qed. 
+

@@ -115,57 +115,6 @@ Theorem appCons : forall (T:Type) x (y:T) z,
 Proof. 
   intros. rewrite <- app_assoc. simpl. auto. Qed. 
 
-Theorem eraseTrmActTerm : forall x a M M',
-                            eraseTrm (x++[a]) M M' ->
-                            actionTerm a M'. 
-Proof.
-  intros. destruct a; inv H; try solve[invertListNeq]; 
-  apply lastElementEq in H1; inv H1; constructor. 
-Qed. 
- 
-Theorem forkCatchup' : forall H T H' T' x x0 tid s1' s1'' s2 e1 e1' e2 e2' M' M'' n E d  S S',
-    eraseTrm s1' e1' x -> eraseTrm s1'' e2' x0 -> n = numForks' s2 -> S = [] \/ S' = [] ->
-    spec_multistep H (tUnion T (tCouple(tid,unlocked(S++[fAct M' E M'' d n]), s2, e1)
-                                       (n::tid,locked S',nil,e2)))
-                   H' (tUnion T' (tCouple(tid,unlocked(s1'++[fAct M' E M'' d n]),s2,e1')
-                                         (n::tid,locked s1'',nil,e2'))) -> 
-    exists H'' T'',
-      spec_multistep H (tUnion T (tCouple(tid,unlocked(S++[fAct M' E M'' d n]),s2,e1)
-                                         (n::tid,locked nil,nil,e2)))
-                     H'' (tUnion T'' (tCouple(tid,unlocked(S++[fAct M' E M'' d n]),s2,x)
-                                             (n::tid,locked S',nil,x0))) /\
-      spec_multistep H'' (tUnion T'' (tCouple(tid,unlocked(S++[fAct M' E M'' d n]),s2,x)
-                                             (n::tid,locked S',nil,x0)))
-                 H' (tUnion T' (tCouple(tid,unlocked(s1'++[fAct M' E M'' d n]),s2,e1')
-                                         (n::tid,locked s1'',nil,e2'))) /\
-      spec_multistep H T H'' T''. 
-Proof.
-  intros. genDeps{x;x0}. dependent induction H4; intros.
-  {unfoldTac. repeat rewrite coupleUnion in x. 
-   repeat rewrite <- Union_associative in x. apply UnionEqTID in x. invertHyp. inv H3. 
-   {apply UnionEqTID in H. invertHyp. inv H. destruct s1'; inv H6. Focus 2. invertListNeq. 
-    inv H0; try solve[invertListNeq]. simpl. 
-
- 
-Theorem UnionSwapR : forall X T t1 t2 t3,
-                       Union X (Union X T (Singleton X t1)) (Couple X t2 t3) = 
-                       Union X (Union X T (Singleton X t3)) (Couple X t2 t1). 
-Admitted. 
-
-Theorem UnionSwapL : forall X T t1 t2 t3,
-                       Union X (Union X T (Singleton X t1)) (Couple X t2 t3) = 
-                       Union X (Union X T (Singleton X t2)) (Couple X t1 t3). 
-Admitted. 
-
-
-Theorem pullOutR : forall X T t1 t2, Union X T (Couple X t1 t2) = 
-                                     Union X (Union X T (Singleton X t1)) (Singleton X t2). 
-Admitted. 
-
-Theorem pullOutL : forall X T t1 t2, Union X T (Couple X t1 t2) = 
-                                     Union X (Union X T (Singleton X t2)) (Singleton X t1). 
-Admitted. 
-
 
 Theorem forkCatchupOneDone : forall H T H' T' s1 x0 tid s1''' s1' s1'' s2 e1 e1' e2 e2' n,
     stackList s1' = nil -> eraseTrm (stackList s1''') e2' x0 -> n = numForks' s2 -> 
@@ -175,25 +124,34 @@ Theorem forkCatchupOneDone : forall H T H' T' s1 x0 tid s1''' s1' s1'' s2 e1 e1'
       spec_multistep H (tUnion T (tCouple(tid,s1,s2,e1)(n::tid,s1',nil,e2)))
                      H'' (tUnion T'' (tCouple(tid,s1,s2,e1)(n::tid,s1',nil,x0))) /\
       spec_multistep H'' (tUnion T'' (tCouple(tid,s1,s2,e1)(n::tid,s1',nil,x0)))
-                     H' (tUnion T' (tCouple(tid,s1'',s2,e1')(n::tid,s1''',nil,e2'))) /\
+                   H' (tUnion T' (tCouple(tid,s1'',s2,e1')(n::tid,s1''',nil,e2'))) /\
       spec_multistep H T H'' T''. 
 Proof.
   intros. dependent induction H3. 
-  {unfoldTac. repeat rewrite coupleUnion in x. repeat rewrite <- Union_associative in x. 
-   apply UnionEqTID in x. invertHyp. apply UnionEqTID in H. invertHyp. destruct s1'''; 
+  {unfoldTac. repeat rewrite coupleUnion in x. 
+   repeat rewrite <- Union_associative in x. apply UnionEqTID in x. invertHyp. 
+   apply UnionEqTID in H. invertHyp. destruct s1'''; 
    simpl in *; subst; inv H1; try invertListNeq; do 5 econstructor. }
   {startIndCase. eqIn H2. inv H4. 
    {eapply IHspec_multistep in H1; eauto. Focus 2. apply UnionSingletonCoupleEq in x.
     rewrite x. unfoldTac. rewrite UnionSwap. auto. auto. invertHyp. 
     econstructor. econstructor. split. takeTStep. eassumption. split; auto. 
     takeTStep. eauto. }
-   {
-
-
- Focus 2. unfoldTac.
-    rewrite coupleUnion in x. rewrite <- Union_associative in x. rewrite UnionSwap in x. 
-    apply UnionEqTID in x. invertHyp. rewrite 
-
+   {inv H6. 
+    {unfoldTac. rewrite coupleUnion in x. rewrite <- Union_associative in x. 
+     rewrite UnionSwap in x. apply UnionEqTID in x. invertHyp. 
+     inversion H; unfoldTac; invertHyp; invThreadEq. 
+     {eapply IHspec_multistep in H1;[idtac|eauto|eauto|idtac|auto]. Focus 2. 
+      rewrite UnionSwap. rewrite Union_associative. rewrite <- coupleUnion. 
+      auto. invertHyp. econstructor. econstructor. split. 
+      repeat rewrite pullOutL in *. rewrite spec_multi_unused. 
+      rewrite spec_multi_unused in H7. eassumption. split. rewrite pullOutL. 
+      econstructor. eapply SBasicStep; eauto. unfoldTac. rewrite <- pullOutL. 
+      eassumption. eauto. }
+     {eapply IHspec_multistep in H1;[idtac|eauto|eauto|idtac|auto]. Focus 2.
+      rewrite UnionSwap. rewrite pullOutL. rewrite Union_associative. 
+      rewrite <- coupleUnion. auto. invertHyp. econstructor; econstructor;
+      split. Admitted. 
 
 
 
@@ -271,30 +229,7 @@ Proof.
      {simpl in *. copy H3. rewrite couple_swap in H. eapply monotonicActions in H. 
       Focus 2. apply InL. apply Couple_r. Focus 2. apply InL. apply Couple_r. simpl in *. 
       destructLast s1''. simpl in *. omega. invertHyp. apply eraseTrmApp in H1. 
-      inv H1. flipCouplesIn H3. 
-      
-      eapply nonEmptyStack in H. Focus 2. apply InL. apply Couple_r. Focus 2. 
-      apply InL. apply Couple_r. Focus 2. simpl. auto. 
-
-eapply stackNonNil in H. 
-
-      eapply firstActEq in H. Focus 2. apply InL. apply Couple_r. Focus 2.  
-      apply InL. apply Couple_r. Focus 2. simpl. rewrite app_nil_l. auto. Focus 2. simpl. 
-
-
-
-Ltac firstActTac H := eapply firstActEq in H;
-                     [idtac|apply InL; apply Couple_r|apply InL; apply Couple_r|simpl;try rewrite app_nil_l; eauto|simpl;eauto].
-firstActTac H. 
- 
-      eapply firstActEq in H. Focus 2. apply Union_intror. apply Couple_r. 
-      Focus 2. 
-
-Ltac firstActTac H := eapply firstActEq in H;
-                     [idtac|apply InL; apply Couple_r|solveSet|simpl;try rewrite app_nil_l; eauto|simpl;eauto].
-firstActTac H. 
-
-
+      inv H1. 
 
 Ltac nonEmptyStackTac H :=
   try(eapply nonEmptyStack in H;[ idtac
@@ -307,47 +242,6 @@ Ltac nonEmptyStackTac H :=
                                 | solve[solveSet]
                                 | simpl; try rewrite app_nil_l; eauto   
                                 | simpl; eauto]); fail. 
-nonEmptyStackTac H. 
-
-      Ltac consedActTac H :=
-  try(eapply consedActEq in H;[idtac|apply Union_intror; rewrite app_nil_l;
-                                     constructor|apply Union_intror; constructor]);
-  try(eapply consedActEq in H;[idtac|apply Union_intror; rewrite app_nil_l;
-                                     apply Couple_r|apply Union_intror; apply Couple_r]);
-  fail. 
-
-      eapply consedActEq in H. Focus 2. eapply Union_intror. rewrite app_nil_l. apply Couple_r. 
-
-
-
-consedActTac H3. invertHyp. copy H0. apply eraseTrmApp in H0. 
-      inv H0. rewrite UnionSwapR in H. eapply forkCatchupOneDone; eauto. unfoldTac. 
-      rewrite pullOutL. econstructor. eapply SFork; eauto. unfoldTac. rewrite UnionSwapR. eassumption. }
-     {simpl in *. copy H3. consedActTac H3. invertHyp. copy H0. apply eraseTrmApp in H0. 
-      inv H0. eapply forkCatchupOneDone; eauto. unfoldTac. rewrite pullOutL. econstructor. 
-      eapply SGet; eauto. unfoldTac. eassumption. }
-     {simpl in *. copy H3. consedActTac H3. invertHyp. copy H0. apply eraseTrmApp in H0. 
-      inv H0. eapply forkCatchupOneDone; eauto. unfoldTac. rewrite pullOutL. econstructor. 
-      eapply SPut; eauto. unfoldTac. eassumption. }
-     {simpl in *. copy H3. consedActTac H3. invertHyp. copy H0. apply eraseTrmApp in H0. 
-      inv H0. eapply forkCatchupOneDone; eauto. unfoldTac. rewrite pullOutL. econstructor. 
-      eapply SNew; eauto. unfoldTac. eassumption. }
-     {simpl in *. copy H3. consedActTac H3. invertHyp. copy H0. apply eraseTrmApp in H0. 
-      inv H0. eapply forkCatchupOneDone; eauto. unfoldTac. rewrite pullOutL. econstructor. 
-      eapply SSpec; eauto. unfoldTac. eassumption. }
-    }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 Theorem listTailEq : forall (T:Type) a (b:T) c d e,
