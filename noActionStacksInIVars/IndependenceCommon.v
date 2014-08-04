@@ -243,3 +243,12 @@ Ltac heapsDisagree :=
 Ltac varsEq a b := let n := fresh 
                     in destruct (beq_nat a b) eqn:n;[apply beq_nat_true in n; subst|apply beq_nat_false in n]. 
 
+Ltac flipCouples :=
+  rewrite couple_swap; rewrite coupleUnion; try flipCouples; rewrite <- coupleUnion. 
+
+Ltac flipCouplesIn H :=
+  rewrite couple_swap in H; rewrite coupleUnion in H; try flipCouplesIn H; rewrite <- coupleUnion in H. 
+
+Axiom UnionSingletonCoupleEq : forall T T' a b c, 
+                 tUnion T (tSingleton a) = tUnion T' (tCouple b c) -> 
+                 tIn T' a -> T = tUnion (Subtract thread T' a) (tCouple b c).

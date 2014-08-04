@@ -92,7 +92,7 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
              s1 = unlocked(s1' ++ [fAct M' E M'' d n]) -> n = numForks' s2 ->
              prog_step h T (tCouple (tid, s1, s2, M) (n::tid, locked s1'', s2', N)) (OK h T 
                   (tCouple (tid, unlocked s1', fAct M' E M'' d n::s2, M)
-                           (1::tid, unlocked s1'', s2', N)))
+                           (n::tid, unlocked s1'', s2', N)))
 |CPopSpec : forall h s1 s1' s1'' s2 s2' t tid M' M N T E d M'', 
              s1 = unlocked (s1' ++ [srAct t E M N d]) -> 
              prog_step h T (tCouple(tid, s1, s2, M')(2::tid,locked s1'',s2',M''))

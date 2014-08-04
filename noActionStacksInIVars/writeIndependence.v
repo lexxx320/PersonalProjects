@@ -63,7 +63,7 @@ Proof.
     {copy d. copy d0. eapply uniqueCtxtDecomp in H3; eauto. invertHyp. solveByInv. }
     {copy d. copy d0. eapply uniqueCtxtDecomp in H3; eauto. invertHyp. inv H10. copy H2. 
      rewrite H0 in H8. inv H8. assert(d=d0). apply proof_irrelevance. subst. eassumption. }
-    {copy d; copy d0. eapply uniqueCtxtDecomp in H3; eauto. invertHyp. solveByInv. }
+    {copy d; copy d0. eapply uniqueCtxtDecomp in H3; eauto. invertHyp.  solveByInv. }
     {copy d; copy d0. eapply uniqueCtxtDecomp in H; eauto. invertHyp. solveByInv. }
     split. rewrite replaceOverwrite. constructor. erewrite HeapLookupReplace; eauto. }
   }
@@ -272,6 +272,9 @@ Proof.
   }
   Grab Existential Variables. rewrite lookupReplaceNeq; eauto. 
 Qed. 
+
+
+
 
 
 
