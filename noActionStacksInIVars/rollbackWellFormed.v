@@ -12,21 +12,12 @@ Require Import hetList.
 Require Import Coq.Program.Equality. 
 Require Import Heap. 
 Require Import Coq.Sets.Powerset_facts. 
-
-Theorem spec_multi_trans : forall H H' H'' T T' T'',
-                        spec_multistep H T H' T' ->
-                        spec_multistep H' T' H'' T'' ->
-                        spec_multistep H T H'' T''.  
-Proof.
-  intros. genDeps {H''; T''}. induction H0; intros.  
-  {auto. }
-  {apply IHspec_multistep in H1. econstructor. eauto. auto. }
-Qed. 
-
+ 
 Ltac eqIn H := unfoldTac; 
   match type of H with
       |forall x, Ensembles.In ?X (Union ?X ?T (Singleton ?X ?t)) x -> ?y =>
-       assert(Ensembles.In X(Union X T (Singleton X t)) t) by (apply Union_intror; constructor)
+       assert(Ensembles.In X(Union X T (Singleton X t)) t) by 
+           (apply Union_intror; constructor)
   end.
 
 Axiom uniqueTP : forall T1 T2 t, tIn (tUnion T1 T2) t -> tIn T1 t -> tIn T2 t -> False. 
@@ -93,7 +84,7 @@ Inductive eraseTrm : list action -> trm -> trm -> Prop :=
 |eraseTrmRead : forall x t E d s M, eraseTrm (s++[rAct x t E d]) M t
 |eraseTrmWrite : forall x t E M d N s, eraseTrm (s++[wAct x t E M d]) N t
 |eraseTrmNew : forall x t E d s M, eraseTrm (s++[nAct t E d x]) M t
-|eraseTrmFork : forall t E M d N s, eraseTrm (s++[fAct t E M d]) N t
+|eraseTrmFork : forall t E M d N s n, eraseTrm (s++[fAct t E M d n]) N t
 |eraseTrmSR : forall t E M N d M' s, eraseTrm (s++[srAct t E M N d]) M' t. 
 
 Theorem unspecEraseTrm : forall tid s1 s2 M M', 
@@ -125,10 +116,21 @@ Theorem passThroughAct : forall a M M' T T' s1 s2 H H' tid,
                          H' (tUnion T' (tSingleton(tid,locked(a::s1),s2,M))). 
 Proof. 
   intros. dependent induction H2. 
-  {unfold notIn in H1. exfalso. apply H1. econstructor. econstructor. apply Union_intror. 
-   constructor. auto. }
+  {unfold notIn in H1. exfalso. apply H1. econstructor. econstructor. 
+   apply Union_intror. constructor. auto. }
   {
 
+
+Theorem passThroughAct' : forall a M M' T T' s1 s2 H H' tid,
+        actionTerm a M' -> 
+        spec_multistep H (tUnion T(tSingleton(tid,unlocked nil,s2,M)))
+                       H' (tUnion T' (tSingleton(tid,locked(a::s1),s2,M))) ->
+        exists T'' H'', 
+          spec_multistep H T H'' (tUnion T'' (tSingleton(tid,locked s1,s2,M'))) /\
+          spec_multistep H'' (tUnion T'' (tSingleton(tid,locked s1,s2,M')))
+                         H' (tUnion T' (tSingleton(tid,locked(a::s1),s2,M))). 
+Proof. 
+  intros. 
 
 Hint Constructors actionTerm.
  
@@ -139,13 +141,20 @@ Theorem rollbackWF : forall H H' T TR TR' tidR acts,
 Proof.
   intros. induction H1. 
   {auto. }
-  {subst. inversion H0; subst. inversion H3; subst. apply IHrollback. unfoldTac.
+  {subst. inv H0. inv H1. apply IHrollback. unfoldTac. 
    econstructor; eauto. repeat rewrite unspecUnionComm in *. destruct s1'. 
-   {erewrite unspecSingleton; eauto. unfoldTac. rewrite union_empty_r. simpl in *. 
-    erewrite unspecSingleton in H5; eauto. rewrite union_empty_r in H5.
-    erewrite unspecHeapRBRead; eauto. rewrite <- Union_associative in H5.
-    apply passThroughAct with(M':=M')in H5; auto. invertHyp. eapply spec_multi_trans. 
-    eassumption. 
+   {admit. }
+   {destructLast l. 
+    {erewrite unspecSingleton; eauto. erewrite unspecSingleton in H3; eauto.
+     Focus 2. simpl. unspecThreadTac. rewrite app_nil_l; auto. simpl in *. 
+     admit. }
+    {invertHyp. eraseTrmTac x. erewrite unspecSingleton; eauto. erewrite unspecSingleton in H3; eauto.
+     Focus 2. simpl. unspecThreadTac. rewrite app_nil_l; auto. simpl in *. 
+     admit. }
+    {
+
+
+
 
 
 

@@ -109,7 +109,7 @@ Proof.
    }
   }
 Qed.
-
+ 
 Theorem appCons : forall (T:Type) x (y:T) z,
                     x ++ [y;z] = (x ++ [y]) ++ [z]. 
 Proof. 
@@ -151,7 +151,7 @@ Proof.
      {eapply IHspec_multistep in H1;[idtac|eauto|eauto|idtac|auto]. Focus 2.
       rewrite UnionSwap. rewrite pullOutL. rewrite Union_associative. 
       rewrite <- coupleUnion. auto. invertHyp. econstructor; econstructor;
-      split. Admitted. 
+      split. 
 
 
 
@@ -160,7 +160,6 @@ Ltac flipCouples :=
 
 Ltac flipCouplesIn H :=
   rewrite couple_swap in H; rewrite coupleUnion in H; try flipCouplesIn H; rewrite <- coupleUnion in H. 
-
 
 Theorem forkCatchup : forall H T H' T' x x0 tid s1' s1'' s2 e1 e1' e2 e2' M' M'' n E d,
     eraseTrm s1' e1' x -> eraseTrm s1'' e2' x0 -> n = numForks' s2 -> 
@@ -204,9 +203,9 @@ Proof.
       rewrite <- UnionSwap. rewrite Union_associative. rewrite <- coupleUnion. 
       eauto. split. eassumption. assumption.  auto. rewrite Union_associative. 
       rewrite <- coupleUnion. rewrite couple_swap. auto. auto. auto. }
-     {simpl in *. copy H3. nonEmptyStackTac H3. invertHyp. copy H0. apply eraseTrmApp in H0. 
-      inv H0. rewrite UnionSwapR in H. eapply forkCatchupOneDone; eauto. unfoldTac. 
-      rewrite pullOutL. econstructor. eapply SFork; eauto. unfoldTac. rewrite UnionSwapR. eassumption. }
+     {simpl in *. copy H3. nonEmptyStackTac H3. invertHyp. copy H0. 
+      apply eraseTrmApp in H0. inv H0. rewrite UnionSwapR in H. 
+      eapply forkCatchupOneDone; eauto. unfoldTac. rewrite pullOutL. econstructor. eapply SFork; eauto. unfoldTac. rewrite UnionSwapR. eassumption. }
      {simpl in *. copy H3. nonEmptyStackTac H3. invertHyp. copy H0. apply eraseTrmApp in H0. 
       inv H0. eapply forkCatchupOneDone; eauto. unfoldTac. rewrite pullOutL. econstructor. 
       eapply SGet; eauto. unfoldTac. eassumption. }
