@@ -77,7 +77,7 @@ RBDone : forall T h M tid s1 s2 t1,
            tIn T t1 -> t1 = (tid, s1, s2, M) ->
            rollback (tid) s1 h T h T
 |RBRead : forall s1 s1' s2 x TID TID' ds1 ds2 M M' N h h' h'' T T' sc t ds t1 SRoll E d, 
-            s1 = aCons (rAct x M' E d) s1' -> ds = ds1 ++ [TID'] ++ ds2 ->
+            s1 = aCons (rAct x M' E d) s1' -> ds = ds1 ++ [TID'] ++ ds2 -> ~ List.In TID' ds1 ->
             heap_lookup x h = Some (sfull sc ds SPEC t N) ->
             h' = replace x (sfull sc (ds1++ds2) SPEC t N) h -> 
             ~(tIn T t1) -> t1 = (TID', s1, s2, M) ->
@@ -88,9 +88,9 @@ RBDone : forall T h M tid s1 s2 t1,
             t1 = (TID', s1, s2, M) -> t2 = (n::TID', locked nil, s2', N) ->
             rollback TID SRoll h (tAdd T (TID', s1', s2, M')) h' T' ->
             rollback TID SRoll h (tUnion T (tCouple t1 t2)) h' T'
-|RBWrite : forall s1 s1' s2 TID TID' M M' N sc T T' h h' h'' x t1 SRoll E N' d,
+|RBWrite : forall s1 s1' s2 TID TID' M M' sc T T' h h' h'' x t1 SRoll E N' d,
              s1 = aCons (wAct x M' E N' d) s1' ->
-             heap_lookup x h = Some(sfull sc nil SPEC TID' N) ->
+             heap_lookup x h = Some(sfull sc nil SPEC TID' N') ->
              h' = replace x (sempty sc) h -> ~(tIn T t1) ->
              t1 = (TID', s1, s2, M) -> rollback TID SRoll h' (tAdd T (TID', s1', s2, M')) h'' T' ->
              rollback TID SRoll h (tAdd T t1) h'' T'

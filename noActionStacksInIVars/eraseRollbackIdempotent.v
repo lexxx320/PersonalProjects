@@ -67,18 +67,17 @@ Theorem rollbackIdempotent : forall tid stack H T H' H'' T' T'',
 Proof.
   intros. genDeps{H''; T''}. induction H0; intros; subst.  
   {split; auto. }
-  {eapply IHrollback. inversion H6. unfold tAdd. unfold Add. rewrite eraseUnionComm. 
-   rollbackIdemHelper. destruct s1'. 
+  {eapply IHrollback. inv H7. unfoldTac. rewrite eraseUnionComm. rollbackIdemHelper. destruct s1'. 
    {repeat erewrite erasePoolSingleton. reflexivity. eauto. simpl. eauto. }
    {destruct l. 
     {erewrite erasePoolSingleton; eauto. simpl. erewrite erasePoolSingleton; eauto.
      eraseThreadTac. rewrite app_nil_l. auto. }
-    {apply eraseExists in H6. invertHyp. erewrite erasePoolSingleton; eauto. 
-     erewrite erasePoolSingleton; eauto. uCons a l; auto.
-     rewrite <- eraseTwoActs. eauto. }
+    {erewrite erasePoolSingleton; eauto. 
+     assert(exists t, eraseThread(TID',unlocked (a::l),s2,M') t). apply eraseThreadTotal. 
+     invertHyp. erewrite erasePoolSingleton; eauto. uCons a l. rewrite eraseTwoActs. eauto. }
    }
    {erewrite erasePoolSingleton; eauto. simpl; erewrite erasePoolSingleton; eauto. }
-   rewrite H2. rewrite <- eraseUnionComm. constructor. eapply eraseHeapDependentRead. 
+   rewrite H. rewrite <- eraseUnionComm. constructor. eapply eraseHeapDependentRead. 
    eauto.
   }
   {eapply IHrollback. inv H5. unfoldTac. rewrite coupleUnion. destruct s1'. 

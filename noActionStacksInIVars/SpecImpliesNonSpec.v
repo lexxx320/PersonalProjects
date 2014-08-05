@@ -432,6 +432,17 @@ Qed.
 
 Ltac eraseTrmTac s1 M := assert(exists M', eraseTrm s1 M M') by apply eEraseTrm; invertHyp.             
 
+Ltac consedActTac H :=
+  eapply consedActEq in H;[idtac|apply InL; constructor|apply InL; constructor|rewrite app_nil_l; simpl;auto|
+                           simpl; auto]. 
+
+Theorem eraseTrmApp : forall x y M M',
+                        eraseTrm(x++[y]) M M' -> actionTerm y M'. 
+Proof.
+  intros. inv H; try solve[invertListNeq]; 
+  apply lastElementEq in H1; subst; constructor. 
+Qed. 
+
 Theorem simPureSteps : forall H H' H'' T T' PT s1 s2 tid M M' M'' a,
                 eraseTrm s1 M' M'' ->
                 spec_multistep H (tUnion T (tSingleton(tid,unlocked[a],s2,M)))
@@ -457,41 +468,36 @@ Proof.
     {unfoldTac; invertHyp; invThreadEq. destructLast s1. 
      {simpl in *. eapply monotonicActions in H1. Focus 2. apply Union_intror. constructor. 
       Focus 2. apply Union_intror. constructor. simpl in *. omega. }
-     {invertHyp. rewrite <- app_assoc in H1. eapply consedActEq in H1. Focus 2. 
-      apply Union_intror. simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. 
-      constructor. subst. inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
+     {invertHyp. rewrite <- app_assoc in H1. consedActTac H1. subst. 
+      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
       inv H6. unfold pUnion. rewrite union_empty_l. constructor. }
     }
     {unfoldTac; invertHyp. inv H7. destructLast s1. 
      {simpl in *. eapply monotonicActions in H1. Focus 2. apply Union_intror. constructor. 
       Focus 2. apply Union_intror. constructor. simpl in *. omega. }
-     {invertHyp. rewrite <- app_assoc in H1. eapply consedActEq in H1. Focus 2. 
-      apply Union_intror. simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. 
-      constructor. subst. inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
+     {invertHyp. rewrite <- app_assoc in H1. consedActTac H1. subst. 
+      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
       inv H6. unfold pUnion. rewrite union_empty_l. constructor. }
     }
     {unfoldTac; invertHyp. inv H7. destructLast s1. 
      {simpl in *. eapply monotonicActions in H1. Focus 2. apply Union_intror. constructor. 
       Focus 2. apply Union_intror. constructor. simpl in *. omega. }
-     {invertHyp. rewrite <- app_assoc in H1. eapply consedActEq in H1. Focus 2. 
-      apply Union_intror. simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. 
-      constructor. subst. inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
+     {invertHyp. rewrite <- app_assoc in H1. consedActTac H1. subst. 
+      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
       inv H6. unfold pUnion. rewrite union_empty_l. constructor. }
     }
     {unfoldTac; invertHyp. inv H7. destructLast s1. 
      {simpl in *. eapply monotonicActions in H1. Focus 2. apply Union_intror. constructor. 
       Focus 2. apply Union_intror. constructor. simpl in *. omega. }
-     {invertHyp. rewrite <- app_assoc in H1. eapply consedActEq in H1. Focus 2. 
-      apply Union_intror. simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. 
-      constructor. subst. inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
+     {invertHyp. rewrite <- app_assoc in H1. consedActTac H1. subst.
+      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
       inv H6. unfold pUnion. rewrite union_empty_l. constructor. }
     }
     {unfoldTac; invertHyp. inv H10. destructLast s1. 
      {simpl in *. eapply monotonicActions in H1. Focus 2. apply Union_intror. constructor. 
       Focus 2. apply Union_intror. constructor. simpl in *. omega. }
-     {invertHyp. rewrite <- app_assoc in H1. eapply consedActEq in H1. Focus 2. 
-      apply Union_intror. simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. 
-      constructor. subst. inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
+     {invertHyp. rewrite <- app_assoc in H1. consedActTac H1. subst. 
+      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. 
       inv H6. unfold pUnion. rewrite union_empty_l. constructor. }
     }
     {unfold pUnion. rewrite union_empty_l. auto. }
@@ -590,6 +596,10 @@ Proof.
   }
 Qed. 
 
+Ltac firstActTac H :=
+       eapply firstActEq in H;[idtac|apply InL; constructor|apply InL; constructor
+                               |rewrite app_nil_l; simpl; auto|simpl; auto]. 
+
 Theorem specStepNewFull : forall H H' TID x M M' E ds s1' N T T' s2 t PT d,
    decompose M' E new -> erasePool T PT ->
    heap_lookup x H = None ->
@@ -631,9 +641,8 @@ Proof.
     {invertDecomp. copy d; copy d0. invertDecomp. invertDecomp. inv H12. 
      exists (extend x (sempty SPEC) H p).
      exists T0. simpl in *. split. assert(d=d0). apply proof_irrelevance. subst. 
-     copy H4. eapply firstActEq in H4. Focus 2. apply Union_intror. rewrite app_nil_l. constructor. 
-     Focus 2. apply Union_intror. constructor. inv H4. eassumption. 
-     split. rewrite eraseHeapNew; auto. simpl. auto. apply UnionEqTID in H6. invertHyp. auto. }
+     copy H4. firstActTac H4. inv H4. eassumption. split. rewrite eraseHeapNew; auto. 
+     simpl. auto. apply UnionEqTID in H6. invertHyp. auto. }
    }
   }
 Qed. 
@@ -678,9 +687,7 @@ Proof.
     {invertDecomp. inv H11; repeat invertDecomp. }
     {invertDecomp. copy d; copy d0. invertDecomp. invertDecomp. inv H12. 
      exists (extend x (sempty SPEC) H p). exists T0. simpl in *. split. assert(d=d0). 
-     apply proof_irrelevance. subst. copy H4. eapply firstActEq in H4. Focus 2.
-     apply Union_intror. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. 
-     constructor. inv H4. eassumption. split. 
+     apply proof_irrelevance. subst. copy H4. firstActTac H4. inv H4. eassumption. split. 
      rewrite eraseHeapNew; auto. simpl. auto. apply UnionEqTID in H6. invertHyp. auto. }
    }
   }
@@ -753,6 +760,9 @@ Proof.
   simpl. auto. 
 Qed. 
 
+Ltac monoActs H :=
+           eapply monotonicActions in H;[idtac|apply InL; constructor|apply InL;constructor]; eauto. 
+
 Theorem simSpecJoinSteps : forall H H' e T T' N N0 N1 PT H'' M E s2 tid,
                              pctxtWF e E ->
                              spec_multistep H (tUnion T (tSingleton(tid,specStack nil N0, s2, N)))
@@ -801,21 +811,11 @@ Proof.
       introsInv. eauto. introsInv. unfold pUnion. rewrite union_empty_l. rewrite joinFill. simpl. 
       rewrite H5. eapply IHspec_multistep; eauto. }
     }
-    {unfoldTac; invertHyp; invThreadEq. eapply monotonicActions in H1. 
-     Focus 2. apply Union_intror. constructor. Focus 2. apply Union_intror. 
-     constructor. simpl in *; omega. }
-    {unfoldTac; invertHyp. inv H7. eapply monotonicActions in H1. 
-     Focus 2. apply Union_intror. constructor. Focus 2. apply Union_intror. 
-     constructor. simpl in *; omega. }
-    {unfoldTac; invertHyp. inv H7. eapply monotonicActions in H1. 
-     Focus 2. apply Union_intror. constructor. Focus 2. apply Union_intror. 
-     constructor. simpl in *; omega. }
-    {unfoldTac; invertHyp. inv H7. eapply monotonicActions in H1. 
-     Focus 2. apply Union_intror. constructor. Focus 2. apply Union_intror. 
-     constructor. simpl in *; omega. }
-    {unfoldTac; invertHyp. inv H10. eapply monotonicActions in H1. 
-     Focus 2. apply Union_intror. constructor. Focus 2. apply Union_intror. 
-     constructor. simpl in *; omega. }
+    {unfoldTac; invertHyp; invThreadEq. monoActs H1; simpl in *; omega. }
+    {unfoldTac; invertHyp; invThreadEq. monoActs H1; simpl in *; omega. }
+    {unfoldTac; invertHyp; invThreadEq. monoActs H1; simpl in *; omega. }
+    {unfoldTac; invertHyp; invThreadEq. monoActs H1; simpl in *; omega. }
+    {unfoldTac; invertHyp; invThreadEq. monoActs H1; simpl in *; omega. }
     {unfold pUnion. rewrite union_empty_l. auto. }
    }
   }
@@ -869,22 +869,17 @@ Proof.
       introsInv. eauto. introsInv. unfold pUnion. rewrite union_empty_l. rewrite joinFill. simpl. 
       rewrite H6. eapply IHspec_multistep; eauto. }
     }
-    {unfoldTac; invertHyp; invThreadEq. eapply firstSpecActEq in H2. Focus 2. apply Union_intror. 
-     simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. 
-     subst. inv H0. unfold pUnion. rewrite union_empty_l. constructor. }
-    {unfoldTac; invertHyp. inv H8. eapply firstSpecActEq in H2. Focus 2. apply Union_intror. 
-     simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. 
-     subst. inv H0. unfold pUnion. rewrite union_empty_l. constructor. }
-    {unfoldTac; invertHyp. inv H8. eapply firstSpecActEq in H2. Focus 2. apply Union_intror. 
-     simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. 
-     subst. inv H0. unfold pUnion. rewrite union_empty_l. constructor. }
-    {unfoldTac; invertHyp. inv H8. eapply firstSpecActEq in H2. Focus 2. apply Union_intror. 
-     simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. 
-     subst. inv H0. unfold pUnion. rewrite union_empty_l. constructor. }
-    {unfoldTac; invertHyp. inv H11. eapply firstSpecActEq in H2. Focus 2. apply Union_intror. 
-     simpl. rewrite app_nil_l. constructor. Focus 2. apply Union_intror. constructor. 
-     subst. inv H0. unfold pUnion. rewrite union_empty_l. constructor. }
-    unfold pUnion. rewrite union_empty_l. auto. 
+    {unfoldTac; invertHyp; invThreadEq. simpl in *. firstActTac H2. subst. subst. inv H0. 
+     unfold pUnion. rewrite union_empty_l. constructor. }
+    {unfoldTac; invertHyp; invThreadEq. simpl in *. firstActTac H2. subst. subst. inv H0. 
+     unfold pUnion. rewrite union_empty_l. constructor. }
+    {unfoldTac; invertHyp; invThreadEq. simpl in *. firstActTac H2. subst. subst. inv H0. 
+     unfold pUnion. rewrite union_empty_l. constructor. }
+    {unfoldTac; invertHyp; invThreadEq. simpl in *. firstActTac H2. subst. subst. inv H0. 
+     unfold pUnion. rewrite union_empty_l. constructor. }
+    {unfoldTac; invertHyp; invThreadEq. simpl in *. firstActTac H2. subst. subst. inv H0. 
+     unfold pUnion. rewrite union_empty_l. constructor. }
+    {unfold pUnion. rewrite union_empty_l. auto. }
    }
   }
 Qed. 
@@ -935,8 +930,7 @@ Proof.
     {invertDecomp. inv H8; repeat invertDecomp. }
     {invertDecomp. copy d; copy d0. invertDecomp. invertDecomp. inv H9. 
      exists h'. exists T0. simpl in *. split. assert(d=d0). apply proof_irrelevance. subst.
-     copy H2. eapply firstActEq in H2. Focus 2. apply Union_intror. rewrite app_nil_l. constructor. 
-     Focus 2. apply Union_intror. constructor. inv H2. assumption. 
+     copy H2. firstActTac H2. inv H2. assumption. 
      split. auto. apply UnionEqTID in H3. invertHyp; auto. }
    }
   }
@@ -963,64 +957,35 @@ Proof.
    {eapply IHspec_multistep; eauto. apply UnionSingletonEq in H2. rewrite H2. 
     apply EqJMeq. unfoldTac. rewrite Union_associative. rewrite (Union_commutative thread _ t'). 
     rewrite <- Union_associative. auto. auto. }
-   {inv H6. unfold pUnion. rewrite Union_commutative. inv H5. 
-    {unfoldTac; invertHyp. inv H6. apply simBasicStep in H7. econstructor. eapply PBasicStep. 
+   {inv H6. unfold pUnion. inv H5. 
+    {unfoldTac; invertHyp; invThreadEq. apply simBasicStep in H7. rewrite Union_commutative. 
+     econstructor. eapply PBasicStep. 
      eauto. unfold pUnion. rewrite Union_commutative. eapply IHspec_multistep; eauto. }
     {unfoldTac; invertHyp; invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x;try solve[inv H0; try solve[invertListNeq];  
-       eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv].
-      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-      eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
-    }    
-    {unfoldTac; invertHyp. inv H6. destructLast s1. 
+     {invertHyp. apply eraseTrmApp in H0. firstActTac H1. subst. inv H0. constructor. }
+    }
+    {unfoldTac; invertHyp; invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x0;try solve[inv H0; try solve[invertListNeq];  
-       eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv].
-      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-      eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
-    }  
-    {unfoldTac; invertHyp. inv H6. destructLast s1. 
+     {invertHyp. apply eraseTrmApp in H0. firstActTac H1. subst. inv H0. constructor. }
+    }
+    {unfoldTac; invertHyp; invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x0;try solve[inv H0; try solve[invertListNeq];  
-       eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv].
-      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-      eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
-    }  
-    {unfoldTac; invertHyp. inv H6. destructLast s1. 
+     {invertHyp. apply eraseTrmApp in H0. firstActTac H1. subst. inv H0. constructor. }
+    }
+    {unfoldTac; invertHyp; invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x0;try solve[inv H0; try solve[invertListNeq];  
-       eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv].
-      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-      eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
-    }  
-    {unfoldTac; invertHyp. inv H9. destructLast s1. 
+     {invertHyp. apply eraseTrmApp in H0. firstActTac H1. subst. inv H0. constructor. }
+    }
+    {unfoldTac; invertHyp; invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x;try solve[inv H0; try solve[invertListNeq];  
-       eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv].
-      inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-      eapply lockedFirstActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
-    }  
+     {invertHyp. apply eraseTrmApp in H0. firstActTac H1. subst. inv H0. constructor. }
+    }
    }
   }
 Qed. 
@@ -1047,72 +1012,37 @@ Proof.
     {unfoldTac; invertHyp. invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x;try solve[inv H0; try solve[invertListNeq]; invertListNeq;  
-       rewrite <- app_assoc in H1; simpl in *; 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv]. 
-       inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-       rewrite <- app_assoc in H1. 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
-    }    
-    {unfoldTac; invertHyp. inv H6. destructLast s1. 
-     {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
-      constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x0;try solve[inv H0; try solve[invertListNeq]; invertListNeq;  
-       rewrite <- app_assoc in H1; simpl in *; 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv]. 
-       inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-       rewrite <- app_assoc in H1. 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
+     {invertHyp. apply eraseTrmApp in H0. consedActTac H1. Focus 2. rewrite <- app_assoc. 
+      simpl. auto. subst. inv H0. rewrite Union_commutative. constructor. }
     }
-    {unfoldTac; invertHyp. inv H6. destructLast s1. 
+    {unfoldTac; invertHyp. invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x0;try solve[inv H0; try solve[invertListNeq]; invertListNeq;  
-       rewrite <- app_assoc in H1; simpl in *; 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv]. 
-       inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-       rewrite <- app_assoc in H1. 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
+     {invertHyp. apply eraseTrmApp in H0. consedActTac H1. Focus 2. rewrite <- app_assoc. 
+      simpl. auto. subst. inv H0. rewrite Union_commutative. constructor. }
     }
-    {unfoldTac; invertHyp. inv H6. destructLast s1. 
+    {unfoldTac; invertHyp. invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x0;try solve[inv H0; try solve[invertListNeq]; invertListNeq;  
-       rewrite <- app_assoc in H1; simpl in *; 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv]. 
-       inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-       rewrite <- app_assoc in H1. 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
+     {invertHyp. apply eraseTrmApp in H0. consedActTac H1. Focus 2. rewrite <- app_assoc. 
+      simpl. auto. subst. inv H0. rewrite Union_commutative. constructor. }
     }
-    {unfoldTac; invertHyp. inv H9. destructLast s1. 
+    {unfoldTac; invertHyp. invThreadEq. destructLast s1. 
      {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
       constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
-     {invertHyp. destruct x;try solve[inv H0; try solve[invertListNeq]; invertListNeq;  
-       rewrite <- app_assoc in H1; simpl in *; 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]; solveByInv]. 
-       inv H0; try solve[invertListNeq]. apply lastElementEq in H6. inv H6. 
-       rewrite <- app_assoc in H1. 
-       eapply consedActEq in H1;[idtac|apply Union_intror; rewrite app_nil_l; constructor|
-                                 apply Union_intror; constructor]. inv H1. 
-       rewrite Union_commutative. constructor. }
+     {invertHyp. apply eraseTrmApp in H0. consedActTac H1. Focus 2. rewrite <- app_assoc. 
+      simpl. auto. subst. inv H0. rewrite Union_commutative. constructor. }
+    }
+    {unfoldTac; invertHyp. invThreadEq. destructLast s1. 
+     {inv H0; try invertListNeq. eapply monotonicActions in H1. Focus 2. apply Union_intror. 
+      constructor. Focus 2. apply Union_intror. constructor. simpl in *; omega. }
+     {invertHyp. apply eraseTrmApp in H0. consedActTac H1. Focus 2. rewrite <- app_assoc. 
+      simpl. auto. subst. inv H0. rewrite Union_commutative. constructor. }
     }
    }
   }
-Qed.  
- 
+Qed. 
+
 Theorem specStepSpec : forall H H' TID M M' E t s1' s1'' N T T' s2 s2' PT d M'',
    decompose t E (spec M N) -> erasePool T PT ->
    spec_multistep H (tUnion T (tSingleton(TID,unlocked nil,s2,t)))
@@ -1371,7 +1301,7 @@ Proof.
    eraseTrmTac s1' M'. rewrite coupleUnion. rewrite eraseUnionComm. 
    repeat erewrite erasePoolSingleton; eauto. Focus 2. apply eraseEraseTrm. eauto. 
    rewrite union_empty_r. unfoldTac. rewrite couple_swap in H. 
-   rewrite (couple_swap thread _ (2::tid,locked s1'',s2',M'')) in H. 
+   rewrite (couple_swap thread _ (2::tid,locked s1'',nil,M'')) in H. 
    repeat rewrite coupleUnion in H. repeat rewrite <- Union_associative in H. 
    eapply simPureSteps in H; eauto. rewrite eraseFill in H. eassumption. 
   }
