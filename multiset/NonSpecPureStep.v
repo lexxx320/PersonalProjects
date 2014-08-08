@@ -1,13 +1,5 @@
 Require Import erasure. 
 
-Ltac cleanup := unfold tSingleton in *; unfold tCouple in *; unfold tAdd in *;
-  repeat(match goal with
-           |H : ?x = ?x |- _ => clear H; try subst
-           |H : Singleton ?T ?x = Singleton ?T ?y |- _ => apply SingletonEq in H; inversion H; try subst
-           |H : Singleton ?T ?x = Couple ?T ?y ?z |- _ => apply SingleEqCouple in H; inversion H; try subst
-           |H : Couple ?T ?y ?z = Singleton ?t ?x |- _ => symmetry in H
-         end). 
-
 Hint Constructors pbasic_step. 
 
 Theorem simBasicStep : forall t t',
@@ -25,30 +17,16 @@ Proof.
    eapply pbasicProjR. simpl in *. eauto. }
 Qed. 
 
-Theorem NonSpecPureStep' : forall h sh tid s1 s2 M M' T T',
+Theorem NonSpecPureStep' : forall h tid s1 s2 M M' T,
      spec_step h T (tSingleton (tid,s1,s2,M)) 
                h T (tSingleton(tid,s1,s2,M')) ->
-     erasePool T T' -> eraseHeap h = sh ->
-     pstep sh T' (pSingleton (eraseTerm M)) (pOK sh T' (pSingleton (eraseTerm M'))).
+     pstep (eraseHeap h) (erasePool T) (pSingle (eraseTerm M)) 
+           (pOK (eraseHeap h) (erasePool T) (pSingle (eraseTerm M'))).
 Proof.
-  intros. inversion H; try subst. 
-  {unfoldTac; repeat invertHyp. inv H2. inv H3. apply simBasicStep in H6. 
-   eapply PBasicStep. auto. }
-  {symmetry in H5. apply SingleEqCouple in H5. invertHyp. invThreadEq. 
-   inversion H1. destruct b; inv H5. }
-  {clear H9. unfoldTac; repeat invertHyp. inv H2. inversion H3. destruct s1. 
-   simpl in *. inversion H2. invertListNeq. simpl in *. inversion H2. 
-   invertListNeq. simpl in *. inversion H2. invertListNeq. }
-  {eapply heapUpdateNeq in H9; eauto. inv H9. introsInv. }
-  {destruct h. simpl in *. inversion H8. destruct h. inv H10. 
-   unfold raw_extend in H10. simpl in *. invertListNeq. }
-  {symmetry in H8. apply SingleEqCouple in H8. invertHyp. inv H2. inversion H1. 
-   destruct b; inv H7. }
+  intros. inversion H; try solve[                    
+    match goal with
+        |H:aCons ?a ?s = ?s |- _ => destruct s; simpl in *; inversion H; invertListNeq
+    end]. 
+  {apply simBasicStep in H8. econstructor. eauto. }
 Qed. 
-
-
-
-
-
-
 

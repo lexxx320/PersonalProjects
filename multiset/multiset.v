@@ -15,7 +15,7 @@ Axiom classicT : forall (P : Prop), {P} + {~ P}.
 Fixpoint Subtract {A:Type} (m:multiset A) (e:A) :=
   match m with
     |m::ms => if classicT (m = e)
-              then Subtract ms e 
+              then ms
               else m::Subtract ms e
     |nil => nil
   end. 
@@ -27,6 +27,8 @@ Definition Couple {A:Type} (m1 m2 : A) : multiset A := [m1;m2].
 Axiom MultisetExtensionality : forall A (M1 M2 : multiset A),
                                  (forall x:A, In M1 x -> In M2 x) /\
                                  (forall x:A, In M2 x -> In M1 x) -> M1 = M2. 
+
+
 Hint Unfold In. 
 Ltac invUnion :=
   unfold In in *; 
@@ -68,8 +70,61 @@ Proof.
    inversion H1. }
 Qed. 
 
+Theorem pullOut : forall (A:Type) T (e:A),
+                    In T e -> T = Union (Subtract T e) (Single e). 
+Proof.
+  induction T; intros. 
+  {inversion H. }
+  {inversion H; subst. 
+   {simpl. destruct (classicT (e=e)). 
+    {rewrite Union_commutative. simpl. auto. }
+    {exfalso. apply n; auto. }
+   }
+   {simpl. destruct (classicT (a=e)). 
+    {subst. rewrite Union_commutative. simpl. auto. }
+    {simpl. erewrite <- IHT; eauto. }
+   }
+  }
+Qed. 
 
+Theorem UnionSubtract : forall (X:Type) T (x:X),
+                          Subtract (Union T (Single x)) x = T. 
+Proof.
+  induction T; intros. 
+  {simpl. destruct (classicT(x=x)). auto. exfalso; apply n; auto. }
+  {simpl. destruct (classicT(a=x)). subst. rewrite Union_commutative. 
+   simpl; auto. rewrite IHT. auto. }
+Qed. 
 
+Theorem subtractSingle : forall (X:Type) T (x1:X), 
+              (Subtract (Union (Subtract T x1) (Single x1)) x1) =
+              Subtract T x1. 
+Proof.
+  induction T; intros. 
+  {simpl. destruct (classicT (x1=x1)); auto. exfalso; apply n; auto. }
+  {simpl. destruct (classicT(a=x1)). 
+   {rewrite UnionSubtract. auto. }
+   {simpl. destruct (classicT(a=x1)); try contradiction. 
+    rewrite IHT; eauto. }
+  }
+Qed. 
 
+Theorem UnionSwap: forall (X : Type) (T1 T2 T3 : multiset X),
+                     Union (Union T1 T2) T3 = Union (Union T1 T3) T2.
+Proof.
+  intros. rewrite <- Union_associative. rewrite (Union_commutative X T2). 
+  rewrite Union_associative. auto. 
+Qed. 
 
+Theorem coupleUnion : forall (U:Type) (t1 t2 : U), 
+                        Couple t1 t2 = Union (Single t1) (Single t2). 
+Proof.
+  intros. simpl. unfold Couple. unfold Single. auto. 
+Qed. 
+
+Ltac flipCouples :=
+  rewrite couple_swap; rewrite coupleUnion; try flipCouples; rewrite <- coupleUnion. 
+
+Ltac flipCouplesIn H :=
+  rewrite couple_swap in H; rewrite coupleUnion in H; try flipCouplesIn H; rewrite <- coupleUnion in H. 
 
