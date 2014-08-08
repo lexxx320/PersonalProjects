@@ -6,7 +6,7 @@ Definition In {A:Type} T e := @In A e T.
 
 Definition Union {A:Type} (m1 m2 : multiset A) := m1 ++ m2. 
 
-Definition Add {A:Type} (m:multiset A) (a:A) := a::m. 
+Definition Add {A:Type} (m:multiset A) (a:A) := m++[a]. 
 
 Definition Empty_set (A:Type) := @nil A. 
 
@@ -54,10 +54,19 @@ Proof.
    invUnion. auto. right. invUnion. auto. }
 Qed. 
 
+Theorem union_empty_r : forall A T, Union T (Empty_set A) = T. 
+Proof. 
+  intros. rewrite Union_commutative. simpl. auto. 
+Qed. 
 
-
-
-
+Theorem couple_swap : forall (T:Type) (t1 t2:T), Couple t1 t2 = Couple t2 t1. 
+Proof.
+  intros. apply MultisetExtensionality. split; intros. 
+  {inversion H. subst. simpl. right. auto. inversion H0. subst. simpl. auto. 
+   inversion H1. }
+  {inversion H. subst. simpl. right. auto. inversion H0. subst. simpl. auto. 
+   inversion H1. }
+Qed. 
 
 
 
