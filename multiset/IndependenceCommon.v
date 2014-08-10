@@ -14,9 +14,6 @@ Proof.
   eapply uniqueThreadPool in H0; eauto. inv H0. apply UnionEqL in H. subst; auto. 
 Qed. 
 
-
-
-
 Theorem UnionSingletonEq : forall T T' a b, 
                  tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
                  tIn T' a -> T = tUnion (Subtract T' a) (tSingleton b).
@@ -64,14 +61,28 @@ Proof.
   }
 Qed. 
 
+Theorem unspecLastActPool : forall tid s a s2 M' M, 
+                         actionTerm a M' ->
+                         unspecPool(tSingleton(tid,unlocked(s++[a]),s2,M)) = 
+                         unspecPool(tSingleton(tid,unlocked nil,s2,M')). 
+Proof.
+  induction s; intros. 
+  {simpl. inv H; auto. }
+  {simpl. destruct (s++[a0])eqn:eq. 
+   {invertListNeq. }
+   {rewrite <- eq. rewrite getLastApp. inv H; auto. }
+  }
+Qed. 
+
 Theorem unspecEraseTrm : forall tid s1 s2 M M', 
-                          eraseTrm s1 M M' ->
-                          unspecThread(tid,unlocked s1,s2,M) = (tSingleton(tid,unlocked nil,s2,M')). 
+           eraseTrm s1 M M' ->
+           unspecPool(tSingleton(tid,unlocked s1,s2,M)) = 
+           unspecPool(tSingleton(tid,unlocked nil,s2,M')). 
 Proof.
   intros. destructLast s1. 
    {inv H; try invertListNeq. auto. }
    {invertHyp. inv H; try solve[invertListNeq]; apply lastElementEq in H1;
-               subst; erewrite unspecLastAct; eauto; constructor. }
+               subst; erewrite unspecLastActPool; eauto; constructor. }
 Qed. 
  
 Theorem eEraseTrm : forall s1 M, exists M', eraseTrm s1 M M'. 
@@ -137,14 +148,15 @@ Ltac startIndCase :=
 
 Ltac takeTStep :=
   match goal with
-      |H:Ensembles.In thread ?T ?t |- _ => apply pullOut in H; rewrite H; unfoldTac; rewrite UnionSwap;
-                                 econstructor;[eapply specStepChangeUnused; eassumption|idtac];
-                                 unfoldTac; rewrite <- UnionSwap
-      |H:Ensembles.In thread ?T ?t |- _ => apply pullOut in H; rewrite H; unfoldTac; rewrite UnionSwap;
-                                 econstructor
-      |H:Ensembles.In thread ?T ?t |- _ => apply pullOut in H; rewrite H; 
-                                 econstructor;[eapply specStepChangeUnused; eassumption|idtac]
-  end.
+      |H:?T = ?x |- _ =>
+       rewrite H; unfoldTac; rewrite UnionSwap; 
+       econstructor;[eapply specStepChangeUnused; eassumption|idtac]; unfoldTac; 
+       rewrite <- UnionSwap                                          
+      |H:?T = ?x |- _ =>
+       rewrite H; unfoldTac; rewrite UnionSwap
+      |H:?T = ?x |- _ =>
+       rewrite H
+  end. 
 
 Ltac lookupTac :=
   match goal with
@@ -248,4 +260,34 @@ Proof.
   rewrite Union_associative in H. apply UnionEqL in H. auto. 
 Qed. 
 
+
+Theorem UnionCoupleNeqTID : forall tid tid' s1 s1' s2 s2' M 
+                                   M' T T' s1'' s2'' tid'' M'',
+                  tUnion T (tSingleton(tid,s1,s2,M)) = 
+                  tUnion T' (tCouple(tid',s1',s2',M')(tid'',s1'',s2'',M'')) ->
+                  tid <> tid' -> tid <> tid'' -> tid' <> tid'' ->
+                  T = tUnion (Subtract T' (tid,s1,s2,M)) (tCouple(tid',s1',s2',M')(tid'',s1'',s2'',M'')) /\ 
+                  T' = tUnion (Subtract (Subtract T (tid',s1',s2',M'))(tid'',s1'',s2'',M'')) (tSingleton (tid,s1,s2,M)). 
+Proof.
+  intros. assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) (tid',s1',s2',M')).  
+  rewrite H. solveSet. 
+  assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) (tid'',s1'',s2'',M'')). 
+  rewrite H. solveSet. invUnion. right. solveSet. 
+  assert(tIn(tUnion T'(tCouple(tid',s1',s2',M')(tid'',s1'',s2'',M'')))(tid,s1,s2,M)).
+  rewrite <- H. unfoldTac. solveSet. repeat invUnion. right. solveSet. unfoldTac.
+  repeat invUnion. inv H3; inv H4; inv H5. 
+  {split. apply UnionSingletonCoupleEq in H; auto. copy H. 
+   apply UnionSingletonCoupleEq in H5; auto. rewrite H5. unfoldTac.
+   rewrite couple_swap. rewrite coupleUnion. rewrite Union_associative. 
+   repeat rewrite UnionSubtract. rewrite subtractUnion; auto. }
+  {inv H4. invThreadEq. exfalso. apply H0; auto. inv H5. invThreadEq. 
+   exfalso. apply H1; auto. inv H4. }
+  {inv H3. invThreadEq. exfalso. apply H1; auto. contradiction. }
+  {inv H4; try invThreadEq. exfalso. apply H0; auto. exfalso.
+   inv H5. invThreadEq. apply H1; auto. contradiction. }
+  {inv H6. invThreadEq. exfalso. apply H0; auto. contradiction. }
+  {inv H6. invThreadEq. exfalso. apply H0; auto. contradiction. }
+  {inv H3. invThreadEq. exfalso. apply H1; auto. contradiction. }
+  {inv H6. invThreadEq. exfalso. apply H0; auto. contradiction. }
+Qed. 
 

@@ -372,17 +372,6 @@ Proof.
   intros. destruct As; simpl in *; auto. destruct l; auto. 
   erewrite getLastNonEmpty; eauto. 
 Qed. 
-
-(*
-Theorem unspecSingleton : forall t t', 
-                            unspecThread t t' ->
-                            unspecPoolAux (tSingleton t) = t'.
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
-  {inv H0. inv H1. inv H4. inv H0. eapply unspecDeterm in H2; eauto. subst. auto. }
-  {destruct t. destruct p. destruct p. econstructor. econstructor. econstructor. 
-   auto. eauto. auto. }
-Qed. *)
   
 Theorem specStepSingleton : forall H T t H' t', 
                               spec_step H T t H' T t' -> exists t'', t = tSingleton t''. 

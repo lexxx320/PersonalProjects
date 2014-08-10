@@ -128,3 +128,73 @@ Ltac flipCouples :=
 Ltac flipCouplesIn H :=
   rewrite couple_swap in H; rewrite coupleUnion in H; try flipCouplesIn H; rewrite <- coupleUnion in H. 
 
+Theorem pullOutL : forall (A:Type) (T1 : multiset A) T2 T3,
+                     Union  T1 (Couple T2 T3) = 
+                     Union (Union T1 (Single T3)) (Single T2).
+Proof.
+  intros. rewrite coupleUnion. rewrite Union_associative. 
+  rewrite UnionSwap. auto. 
+Qed. 
+
+Theorem pullOutR : forall (A:Type) (T1 : multiset A) T2 T3,
+                     Union  T1 (Couple T2 T3) = 
+                     Union (Union T1 (Single T2)) (Single T3).
+Proof.
+  intros. rewrite coupleUnion. rewrite Union_associative. 
+  rewrite UnionSwap. auto. 
+Qed. 
+
+Theorem subtractUnion : forall (A:Type) T (e:A),
+                          In T e -> Union (Subtract T e) (Single e) = T.
+Proof.
+  induction T; intros. 
+  {inversion H. }
+  {inversion H; subst. simpl. destruct (classicT(e=e)). 
+   {rewrite Union_commutative. simpl. auto. }
+   {exfalso. apply n; auto. }
+   {simpl. destruct (classicT(a=e)). 
+    {subst. rewrite Union_commutative. simpl. auto. }
+    {simpl. rewrite IHT; auto. }
+   }
+  }
+Qed. 
+
+
+Theorem UnionEqSingleton : forall (A:Type) (T:multiset A) t t',
+                             Union T (Single t) = (Single t') ->
+                             t = t' /\ T = Empty_set A. 
+Proof.
+  intros. destruct T. 
+  {inversion H. auto. }
+  {inversion H; subst. rewrite Union_commutative in H2. simpl in *. 
+   inversion H2. }
+Qed. 
+
+Theorem union_empty_l : forall (A:Type) (T:multiset A),
+                           Union (Empty_set A) T = T. 
+Proof.
+  intros. simpl. auto. 
+Qed. 
+
+Theorem UnionSwapR : forall (A:Type) T (t1 t2 t3 : A),
+                       Union (Union T (Single t1)) (Couple t2 t3) = 
+                       Union (Union T (Single t3)) (Couple t2 t1).
+Proof.
+  intros. repeat rewrite <- Union_associative. repeat rewrite coupleUnion. 
+  rewrite (Union_associative A (Single t1)). 
+  rewrite (Union_commutative A (Single t1)). rewrite <- Union_associative. 
+  rewrite (Union_commutative A (Single t1)).
+  rewrite (Union_associative A (Single t2)). 
+  rewrite (Union_commutative A (Single t2)). rewrite <- Union_associative. 
+  auto. 
+Qed. 
+
+Theorem UnionSwapL : forall (A:Type) T (t1 t2 t3 : A),
+                       Union (Union T (Single t1)) (Couple t2 t3) = 
+                       Union (Union T (Single t2)) (Couple t1 t3).
+Proof.
+  intros. repeat rewrite <- Union_associative. rewrite coupleUnion. 
+  rewrite coupleUnion. rewrite (Union_associative A (Single t1)). 
+  rewrite (Union_commutative A (Single t1)). 
+  rewrite <- Union_associative. rewrite <- (coupleUnion A t1). auto. 
+Qed. 

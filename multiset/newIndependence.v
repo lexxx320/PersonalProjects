@@ -250,17 +250,7 @@ Proof.
   }
 Qed. 
 
-Ltac takeTStep :=
-  match goal with
-      |H:?T = ?x |- _ =>
-       rewrite H; unfoldTac; rewrite UnionSwap; 
-       econstructor;[eapply specStepChangeUnused; eassumption|idtac]; unfoldTac; 
-       rewrite <- UnionSwap                                          
-      |H:?T = ?x |- _ =>
-       rewrite H; unfoldTac; rewrite UnionSwap
-      |H:?T = ?x |- _ =>
-       rewrite H
-  end. 
+
 
 Theorem stepReplaceSpecFull : forall H T H' t t' ds ds' x M' TID,
                    heap_lookup x H = Some(sfull SPEC ds SPEC TID M') ->
@@ -297,6 +287,24 @@ Proof.
   {copy H. eapply specStepFullIVar in H; eauto. invertHyp. 
    eapply stepReplaceSpecFull in H3; eauto. econstructor. eassumption.
    eapply IHspec_multistep; eauto. }
+Qed. 
+
+Theorem subtractSingle' : forall (A:Type) (x:A) T,
+                            In T x ->
+                            Union (Subtract T x) (Single x) = T. 
+Proof.
+  induction T; intros. 
+  {inversion H. }
+  {inversion H; subst.
+   {simpl. destruct (classicT(x=x)). 
+    {rewrite Union_commutative. simpl. auto. }
+    {simpl. rewrite IHT; eauto. inversion H. contradiction. auto. }
+   }
+   {simpl. destruct (classicT(a=x)). 
+    {subst. rewrite Union_commutative. simpl. auto. }
+    {simpl. rewrite IHT; eauto. }
+   }
+  }
 Qed. 
 
 Theorem newSimPureStepsFull' : forall H T H' T' TID x M' E d M'' t0 ds ds' N N' N'' s2 s1',
@@ -418,26 +426,29 @@ Proof.
     }
     {invertHyp. apply UnionNeqTID in x. invertHyp. rewrite H12 in H3. unfoldTac. 
      rewrite UnionSwap in H3. eapply newSimPureStepsFull' in H3. invertHyp. 
-     right. econstructor. econstructor. econstructor. split. takeTStep. eauto. split; eauto. split.
-     inversion H6; unfoldTac; invertHyp; try solve[heapsDisagree]. 
-     {varsEq x5 x0. heapsDisagree. erewrite lookupReplaceNeq in H4; eauto. heapsDisagree. }
-     {varsEq x5 x0. erewrite HeapLookupReplace in H4; eauto. inv H4. apply pullOut in H8. 
-      rewrite H8. econstructor. eapply SPut; eauto. erewrite HeapLookupReplace; eauto. 
-      rewrite replaceOverwrite. rewrite replaceOverwrite in H11. eauto. 
-      rewrite lookupReplaceNeq in H4; eauto. heapsDisagree. }
-     {varsEq x5 x0. heapsDisagree. erewrite lookupExtendNeq in H4; eauto. inv H4. }
-     eauto. 
+     right. econstructor. econstructor. econstructor. split. takeTStep.
+     rewrite UnionSwap. rewrite subtractSingle'. rewrite H12.
+     rewrite UnionSwap. eassumption. rewrite H12. solveSet. split; auto. 
+     split. Focus 2. eassumption. rewrite H13. clear H12 H13.
+     inv H5; try solve[heapsDisagree].  
+     {varsEq x4 x0. heapsDisagree. erewrite lookupReplaceNeq in H4; eauto. 
+      heapsDisagree. }
+     {varsEq x4 x0. erewrite HeapLookupReplace in H4; eauto. inv H4. 
+      econstructor. eapply SPut; eauto. erewrite HeapLookupReplace; eauto. 
+      rewrite replaceOverwrite. rewrite replaceOverwrite in H16.
+      apply UnionNeqTID in H6; auto. invertHyp. rewrite H4. 
+      rewrite UnionSubtract. eauto. rewrite lookupReplaceNeq in H4; auto. 
+      heapsDisagree. }
+     {varsEq x4 x0. heapsDisagree. erewrite lookupExtendNeq in H4; eauto. inv H4. }
+     {eauto. }
+     {eauto. }
+     {eauto. }
+     {auto. }
     }
    }
-
-
-
-
+  }
   Grab Existential Variables. rewrite lookupReplaceNeq; eauto. 
 Qed. 
-
-
-
 
 Theorem smultiReplaceEmptyFull : forall H T H' T' ds' x M' TID,
                    heap_lookup x H = Some(sempty SPEC) ->
@@ -451,10 +462,10 @@ Proof.
   {copy H. apply specStepSingleton in H. invertHyp. copy H3. 
    eapply specStepEmptyIVarOr in H3; eauto. inv H3. 
    {econstructor. eapply stepReplaceEmpty; eauto. eauto. }
-   {invertHyp. inversion H; unfoldTac; invertHyp; try solve[heapsDisagree]. 
+   {invertHyp. inversion H; subst; try solve[heapsDisagree]. 
     {varsEq x2 x. heapsDisagree. rewrite lookupReplaceNeq in H3; eauto. 
      heapsDisagree. } 
-    {varsEq x2 x. rewrite H5 in H0. inv H0. econstructor. eapply SPut with(d:=d); eauto. 
+    {varsEq x2 x. rewrite H5 in H0. inv H0. econstructor. eapply SPut with(d:=d);eauto. 
      erewrite HeapLookupReplace; eauto. rewrite replaceOverwrite. 
      copy H2. eapply smultiFullIVar in H2. Focus 2. erewrite HeapLookupReplace; eauto. 
      invertHyp. rewrite H4 in H1. inv H1. lookupTac. eapply smultiReplaceSpecFull in H0. 
@@ -483,50 +494,57 @@ Proof.
    replace [a; nAct M' E d x0] with ([a]++[nAct M' E d x0]) in H6; auto. 
    rewrite app_assoc in H6. apply app_inj_tail in H6. invertHyp. inv H5. rewrite H1 in H2. 
    inv H2. constructor. }
-  {startIndCase. eqIn H6. inv H7. 
-   {copy H1. copy H7. eapply specStepFullIVar in H7; eauto. invertHyp.
-    eapply stepReplaceSpecFull in H1; eauto. takeTStep. eapply IHspec_multistep; eauto.
-    eapply spec_multi_trans. eassumption. rewrite H9. rewrite UnionSwap. econstructor. 
-    eapply specStepChangeUnused. eauto. unfoldTac. rewrite UnionSwap. rewrite subtractSingle. 
-    constructor. proveUnionEq x. rewrite H9. apply Union_intror. constructor. }
-   {inv H9. apply UnionEqTID in x. invertHyp. inversion H1; unfoldTac; invertHyp; invThreadEq. 
+  {startIndCase. destructThread x1. exMid TID H11. 
+   {apply UnionEqTID in x. invertHyp. inversion H1; subst. 
     {copy H3. eapply stackNonNil in H3. destruct s1. exfalso. apply H3. auto. 
-     econstructor. eapply SBasicStep; eauto. constructor. eapply IHspec_multistep; eauto. 
-     eapply spec_multi_trans. eassumption. econstructor. eapply SBasicStep; eauto. constructor. 
-     eauto. intros c. subst. apply eraseTrmApp in H0. inv H0; inv H12; falseDecomp. }
+     econstructor. eapply SBasicStep; eauto. constructor. 
+     eapply IHspec_multistep; eauto.  eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SBasicStep; eauto. constructor. eauto. intros c. subst. 
+     apply eraseTrmApp in H0. inv H0; inv H17; falseDecomp. }
     {econstructor. eapply SFork; eauto. simpl. unfoldTac. rewrite coupleUnion. 
-     rewrite <- Union_associative. rewrite UnionSwap. eapply IHspec_multistep; eauto. 
-     Focus 2. rewrite Union_associative. rewrite <- coupleUnion. rewrite couple_swap. 
-     unfold numForks. simpl. simpl. eauto. rewrite numForksDistribute. simpl. rewrite <- plus_assoc. 
-     rewrite <- plus_comm. simpl. rewrite plus_comm. reflexivity. eapply spec_multi_trans. 
-     eassumption. econstructor. eapply SFork; eauto. rewrite Union_associative. rewrite <- coupleUnion. 
-     rewrite couple_swap. simpl. rewrite numForksDistribute. simpl. rewrite <- plus_assoc. 
+     rewrite Union_associative. rewrite UnionSwap. eapply IHspec_multistep; eauto. 
+     Focus 2. rewrite <- Union_associative. rewrite <- coupleUnion. 
+     rewrite couple_swap. unfold numForks. simpl. simpl. eauto. 
+     rewrite numForksDistribute. simpl. rewrite <- plus_assoc. 
+     rewrite <- plus_comm. simpl. rewrite plus_comm. reflexivity. 
+     eapply spec_multi_trans. eassumption. econstructor. eapply SFork; eauto. 
+     rewrite <- Union_associative. rewrite <- coupleUnion. rewrite couple_swap. 
+     simpl. rewrite numForksDistribute. simpl. rewrite <- plus_assoc. 
      rewrite plus_comm. simpl. rewrite plus_comm. constructor. }
-    {varsEq x x0. 
-     {rewrite H12 in H5. inv H5. econstructor. eapply SGet; eauto. 
+    {varsEq x0 x. 
+     {rewrite H17 in H5. inv H5. econstructor. eapply SGet; eauto. 
       erewrite HeapLookupReplace; eauto. rewrite replaceOverwrite. lookupTac.
       eapply IHspec_multistep in H5; eauto. rewrite replaceOverwrite in H5. eauto. 
       eapply spec_multi_trans. eauto. econstructor. eapply SGet; eauto. constructor.
       simpl. auto. }
-     {apply neqSym in H10. lookupTac. eapply IHspec_multistep in H13; eauto. 
-      econstructor. eapply SGet; eauto. rewrite lookupReplaceNeq; eauto. 
-      rewrite lookupReplaceSwitch. eassumption. auto. eapply spec_multi_trans. eassumption. 
-      econstructor. eapply SGet; eauto. simpl. constructor. simpl.  auto. }
+     {lookupTac. eapply IHspec_multistep in H8; eauto. econstructor. 
+      eapply SGet; eauto. rewrite lookupReplaceNeq; eauto. 
+      rewrite lookupReplaceSwitch. eassumption. auto. eapply spec_multi_trans. 
+      eassumption. econstructor. eapply SGet; eauto. simpl. constructor. simpl.
+      auto. }
     }
-    {varsEq x0 x. heapsDisagree. lookupTac. eapply IHspec_multistep in H13; eauto. 
+    {varsEq x0 x. heapsDisagree. lookupTac. eapply IHspec_multistep in H8; eauto. 
      econstructor. eapply SPut; eauto. rewrite lookupReplaceNeq; eauto. 
      rewrite lookupReplaceSwitch; eauto. eapply spec_multi_trans. eassumption. 
      econstructor. eapply SPut; eauto. constructor. simpl. auto. }
-    {varsEq x0 x. heapsDisagree. lookupTac. eapply IHspec_multistep in H12; eauto. 
+    {varsEq x0 x. heapsDisagree. lookupTac. eapply IHspec_multistep in H8; eauto. 
      econstructor. eapply SNew; eauto. erewrite extendReplaceSwitch; eauto.
-     eapply spec_multi_trans. eassumption. econstructor. eapply SNew; eauto. constructor. 
-     simpl; auto. }
-    {econstructor. eapply SSpec; eauto. unfoldTac. rewrite coupleUnion. rewrite <- Union_associative. 
-     rewrite <- UnionSwap. eapply IHspec_multistep; eauto. Focus 2. rewrite Union_associative. 
-     rewrite <- coupleUnion.  rewrite couple_swap. reflexivity. eapply spec_multi_trans. 
-     eassumption. econstructor. eapply SSpec; eauto. rewrite Union_associative. rewrite <- coupleUnion. 
-     rewrite couple_swap. constructor. }
+     eapply spec_multi_trans. eassumption. econstructor. eapply SNew; eauto. 
+     constructor. simpl; auto. }
+    {econstructor. eapply SSpec; eauto. unfoldTac. rewrite coupleUnion. 
+     rewrite Union_associative. rewrite <-UnionSwap. eapply IHspec_multistep; eauto. 
+     Focus 2. rewrite <- Union_associative. rewrite <- coupleUnion.  
+     rewrite couple_swap. reflexivity. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SSpec; eauto. rewrite <- Union_associative. 
+     rewrite <- coupleUnion. rewrite couple_swap. constructor. }
    }
+   {apply UnionNeqTID in H7; auto. invertHyp. copy H1. copy H7. 
+    eapply specStepFullIVar in H7; eauto. invertHyp.
+    eapply stepReplaceSpecFull in H1; eauto. takeTStep.  
+    eapply IHspec_multistep; eauto. eapply spec_multi_trans. eassumption. rewrite H13.
+    rewrite UnionSwap. econstructor. eapply specStepChangeUnused. eauto. unfoldTac. 
+    rewrite UnionSwap. constructor. proveUnionEq x. rewrite UnionSubtract. 
+    unfoldTac. rewrite UnionSwap. auto. rewrite H13. solveSet. }
   } 
   Grab Existential Variables. rewrite lookupReplaceNeq; eauto.
 Qed. 
@@ -546,70 +564,82 @@ Theorem newSimActionStepsEmptyFull : forall H T H' T' TID x ds' t0 M'' M' E d N 
 Proof.
   intros. genDeps{ds'}. dependent induction H4; intros. 
   {rewrite H1 in H2. inv H2. }
-  {startIndCase. eqIn H6. inv H7. 
-   {copy H1. copy H2. eapply specStepEmptyIVarOr in H2; eauto. inv H2. 
-    {copy H11. eapply IHspec_multistep in H11; eauto. Focus 3. proveUnionEq x.
-     takeTStep. eapply stepReplaceEmpty; eauto. eapply specStepChangeUnused. eassumption. 
-     unfoldTac. rewrite UnionSwap. eassumption. eapply spec_multi_trans. eassumption. 
-     apply pullOut in H9. rewrite H9. unfoldTac. rewrite UnionSwap. econstructor. 
-     eapply specStepChangeUnused. eassumption. rewrite subtractSingle. unfoldTac. 
-     rewrite UnionSwap. constructor. }
-    {invertHyp. inversion H10; unfoldTac; invertHyp; try solve[heapsDisagree]. 
-     {varsEq x3 x0. heapsDisagree. rewrite lookupReplaceNeq in H2; auto. heapsDisagree. }
-     {varsEq x3 x0. copy H2. erewrite HeapLookupReplace in H11; eauto. inv H11. 
-      apply UnionSingletonEq in x; auto. rewrite x in H4. rewrite UnionSwap in H4. 
-      eapply newSimActionStepsFullFull in H4; eauto. Focus 2. eapply spec_multi_trans. 
-      eassumption. takeTStep. rewrite subtractSingle. constructor. takeTStep. 
-      eapply SPut; eauto. erewrite HeapLookupReplace; eauto. rewrite replaceOverwrite. 
-      rewrite replaceOverwrite in H4. unfoldTac. rewrite UnionSwap. eassumption. 
-      rewrite lookupReplaceNeq in H2; auto. heapsDisagree. }
-     {varsEq x3 x0. heapsDisagree. erewrite lookupExtendNeq in H2; eauto. inv H2. }
-    }
-   }
-   {inv H9. apply UnionEqTID in x. invertHyp. copy H1. copy H2. 
-    eapply specStepEmptyIVarOr in H12; eauto. inv H12.
-    {inversion H2; unfoldTac; invertHyp; invThreadEq. 
+  {startIndCase. destructThread x1. exMid TID H11. 
+   {apply UnionEqTID in x. invertHyp. copy H1. copy H2. 
+    eapply specStepEmptyIVarOr in H8; eauto. inv H8.
+    {inversion H2; subst.
      {copy H3. eapply stackNonNil in H3. destruct s1. exfalso. apply H3. auto. 
-      econstructor. eapply SBasicStep; eauto. constructor. eapply IHspec_multistep; eauto. 
-      eapply spec_multi_trans. eassumption. econstructor. eapply SBasicStep; eauto. constructor. 
-      eauto. intros c. subst. apply eraseTrmApp in H0. inv H0; inv H14; falseDecomp. }
+      econstructor. eapply SBasicStep; eauto. constructor. 
+      eapply IHspec_multistep; eauto. eapply spec_multi_trans. eassumption. 
+      econstructor. eapply SBasicStep; eauto. constructor. eauto. intros c. subst. 
+      apply eraseTrmApp in H0. inv H0; inv H19; falseDecomp. }
      {econstructor. eapply SFork; eauto. simpl. unfoldTac. rewrite coupleUnion. 
-      rewrite <- Union_associative. rewrite UnionSwap. eapply IHspec_multistep; eauto. 
-      Focus 2. rewrite Union_associative. rewrite <- coupleUnion. rewrite couple_swap. 
-      unfold numForks. simpl. simpl. eauto. rewrite numForksDistribute. simpl. rewrite <- plus_assoc. 
-      rewrite <- plus_comm. simpl. rewrite plus_comm. reflexivity. eapply spec_multi_trans. 
-      eassumption. econstructor. eapply SFork; eauto. rewrite Union_associative. rewrite <- coupleUnion. 
-      rewrite couple_swap. simpl. rewrite numForksDistribute. simpl. rewrite <- plus_assoc. 
-      rewrite plus_comm. simpl. rewrite plus_comm. constructor. }
+      rewrite Union_associative. rewrite UnionSwap. eapply IHspec_multistep; eauto. 
+      Focus 2. rewrite <- Union_associative. rewrite <- coupleUnion. 
+      rewrite couple_swap. unfold numForks. simpl. simpl. eauto. 
+      rewrite numForksDistribute. simpl. rewrite <- plus_assoc. rewrite <- plus_comm. 
+      simpl. rewrite plus_comm. reflexivity. eapply spec_multi_trans. 
+      eassumption. econstructor. eapply SFork; eauto. rewrite <- Union_associative. 
+      rewrite <- coupleUnion. rewrite couple_swap. simpl. rewrite numForksDistribute. 
+      simpl. rewrite <- plus_assoc. rewrite plus_comm. simpl. rewrite plus_comm. 
+      constructor. }
      {varsEq x0 x. heapsDisagree. econstructor. eapply SGet; eauto. 
-      rewrite lookupReplaceNeq; eauto. lookupTac. eapply IHspec_multistep in H15; eauto.
-      rewrite lookupReplaceSwitch; auto. eassumption. eapply spec_multi_trans. eassumption. 
-      econstructor. eapply SGet; eauto. simpl. constructor. reflexivity. } 
-     {varsEq x0 x. erewrite HeapLookupReplace in H13; eauto. inv H13. econstructor. 
+      rewrite lookupReplaceNeq; eauto. lookupTac.
+      eapply IHspec_multistep in H10; eauto. rewrite lookupReplaceSwitch; auto. 
+      eassumption. eapply spec_multi_trans. eassumption. econstructor.
+      eapply SGet; eauto. simpl. constructor. reflexivity. } 
+     {varsEq x0 x. erewrite HeapLookupReplace in H9; eauto. inv H9. econstructor. 
       eapply SPut; eauto. rewrite lookupReplaceNeq; eauto. lookupTac.
-      eapply IHspec_multistep in H15; eauto. rewrite lookupReplaceSwitch; auto. eassumption. 
-      eapply spec_multi_trans. eassumption. econstructor. eapply SPut; eauto. simpl. 
-      constructor. reflexivity. }
+      eapply IHspec_multistep in H10; eauto. rewrite lookupReplaceSwitch; auto. 
+      eassumption. eapply spec_multi_trans. eassumption. econstructor. 
+      eapply SPut; eauto. simpl. constructor. reflexivity. }
      {varsEq x0 x. heapsDisagree. econstructor. eapply SNew; eauto. lookupTac.
-      eapply IHspec_multistep in H14; eauto. erewrite extendReplaceSwitch; eauto. 
+      eapply IHspec_multistep in H10; eauto. erewrite extendReplaceSwitch; eauto. 
       eapply spec_multi_trans. eassumption. econstructor. eapply SNew; eauto. simpl. 
       constructor. reflexivity. }
-    {econstructor. eapply SSpec; eauto. unfoldTac. rewrite coupleUnion. rewrite <- Union_associative. 
-     rewrite <- UnionSwap. eapply IHspec_multistep; eauto. Focus 2. rewrite Union_associative. 
-     rewrite <- coupleUnion.  rewrite couple_swap. reflexivity. eapply spec_multi_trans. 
-     eassumption. econstructor. eapply SSpec; eauto. rewrite Union_associative. rewrite <- coupleUnion. 
-     rewrite couple_swap. constructor. }
+    {econstructor. eapply SSpec; eauto. unfoldTac. rewrite coupleUnion. 
+     rewrite Union_associative. rewrite <- UnionSwap. eapply IHspec_multistep; eauto. 
+     Focus 2. rewrite <- Union_associative. rewrite <- coupleUnion.  
+     rewrite couple_swap. reflexivity. eapply spec_multi_trans. eassumption. 
+     econstructor. eapply SSpec; eauto. rewrite <- Union_associative. 
+     rewrite <- coupleUnion. rewrite couple_swap. constructor. }
     }
-    {invertHyp. inversion H2; unfoldTac; invertHyp; invThreadEq; try solve[heapsDisagree]. 
-     {varsEq x1 x0. erewrite HeapLookupReplace in H12; eauto. inv H12. heapsDisagree. 
-      rewrite lookupReplaceNeq in H12; eauto. heapsDisagree. }
-     {varsEq x1 x0. erewrite HeapLookupReplace in H12; eauto. inv H12. 
-      simpl in *. rewrite app_comm_cons in H4. eapply newSimActionStepsFullFull in H4; eauto. 
-      econstructor. eapply SPut; eauto. erewrite HeapLookupReplace; eauto. rewrite replaceOverwrite. 
-      rewrite replaceOverwrite in H4. eassumption. erewrite HeapLookupReplace; eauto. 
-      eapply spec_multi_trans. eassumption. econstructor. eapply SPut; eauto. 
-      constructor. rewrite lookupReplaceNeq in H12; eauto. heapsDisagree. }
-     {varsEq x1 x0. heapsDisagree. erewrite lookupExtendNeq in H12; eauto. inv H12. }
+    {invertHyp. inversion H2; subst; try solve[heapsDisagree]. 
+     {varsEq x1 x0. erewrite HeapLookupReplace in H8; eauto. inv H8. heapsDisagree. 
+      rewrite lookupReplaceNeq in H8; eauto. heapsDisagree. }
+     {varsEq x1 x0. erewrite HeapLookupReplace in H8; eauto. inv H8. simpl in *. 
+      rewrite app_comm_cons in H4. eapply newSimActionStepsFullFull in H4; eauto. 
+      econstructor. eapply SPut; eauto. erewrite HeapLookupReplace; eauto. 
+      rewrite replaceOverwrite. rewrite replaceOverwrite in H4. eassumption. 
+      erewrite HeapLookupReplace; eauto. eapply spec_multi_trans. eassumption. 
+      econstructor. eapply SPut; eauto. constructor. 
+      rewrite lookupReplaceNeq in H8; eauto. heapsDisagree. }
+     {varsEq x1 x0. heapsDisagree. erewrite lookupExtendNeq in H8; eauto. inv H8. }
+    }
+   }
+   {apply UnionNeqTID in x; auto. copy H1. copy H2.
+    eapply specStepEmptyIVarOr in H2; eauto. inv H2. 
+    {copy H14.  eapply IHspec_multistep in H14; eauto. invertHyp. takeTStep.
+     econstructor. eapply specStepChangeUnused. eapply stepReplaceEmpty. 
+     eauto. eapply H2. eauto. unfoldTac. rewrite UnionSwap. eassumption. 
+     eapply spec_multi_trans. eassumption. invertHyp. takeTStep. constructor. 
+     invertHyp. rewrite H15. rewrite UnionSubtract. unfoldTac. rewrite UnionSwap. 
+     auto. }
+    {inversion H13; subst; try solve[invertHyp; heapsDisagree]. 
+     {varsEq x1 x0; invertHyp. heapsDisagree. rewrite lookupReplaceNeq in H15; auto. 
+      heapsDisagree. }
+     {varsEq x1 x0. inv H14. erewrite HeapLookupReplace in H2; eauto. inv H2. 
+      invertHyp. takeTStep. rewrite H2 in H4. rewrite UnionSwap in H4.
+      eapply newSimActionStepsFullFull in H4; eauto. Focus 2.  
+      erewrite HeapLookupReplace; eauto. Focus 2. eapply spec_multi_trans.
+      eassumption. rewrite H11. rewrite UnionSwap. econstructor. eapply SPut; eauto. 
+      rewrite UnionSubtract. unfoldTac. rewrite UnionSwap. constructor. 
+      econstructor. eapply SPut; eauto. erewrite HeapLookupReplace; eauto. 
+      rewrite replaceOverwrite. rewrite replaceOverwrite in H4. rewrite H2. 
+      rewrite UnionSubtract. unfoldTac. rewrite UnionSwap. eassumption. 
+      invertHyp. rewrite lookupReplaceNeq in H15; eauto. heapsDisagree. }
+     {varsEq x1 x0. heapsDisagree. invertHyp. erewrite lookupExtendNeq in H15; eauto. 
+      inv H15. }
     }
    }
   }
