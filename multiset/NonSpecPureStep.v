@@ -15,6 +15,8 @@ Proof.
    econstructor. simpl in *. eauto. }
   {rewrite <- decomposeErase in H0; eauto. rewrite eraseFill; simpl.
    eapply pbasicProjR. simpl in *. eauto. }
+  {rewrite <- decomposeErase in H0; eauto. rewrite eraseFill; simpl. 
+   eapply pSpecJoinRaise; eauto. simpl in *.  eauto. }
 Qed. 
 
 Theorem NonSpecPureStep' : forall h tid s1 s2 M M' T,

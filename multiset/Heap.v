@@ -16,6 +16,8 @@ Inductive unique (T:Type) (seen:Ensemble id) : rawHeap T -> Prop :=
 Inductive heap (T:Type) : Type := 
 |heap_ : forall h, unique T (Empty_set id) h -> heap T. 
 
+Definition empty (T:Type) : heap T := heap_ T (@nil (id * T)) (nilUnique T (Empty_set id)). 
+
 Fixpoint raw_heap_lookup {T : Type} (i : id) (h : rawHeap T) := 
   match h with
     |(n, v)::h' => if beq_nat i n then Some v else raw_heap_lookup i h'

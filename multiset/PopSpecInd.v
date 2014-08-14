@@ -1,11 +1,11 @@
 Require Import erasure. 
 Require Import IndependenceCommon. 
-
+  
 Ltac solveSet := 
   unfoldTac; simpl;
   match goal with
-      | |- In (Union ?T1 ?T2) ?x => invUnion;try solve[left; solveSet|right;solveSet]
-      | |- List.In ?x (Union ?T1 ?T2) => invUnion;try solve[left; solveSet|right;solveSet]
+      | |- In ?X (Union ?X ?T1 ?T2) ?x => invUnion;try solve[left; solveSet|right;solveSet]
+      | |- List.In ?x (Union ?X ?T1 ?T2) => invUnion;try solve[left; solveSet|right;solveSet]
       | |- ?a \/ ?b => try solve[left; solveSet|right; solveSet]
       |_ => eauto
   end. 
@@ -339,7 +339,7 @@ Proof.
       rewrite coupleUnion.  rewrite Union_associative. repeat rewrite UnionSubtract. 
       rewrite <- Union_associative. rewrite <- Union_associative. 
       rewrite <- Union_associative. 
-      rewrite (Union_associative thread (Single(n::tid,locked s',[],N))).
+      rewrite (Union_associative thread (tSingleton(n::tid,locked s',[],N))).
       rewrite <- coupleUnion. rewrite couple_swap. rewrite Union_associative. 
       rewrite UnionSwap. rewrite <- Union_associative. reflexivity. auto. auto.
       intros c. invertListNeq. }

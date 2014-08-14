@@ -1,17 +1,86 @@
 Require Import erasure. 
 Require Import IndependenceCommon. 
- 
+Require Import eraseRollbackIdempotent. 
+Require Import NonSpecPureStep. 
+
 Hint Constructors actionTerm. 
 
-Definition commitPool' T := forall tid s1 s2 M, tIn T (tid,s1,s2,M) -> 
-                                                s1 = unlocked nil \/ exists N, s1 = specStack nil N.
+Fixpoint commitPool' (T:pool) :=
+  match T with
+      |(tid,unlocked nil,s2,M)::ts => commitPool' ts
+      |(tid, specStack nil N, s2, M)::ts => commitPool' ts
+      |nil => True
+      |_ => False
+  end. 
+Ltac solveSet := 
+  unfoldTac; simpl;
+  match goal with
+      | |- In ?X (Union ?X ?T1 ?T2) ?x => invUnion;try solve[left; solveSet|right;solveSet]
+      | |- List.In ?x (Union ?X ?T1 ?T2) => invUnion;try solve[left; solveSet|right;solveSet]
+      | |- ?a \/ ?b => try solve[left; solveSet|right; solveSet]
+      |_ => eauto
+  end. 
 
-Theorem eqUnspec : forall T, T = unspecPoolAux T -> commitPool' T. 
-Proof. 
-  intros. unfold commitPool'. intros. unfoldSetEq H. apply H1 in H0. inv H0.
-  inv H3; try solve[inv H4; eauto]. 
+Theorem unspecUnspecPool : forall T, unspecPool(unspecPool T) = unspecPool T. 
+Proof.
+  induction T; auto. simpl. rewrite unspecUnionComm. rewrite IHT. 
+  destructThread a. destruct H4; auto. destructLast l; auto. invertHyp. 
+  assert(exists M, actionTerm x M). destruct x; repeat econstructor. 
+  invertHyp. erewrite unspecLastAct; eauto. 
 Qed. 
  
+Theorem unspecCons : forall t T, unspecPool (t::T) = tUnion (unspecThread t) (unspecPool T). 
+Proof. 
+  reflexivity. 
+Qed. 
+
+Theorem unspecLength : forall T t, 
+                 t++T = unspecPool T -> length t = 0. 
+Proof.
+  induction T; intros. 
+  {rewrite app_nil_r in H. inv H. simpl. auto. }
+  {destructThread a. destruct H5. 
+   {simpl in *. 
+    replace (t++(H4, locked l, H3, H1) :: T) with ((t++[(H4, locked l, H3, H1)])++T) in H.
+    Focus 2. rewrite <- app_assoc. simpl. auto. apply IHT in H. rewrite app_length in H. 
+    simpl in *. omega. }
+   {destructLast l. 
+    {simpl in *.
+     replace (t ++ (H4, unlocked [], H3, H1) :: T) with ((t ++ [(H4, unlocked [], H3, H1)])++ T ) in H. 
+     rewrite (Union_commutative thread t) in H. unfold Union in H. simpl in H. inversion H. 
+     eapply IHT in H2. auto. rewrite <- app_assoc. auto. }
+    {invertHyp. assert(exists M, actionTerm x M). destruct x; repeat econstructor. 
+     invertHyp. rewrite unspecCons in H. erewrite unspecLastAct in H. simpl in *.
+     replace (t ++ (H4, unlocked (x0 ++ [x]), H3, H1) :: T) with
+     ((t ++ [(H4, unlocked (x0 ++ [x]), H3, H1)])++T) in H. 
+     rewrite (Union_commutative thread t) in H. unfold Union in H. simpl in H. inversion H. 
+     invertListNeq. rewrite <- app_assoc; auto. eauto. }
+   }
+   {simpl in *. 
+    replace (t ++ (H4, specStack l t0, H3, H1) :: T) with ((t ++ [(H4, specStack l t0, H3, H1)])++T) in H. 
+    rewrite (Union_commutative thread t) in H. simpl in *. inversion H. subst. inversion H. 
+    eapply IHT in H1; eauto. rewrite <- app_assoc. auto. }
+  }
+Qed. 
+
+Theorem eqUnspec : forall T, T = unspecPool T -> commitPool' T. 
+Proof. 
+  induction T; intros.  
+  {unfold commitPool'. auto. }
+  {destructThread a. destruct H5.
+   {copy H. simpl in *. 
+    replace ((H4, locked l, H3, H1) :: T) with ([(H4, locked l, H3, H1)]++T) in H0. 
+    apply unspecLength in H0. simpl in *. inv H0. simpl. auto. }
+   {destructLast l.
+    {simpl in *. apply IHT. inversion H. rewrite unspecUnspecPool. auto. }
+    {invertHyp. assert(exists M, actionTerm x M). destruct x; repeat econstructor. 
+     invertHyp. rewrite unspecCons in H. erewrite unspecLastAct in H; eauto. 
+     unfold tUnion in H. simpl in H. inversion H. invertListNeq. }
+   }
+   {simpl in H. inversion H. simpl. rewrite <- H6. apply IHT. auto. }
+  }
+Qed. 
+
 Theorem eraseTrmConsSame : forall a l M' M'' N,
                              actionTerm a M' -> 
                              eraseTrm l M' M'' -> eraseTrm (a::l) N M''. 
@@ -60,7 +129,7 @@ Theorem specStepCouple : forall H tid s1 s2 M H' T t',
      (exists s1' M', t' = tSingleton(tid,s1',s2,M')) \/
      (exists n N s1' M',t' = tCouple(tid,s1',s2,M') (n::tid,locked nil,nil,N)). 
 Proof.
-  intros. inv H0; unfoldTac; invertHyp; invThreadEq; eauto. 
+  intros. inv H0; eauto. 
   {right. repeat econstructor. }
   {right. repeat econstructor. }
 Qed. 
@@ -83,37 +152,31 @@ Proof.
   intros. destruct b; destruct d; simpl in *; inv H; auto.
 Qed. 
 
+Theorem eraseTrmConsSame'' : forall a M' N s1 s2 tid,
+                             actionTerm a M' -> 
+                             unspecPool(tSingleton(tid,unlocked s1,s2,M')) = 
+                             unspecPool(tSingleton(tid,aCons a (unlocked s1),s2,N)). 
+Proof.
+  induction s1; intros. 
+  {simpl. inv H; auto.  }
+  {simpl. destruct s1. auto. erewrite getLastNonEmpty; eauto. }
+Qed. 
+
 Theorem eraseTrmConsSame' : forall a M' N s1 s2 tid,
                              actionTerm a M' -> 
-                             unspecPoolAux(tSingleton(tid,s1,s2,M')) = 
-                             unspecPoolAux(tSingleton(tid,aCons a s1,s2,N)). 
+                             unspecPool(tSingleton(tid,s1,s2,M')) = 
+                             unspecPool(tSingleton(tid,aCons a s1,s2,N)). 
 Proof.
-  intros. destruct s1. 
-  {simpl. repeat erewrite unspecSingleton; eauto. }
-  {destructLast l. 
-   {simpl. erewrite unspecSingleton; eauto. erewrite unspecSingleton; eauto. 
-    inv H; unspecThreadTac; rewrite app_nil_l; auto.  }
-   {invertHyp. assert(exists t', unspecThread (tid,unlocked(x0++[x]),s2,M') t'). 
-    apply unspecThreadTotal. invertHyp. erewrite unspecSingleton; eauto. 
-    erewrite unspecSingleton; eauto. inv H1; try solve[invertListNeq]; inv H6; 
-    apply lastElementEq in H1; subst; simpl; rewrite app_comm_cons; unspecThreadTac; auto. }
-  }
-  {simpl. repeat erewrite unspecSingleton; eauto. }
+  intros. destruct s1; auto. apply eraseTrmConsSame''. auto. 
 Qed. 
 
 Theorem unspecSpecSame : forall M' N s1 s2 tid,
                            Spec s1 -> 
-                           unspecPoolAux(tSingleton(tid,s1,s2,M')) = 
-                           unspecPoolAux(tSingleton(tid,s1,s2,N)). 
+                           unspecPool(tSingleton(tid,s1,s2,M')) = 
+                           unspecPool(tSingleton(tid,s1,s2,N)). 
 Proof.
-  intros. destruct s1. 
-  {simpl. repeat erewrite unspecSingleton; eauto. }
-  {inv H. destructLast b. 
-   {destruct a; repeat erewrite unspecSingleton; eauto; unspecThreadTac; rewrite app_nil_l; auto. }
-   {invertHyp. rewrite app_comm_cons. destruct x; repeat erewrite unspecSingleton; eauto; 
-    unspecThreadTac; eauto. }
-  }
-  {repeat erewrite unspecSingleton; eauto. }
+  induction s1; auto; intros. 
+  {simpl. inv H; auto. }
 Qed. 
 
 Theorem specStepExistsIn : forall H T t H' t',
@@ -121,22 +184,6 @@ Theorem specStepExistsIn : forall H T t H' t',
                              exists x, tIn t' x. 
 Proof.
   intros. inv H0; repeat econstructor. 
-Qed. 
-  
-Require Import Coq.Logic.Classical_Prop.
- 
-Ltac exMid a b := let n := fresh
-                  in (assert(n:a=b\/a<>b) by apply classic); inv n. 
-
-
-Theorem UnionSubtract : forall U A x,
-                          Ensembles.In U A x ->
-                          A = Union U (Subtract U A x) (Singleton U x). 
-Proof.
-  intros. eqSets. 
-  {assert(x=x0\/x<>x0). apply classic. inv H1. solveSet. constructor. 
-   constructor. auto. intros c. inv c. apply H2; auto. }
-  {inv H0. inv H1. auto. inv H1. auto. }
 Qed. 
 
 Ltac stacksNeq := 
@@ -147,34 +194,22 @@ Ltac stacksNeq :=
           in apply aConsEq in H; inversion H as [n1 n2]; inv n1
   end.
 
-Theorem UnionEqR : forall U T T1 T2, T1 = T2 -> Union U T T1 = Union U T T2. 
-Proof.
-  intros. subst; auto. 
-Qed. 
-Theorem UnionEqL : forall U T T1 T2, T1 = T2 -> Union U T1 T = Union U T2 T. 
+Theorem UnionEqR' : forall (U:Type) (T T1 T2:multiset U), T1 = T2 -> Union U T T1 = Union U T T2. 
 Proof.
   intros. subst; auto. 
 Qed. 
 
-Theorem unspecEmpty : forall tid s2 M, 
-                        unspecPoolAux(tSingleton(tid,locked nil,s2,M)) = tEmptySet. 
-Proof. 
-  intros. erewrite unspecSingleton; eauto. 
+Theorem UnionEqL' : forall U (T T1 T2:multiset U), T1 = T2 -> Union U T1 T = Union U T2 T. 
+Proof.
+  intros. subst; auto. 
 Qed. 
 
 Theorem specStepUnspecEq : forall H T t H' t',
                              spec_step H T t H' T t' ->
-                             unspecPoolAux(tUnion T t') = unspecPoolAux (tUnion T t). 
+                             unspecPool(tUnion T t') = unspecPool (tUnion T t). 
 Proof.
-  intros. inv H0; repeat rewrite unspecUnionComm; unfoldTac.
-  {erewrite unspecSpecSame; eauto. }
-  {rewrite coupleUnion. rewrite unspecUnionComm. rewrite unspecEmpty. unfoldTac. 
-   rewrite union_empty_r. erewrite <- eraseTrmConsSame'; eauto. }
-  {erewrite <- eraseTrmConsSame'; eauto. }
-  {erewrite <- eraseTrmConsSame'; eauto. }
-  {erewrite <- eraseTrmConsSame'; eauto. }
-  {rewrite coupleUnion. rewrite unspecUnionComm. rewrite unspecEmpty. unfoldTac. 
-   rewrite union_empty_r. erewrite <- eraseTrmConsSame'; eauto. }
+  intros. rewrite unspecUnionComm. apply unspecSpecStep in H0. invertHyp. rewrite H2.
+  rewrite unspecUnionComm. reflexivity. 
 Qed. 
 
 Ltac unspecsEq :=
@@ -182,103 +217,127 @@ Ltac unspecsEq :=
 
 Ltac rewriteUnspec :=
   match goal with
-      | |- spec_multistep_rev ?h (unspecPoolAux ?T) ?h' ?T' =>
+      | |- spec_multistep_rev ?h (unspecPool ?T) ?h' ?T' =>
         let n := fresh 
-        in (assert(n:unspecPoolAux T = unspecPoolAux T') by unspecsEq); rewrite n
-      | |- spec_multistep_rev ?h (unspecPoolAux ?T) ?h' ?T' =>
+        in (assert(n:unspecPool T = unspecPool T') by unspecsEq); rewrite n
+      | |- spec_multistep_rev ?h (unspecPool ?T) ?h' ?T' =>
         let n := fresh 
-        in assert(n:unspecPoolAux T = unspecPoolAux T')  
-  end. 
+        in assert(n:unspecPool T = unspecPool T')  
+  end.
 
 Theorem tUnionSwap :forall T1 T2 T3, Union thread (Union thread T1 T2) T3 = tUnion (tUnion T1 T3) T2.
 Proof. 
   intros. unfoldTac. apply UnionSwap. 
 Qed. 
 
+Ltac rewriteSolveSet :=
+  match goal with
+      |H:?T = ?x |- In ?X ?T ?z => rewrite H; solveSet
+  end.
+
+Theorem unspecEmpty : forall tid s1 s2 M, 
+                unspecPool(tSingleton(tid,locked s1,s2,M)) = (Empty_set thread).
+Proof.
+  intros. simpl. auto. 
+Qed. 
+
+Ltac unspecsEq' :=
+  match goal with
+      |H:?T = ?x |- unspecPool(Union ?X ?T ?t') ~= ?z =>
+       rewrite H; rewrite UnionSwap; rewrite subtractUnion;[rewrite UnionSwap;rewrite subtractUnion;
+                                                            [idtac|rewriteSolveSet]|rewriteSolveSet];
+       repeat rewrite unspecUnionComm;erewrite <- eraseTrmConsSame';[eauto|constructor]
+      |H:?T = ?x |- unspecPool(Union ?X ?T ?t') ~= ?z => 
+       rewrite UnionSwap; rewrite subtractUnion;[idtac|rewriteSolveSet]; rewrite H;
+       rewrite UnionSwap; rewrite subtractUnion;[idtac|rewriteSolveSet]; rewrite coupleUnion;
+       repeat rewrite unspecUnionComm; rewrite unspecEmpty; unfoldTac; rewrite union_empty_r;
+       erewrite <- eraseTrmConsSame'; eauto
+      |H:?T = ?x |- unspecPool(Union ?X ?T ?t') ~= ?z =>
+       rewrite H; rewrite UnionSwap; rewrite subtractUnion;[rewrite UnionSwap;rewrite subtractUnion;
+                                                            [idtac|rewriteSolveSet]|rewriteSolveSet];
+       repeat rewrite unspecUnionComm
+  end. 
+
 Theorem passThroughWrite : forall M M' T s1 sc s2 H H' tid x E N' d,
         heap_lookup x H' = Some (sfull sc [] SPEC tid N') -> 
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,aCons (wAct x M' E N' d) s1,s2,M))))
+        spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,aCons (wAct x M' E N' d) s1,s2,M))))
                        H' (tUnion T(tSingleton(tid,aCons (wAct x M' E N' d) s1,s2,M))) ->
-          spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,s1,s2,M'))))
+          spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,s1,s2,M'))))
                              (replace x (sempty sc) H') (tUnion T(tSingleton(tid,s1,s2,M'))). 
 Proof.
   intros. dependent induction H1. 
-  {symmetry in x. apply eqUnspec in x. unfold commitPool' in x. 
-   assert(tIn(tUnion T(tSingleton(tid,aCons(wAct x0 M' E N' d)s1,s2,M)))(tid,aCons(wAct x0 M' E N' d)s1,s2,M)). 
-   apply InL. constructor. apply x in H. inv H. destruct s1; inv H1. invertHyp. 
-   destruct s1; inv H. }
+  {symmetry in x. apply eqUnspec in x. unfoldTac. rewrite Union_commutative in x.
+   destruct s1; simpl in *; contradiction. }
   {inv H. 
-   {copy x. unfoldSetEq x. eqIn H4. inv H6. 
-    {takeTStep. Focus 2. eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap.  
-     eapply IHspec_multistep_rev; eauto. rewrite H7. rewrite subtractSingle.
-     repeat rewrite unspecUnionComm. apply UnionEqL. erewrite unspecSpecSame; eauto.
-     proveUnionEq H. rewrite H7. solveSet. }
-    {inv H7. apply UnionEqTID in H. invertHyp. cleanup. eapply IHspec_multistep_rev. 
-     Focus 2. unspecsEq. eauto. auto. auto. }
-   } 
-   {copy x. unfoldSetEq x. eqIn H3. inv H4. 
-    {symmetry in H. apply UnionSingletonCoupleEq in H; eauto.  
-     rewrite H. unfoldTac. rewrite UnionSwap. econstructor. Focus 2. eapply SFork; eauto. 
-     unfoldTac. rewrite UnionSwap. rewriteUnspec. rewrite UnionSwap.
-     eapply IHspec_multistep_rev; eauto. rewrite H. rewrite tUnionSwap.
-     rewrite UnionSwap. erewrite specStepUnspecEq; eauto. rewrite UnionSwap. 
-     rewrite <- UnionSubtract. auto. auto. }
-    {inv H5. stacksNeq. destruct s1; simpl in *; inv H8. }
+   {exMid tid tid0. 
+    {apply UnionEqTID in x. invertHyp. eapply IHspec_multistep_rev. eauto. 
+     Focus 3. auto. Focus 2. auto. repeat rewrite unspecUnionComm. 
+     erewrite unspecSpecSame; eauto. }
+    {apply UnionNeqTID in x;auto. invertHyp. takeTStep. econstructor. Focus 2. 
+     eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap.  
+     eapply IHspec_multistep_rev; eauto. unspecsEq'. erewrite unspecSpecSame; eauto.
+     rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. }
    }
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
-    {varsEq x1 x0. erewrite HeapLookupReplace in H0; eauto. inv H0. takeTStep. 
-     Focus 2. eapply SGet with(h:=replace x0 (sempty sc) h'); eauto.
-     rewrite lookupReplaceNeq; eauto. rewrite lookupReplaceSwitch; eauto. 
-     rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
-     rewrite lookupReplaceNeq in H0; eauto. rewrite H6. rewrite subtractSingle.
-     repeat rewrite unspecUnionComm. apply UnionEqL. erewrite <- eraseTrmConsSame'; eauto.
-     proveUnionEq H. rewrite H6. solveSet. }
-    {inv H6. stacksNeq. }
-   } 
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
-    {varsEq x1 x0. 
-     {erewrite HeapLookupReplace in H0; eauto. inv H0. apply UnionEqTID in H. invertHyp.
-      stacksNeq. rewrite replaceOverwrite. rewrite unspecUnionComm in *. 
-      erewrite <- eraseTrmConsSame' in H1; eauto. rewrite replaceSame; eauto. }
-     {rewrite lookupReplaceNeq in H0; eauto. takeTStep. Focus 2. 
-      eapply SPut with(h:=replace x0 (sempty sc) h'); eauto.
-      rewrite lookupReplaceNeq; eauto. rewrite lookupReplaceSwitch; eauto. 
-      rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
-      rewrite H6. rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-      erewrite <- eraseTrmConsSame'; eauto. proveUnionEq H. rewrite H6. solveSet. }
+   {exMid tid tid0. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. 
+     stacksNeq. }
+    {exMid (plus(numForks b) (numForks' s0)::tid0) tid. 
+     {unfoldTac; rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct s1; simpl in *; inv H. }
+     {symmetry in x. apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SFork; auto. rewriteUnspec. unfoldTac. 
+      rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq'. rewrite UnionSwap. 
+      rewrite subtractUnion. auto. rewriteSolveSet. intros c. invertListNeq. }
     }
-    {inv H6. apply UnionEqTID in H. invertHyp. stacksNeq. rewrite replaceOverwrite. 
-     rewrite unspecUnionComm in *. erewrite <- eraseTrmConsSame' in H1; eauto.
-     rewrite replaceSame; eauto. erewrite HeapLookupReplace in H0; eauto. inv H0. 
-     eauto. }
    }
-   {copy x. unfoldSetEq x. eqIn H2. inv H4. 
-    {varsEq x1 x0. erewrite lookupExtend in H0; eauto. inv H0. takeTStep. 
-     Focus 2. eapply SNew with(h:=replace x0 (sempty sc) h'); eauto.
-     erewrite extendReplaceSwitch; eauto. erewrite lookupExtendNeq in H0; eauto.
-     rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
-     erewrite lookupExtendNeq in H0; eauto. rewrite H5. rewrite subtractSingle.
-     repeat rewrite unspecUnionComm. apply UnionEqL. erewrite <- eraseTrmConsSame'; eauto.
-     proveUnionEq H. rewrite H5. solveSet. }
-    {inv H5. stacksNeq. }
+   {exMid TID tid. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {varsEq x1 x0. erewrite HeapLookupReplace in H0; eauto. inv H0. 
+     apply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2.
+     eapply SGet with(h:=replace x0 (sempty sc) h'); eauto.
+     rewrite lookupReplaceNeq; eauto. rewrite lookupReplaceSwitch; eauto. 
+     rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto.
+     rewrite lookupReplaceNeq in H0; auto. eauto. unspecsEq'. rewrite UnionSwap. 
+     rewrite subtractUnion. eauto. rewriteSolveSet. }
    }
-   {copy x. unfoldSetEq x. eqIn H3. inv H4. 
-    {symmetry in H. apply UnionSingletonCoupleEq in H; eauto.  
-     rewrite H. unfoldTac. rewrite UnionSwap. econstructor. Focus 2. eapply SSpec; eauto. 
-     unfoldTac. rewrite UnionSwap. rewriteUnspec. rewrite UnionSwap.
-     eapply IHspec_multistep_rev; eauto. rewrite H. rewrite tUnionSwap.
-     rewrite UnionSwap. erewrite specStepUnspecEq; eauto. rewrite UnionSwap. 
-     rewrite <- UnionSubtract. auto. auto. }
-    {inv H5. stacksNeq. destruct s1; simpl in *; inv H8. }
+   {exMid TID tid. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. erewrite HeapLookupReplace in H0; eauto. 
+     inv H0. rewrite replaceOverwrite. rewrite unspecUnionComm in *. rewrite replaceSame; eauto. 
+     erewrite <- eraseTrmConsSame' in H1; eauto. }
+    {exMid x1 x0. erewrite HeapLookupReplace in H0; eauto. inv H0. exfalso. apply H3; auto. 
+     apply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+     eapply SPut with (h:=replace x0 (sempty sc) h'); eauto. rewrite lookupReplaceNeq; eauto. 
+     rewrite lookupReplaceSwitch ;eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+     eapply IHspec_multistep_rev; eauto. rewrite lookupReplaceNeq in H0; eauto. unspecsEq'.
+     rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. }
+   }
+   {exMid tid tid0. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid x1 x0. erewrite lookupExtend in H0. inv H0. eapply UnionNeqTID in x; auto. 
+     invertHyp. takeTStep. econstructor. Focus 2.
+     eapply SNew with (h:=replace x0 (sempty sc) h'); eauto. erewrite extendReplaceSwitch; eauto. 
+     erewrite lookupExtendNeq in H0; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+     eapply IHspec_multistep_rev; eauto. erewrite lookupExtendNeq in H0; eauto. unspecsEq'. 
+     rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. }
+   }
+   {unfoldTac. exMid tid tid0. 
+    {rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid tid (2::tid0). 
+     {rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. destruct s1; inv H. }
+     {symmetry in x. apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SSpec; eauto. rewriteUnspec. unfoldTac. 
+      rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq'. rewrite UnionSwap. 
+      rewrite subtractUnion. auto. rewriteSolveSet. intros c. invertListNeq. }
+    }
    }
   }
-  Grab Existential Variables. assumption. assumption. eauto.
-  rewrite lookupReplaceNeq; eauto. assumption. assumption. assumption. assumption. 
+  Grab Existential Variables. auto. eauto. rewrite lookupReplaceNeq; eauto. auto. 
+  auto. 
 Qed. 
 
 Theorem lookupRemoveNeq : forall (T:Type) x x' H (v:option T),
                             x <> x' -> heap_lookup x H = v ->
-                            heap_lookup x (remove H x') = v.
+                            heap_lookup x (Heap.remove H x') = v.
 Proof.
   destruct H. induction h; intros. 
   {simpl in *. auto. }
@@ -313,155 +372,281 @@ Proof.
 Qed. 
 
 Theorem removeReplaceSwitch : forall (T:Type) x x' H (v:T),
-                                x<>x' -> remove (replace x v H) x' = replace x v (remove H x'). 
+                                x<>x' -> Heap.remove (Heap.replace x v H) x' =
+                                         Heap.replace x v (Heap.remove H x'). 
 Proof.
   intros. destruct H. simpl. apply rawHeapsEq. eapply raw_removeReplaceSwitch; eauto. 
 Qed. 
 
 Theorem removeExtendSwitch : forall (T:Type) x x' H (v:T) p p',
-                               x<>x' -> remove (extend x v H p) x' = extend x v (remove H x') p'. 
+                               x<>x' -> Heap.remove (Heap.extend x v H p) x' = 
+                                        Heap.extend x v (Heap.remove H x') p'. 
 Proof.
   intros. destruct H. simpl. apply rawHeapsEq. apply neqSym in H0. 
   apply beq_nat_false_iff in H0. rewrite H0. unfold raw_extend. auto.
 Qed. 
 
 Theorem removeExtend : forall (T:Type) H x (v:T) p,
-                         remove(extend x v H p) x = H.
+                         Heap.remove(Heap.extend x v H p) x = H.
 Proof.
   intros. destruct H. simpl. apply rawHeapsEq. rewrite <- beq_nat_refl. auto. 
 Qed. 
-  
 
-Theorem unspecSetminusComm : forall T1 T2, unspecPoolAux(Setminus thread T1 T2) = 
-                                           Setminus thread (unspecPoolAux T1) (unspecPoolAux T2). 
+Definition Included (A:Type) T1 T2 := forall (x:A), In A T1 x -> In A T2 x. 
+ 
+Theorem subtractUnspec : forall T t t',
+                           tIn T t ->
+                           unspecThread t = unspecThread t' ->
+                           tUnion (unspecPool (Subtract thread T t)) (unspecPool(tSingleton t')) = unspecPool T.
 Proof.
-  intros. eqSets. 
-  {inversion H; subst. inversion H0; subst. inv H4. inversion H; subst. 
-   inversion H4; subst. inv H8. econstructor. Focus 2. inv H7. inversion H5; subst. 
-   inv H6. intros c. inv c. inv H7. inv H10. inv H6. invThreadEq. contradiction. 
-   inv H10. inv H6. Admitted. 
-
-Theorem UnionSetminus : forall (X : Type) (T : Ensemble X) x1,
-       Included X x1 T -> (Union X (Setminus X T x1) x1) = T.
-Proof.
-  intros. eqSets.
-  {inv H0. inv H1; auto. unfold Included in H. apply H in H1. auto. }
-  {assert(Ensembles.In X x1 x \/ ~Ensembles.In X x1 x). apply classic. inv H1; solveSet. }
+  induction T; intros. 
+  {inv H. }
+  {simpl in *. destruct (classicT(a=t)). 
+   {unfoldTac. rewrite union_empty_r. subst. rewrite H0.
+    rewrite Union_commutative. auto. }
+   {inv H. exfalso. apply n; auto. simpl. unfoldTac. rewrite union_empty_r.  
+    erewrite <- IHT. Focus 2. eauto. Focus 2. eauto. rewrite union_empty_r. 
+    rewrite Union_associative. auto. }
+  }
 Qed. 
 
-Theorem subtractUnspecEq : forall T t1 t2,
-                             Included thread (unspecPoolAux (tSingleton t1)) (unspecPoolAux T) ->
-                             unspecPoolAux (tSingleton t1) = unspecPoolAux(tSingleton t2) ->
-                             tUnion (unspecPoolAux(Subtract thread T t1)) (unspecPoolAux (tSingleton t2)) =
-                             (unspecPoolAux T) .
+Theorem SubExpand : forall (A:Type) T (x:A) T',
+                      In A T x -> Union A (Subtract A T x) T' = Subtract A (Union A T T') x. 
 Proof.
-  intros. unfold Subtract. rewrite unspecSetminusComm. unfoldTac.
-  rewrite H0. apply UnionSetminus. rewrite H0 in H. auto. 
-Qed.
-  
+  induction T; intros. 
+  {inv H. }
+  {inv H. 
+   {simpl. destruct (classicT (x=x)). 
+    {auto. }
+    {exfalso. apply n; auto. }
+   }
+   {simpl. destruct (classicT (a=x)). 
+    {auto. } 
+    {simpl. rewrite IHT; auto. }
+   }
+  }
+Qed. 
+
+Theorem SubSwitch : forall (A:Type) T (x x':A), 
+                      Subtract A (Subtract A T x) x' = Subtract A (Subtract A T x') x. 
+Proof.
+  induction T; intros. 
+  {simpl. auto. }
+  {simpl. destruct (classicT (a=x)); destruct (classicT (a=x')). 
+   {subst. rewrite e0. auto. }
+   {simpl. destruct (classicT(a=x)); try contradiction. auto. }
+   {simpl. destruct(classicT(a=x') ); try contradiction. auto. }
+   {simpl. destruct (classicT(a=x')); try contradiction. 
+    destruct (classicT(a=x)); try contradiction. erewrite IHT; eauto. }
+  }
+Qed. 
+
+
+Theorem unspecSubtractEmpty : forall T t, 
+                                unspecThread t = Empty_set thread ->
+                                unspecPool (Subtract thread T t) = unspecPool T. 
+Proof.
+  induction T; intros. 
+  {simpl. auto. }
+  {simpl. destruct (classicT(a=t)) eqn:eq.
+   {subst. rewrite H. unfoldTac. simpl. auto. }
+   {simpl. rewrite IHT; eauto. }
+  }
+Qed. 
+
+
+Theorem InSubNeq : forall (A:Type) T (t1 t2 : A),
+                     In A T t2 -> t1 <> t2 ->
+                     In A (Subtract A T t1) t2.
+Proof.
+  induction T; intros. 
+  {inv H. }
+  {simpl. destruct (classicT(a=t1)). 
+   {subst. inv H. exfalso. apply H0; auto. auto. } 
+   {simpl. inv H. auto. right. eauto. }
+  }
+Qed. 
+
+
+Theorem unspecSingleton : forall t, 
+                            unspecPool (tSingleton t) = unspecThread t.
+Proof.
+  intros. simpl. unfoldTac. rewrite Union_commutative. auto. 
+Qed. 
+
+Theorem lookupExtendNeq : forall (T:Type) H x x' (v':T) p,
+                            x<>x' ->
+                            heap_lookup x (Heap.extend x' v' H p) = heap_lookup x H. 
+Proof.
+  intros. destruct H. simpl. apply beq_nat_false_iff in H0. rewrite H0. auto.
+Qed. 
+
 Theorem smultiRevNewFull : forall H T H' tid M' E d x s1 s2 M,
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,aCons (nAct M' E d x) s1,s2,M))))
-                           H' (tUnion T(tSingleton(tid,aCons (nAct M' E d x) s1,s2,M))) ->
+        spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,aCons (nAct M' E d x) s1,s2,M))))
+                           H' (tUnion T(tSingleton(tid,aCons (nAct M' E d x) s1,s2,M))) -> 
                              exists v, heap_lookup x H' = Some v.
 Proof.
-  intros. generalize_eqs_vars H0. induction H0; simplify_dep_elim; intros.
-  {symmetry in x. apply eqUnspec in x. admit. }
-  {inv H. 
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
-    {eapply IHspec_multistep_rev. Focus 2. proveUnionEq H. repeat rewrite unspecUnionComm. 
-     rewrite subtractUnspecEq. auto. unfold Included. intros. inv H5. inv H8. 
-     invThreadEq. inv H5. econstructor. econstructor; eauto. eauto. eauto.
-     erewrite unspecSpecSame; eauto. }
-    {inv H6. eapply IHspec_multistep_rev. Focus 2. auto. repeat rewrite unspecUnionComm.
-     apply UnionEqTID in H. invertHyp. erewrite unspecSpecSame; eauto. }
+  intros. dependent induction H0.
+  {symmetry in x. apply eqUnspec in x. unfoldTac. rewrite Union_commutative in x. 
+   destruct s1; simpl in *; contradiction. }
+  {startIndCase. destructThread x1. exMid tid H6. 
+   {inv H. 
+    {apply UnionEqTID in x. invertHyp. eapply IHspec_multistep_rev. Focus 2. eauto. 
+     repeat rewrite unspecUnionComm. erewrite unspecSpecSame; eauto. }
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {unfoldTac. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {unfoldTac. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {unfoldTac. apply UnionEqTID in x. invertHyp. stacksNeq. econstructor. 
+     rewrite lookupExtend; eauto. }
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
    }
-   {Admitted. 
-
-
-Ltac rewriteUnspecHyp :=
-  match goal with
-      | H:spec_multistep_rev ?h (unspecPoolAux ?T) ?h' ?T' |- _ =>
-        assert(unspecPoolAux T = unspecPoolAux T')  
-  end. 
-
+   {inv H. 
+    {apply UnionNeqTID in x; auto. invertHyp. eapply IHspec_multistep_rev. Focus 2. 
+     rewrite H. unfoldTac. rewrite UnionSwap. auto. unfoldTac.
+     repeat erewrite unspecUnionComm. apply EqJMeq. apply UnionEqL'. rewrite H1. 
+     rewrite UnionSubtract. rewrite unspecUnionComm. erewrite unspecSpecSame; eauto. }
+    {exMid tid ((numForks H7 + numForks' H5)%nat :: H6). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct s1; simpl in *; inv H. }
+     {symmetry in x. apply UnionCoupleNeqTID in x; auto. invertHyp. eapply IHspec_multistep_rev. 
+      Focus 2. rewrite H8. unfoldTac. rewrite UnionSwap. eauto. unfoldTac. 
+      repeat erewrite unspecUnionComm. apply EqJMeq. apply UnionEqL'. rewrite SubSwitch. 
+      rewrite subtractUnspec. rewrite unspecSubtractEmpty; auto. apply InSubNeq. 
+      rewriteSolveSet. intros c. inversion c. destruct H7; inv H11.
+      destruct H7; auto. destruct l. auto. uCons a l. erewrite unspecTwoActs'; eauto. auto. 
+      intros c. invertListNeq. }
+    }
+    {varsEq x1 x0.
+     {econstructor. erewrite HeapLookupReplace; eauto. }
+     {rewrite lookupReplaceNeq; auto. apply UnionNeqTID in x; auto. invertHyp. 
+      eapply IHspec_multistep_rev. Focus 2. rewrite H1. unfoldTac. rewrite UnionSwap. 
+      eauto. rewrite H8. rewrite UnionSubtract. repeat rewrite unspecUnionComm. 
+      erewrite <- eraseTrmConsSame'; eauto. }
+    }
+    {varsEq x1 x0. 
+     {econstructor. erewrite HeapLookupReplace; eauto. }
+     {rewrite lookupReplaceNeq; eauto. apply UnionNeqTID in x; auto. invertHyp. 
+      eapply IHspec_multistep_rev. Focus 2. rewrite H1. unfoldTac. rewrite UnionSwap. 
+      eauto. rewrite H8. rewrite UnionSubtract. repeat rewrite unspecUnionComm. 
+      erewrite <- eraseTrmConsSame'; eauto. }
+    }
+    {varsEq x1 x0. 
+     {econstructor. erewrite lookupExtend; eauto. }
+     {erewrite lookupExtendNeq; eauto. apply UnionNeqTID in x; auto. invertHyp. 
+      eapply IHspec_multistep_rev. Focus 2. rewrite H1. unfoldTac. rewrite UnionSwap. 
+      eauto. rewrite H8. rewrite UnionSubtract. repeat rewrite unspecUnionComm. 
+      erewrite <- eraseTrmConsSame'; eauto. }
+    }
+    {exMid tid (2%nat :: H6). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct s1; simpl in *; inv H. }
+     {symmetry in x. apply UnionCoupleNeqTID in x; auto. invertHyp. eapply IHspec_multistep_rev. 
+      Focus 2. rewrite H8. unfoldTac. rewrite UnionSwap. eauto. unfoldTac. 
+      repeat erewrite unspecUnionComm. apply EqJMeq. apply UnionEqL'. rewrite SubSwitch. 
+      rewrite subtractUnspec. rewrite unspecSubtractEmpty; auto. apply InSubNeq. 
+      rewriteSolveSet. intros c. inversion c. destruct H7; inv H11.
+      destruct H7; auto. destruct l. auto. uCons a l. erewrite unspecTwoActs'; eauto. auto. 
+      intros c. invertListNeq. }
+    }
+   }
+  }
+Qed. 
 
 Theorem passThroughNew : forall M M' T s1 s2 H H' tid x E d,
         heap_lookup x H' = Some (sempty SPEC) -> 
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,aCons (nAct M' E d x) s1,s2,M))))
+        spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,aCons (nAct M' E d x) s1,s2,M))))
                        H' (tUnion T(tSingleton(tid,aCons (nAct M' E d x) s1,s2,M))) ->
-          spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,s1,s2,M'))))
-                             (remove H' x) (tUnion T(tSingleton(tid,s1,s2,M'))). 
+          spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,s1,s2,M'))))
+                             (Heap.remove H' x) (tUnion T(tSingleton(tid,s1,s2,M'))). 
 Proof.
   intros. dependent induction H1. 
-  {symmetry in x. apply eqUnspec in x. unfold commitPool' in x. 
-   assert(tIn(tUnion T(tSingleton(tid,aCons(nAct M' E d x0)s1,s2,M)))(tid,aCons(nAct M' E d x0)s1,s2,M)). 
-   apply InL. constructor. apply x in H. inv H. destruct s1; inv H1. invertHyp. 
-   destruct s1; inv H. }
+  {symmetry in x. apply eqUnspec in x. unfoldTac. rewrite Union_commutative in x.
+   destruct s1; simpl in *; contradiction. }
   {inv H. 
-   {copy x. unfoldSetEq x. eqIn H4. inv H6. 
-    {takeTStep. Focus 2. eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap.  
-     eapply IHspec_multistep_rev; eauto. rewrite H7. rewrite subtractSingle.
-     repeat rewrite unspecUnionComm. apply UnionEqL. erewrite unspecSpecSame; eauto.
-     proveUnionEq H. rewrite H7. solveSet. }
-    {inv H7. apply UnionEqTID in H. invertHyp. cleanup. eapply IHspec_multistep_rev. 
-     Focus 2. unspecsEq. eauto. auto. auto. }
-   } 
-   {copy x. unfoldSetEq x. eqIn H3. inv H4. 
-    {symmetry in H. apply UnionSingletonCoupleEq in H; eauto.  
-     rewrite H. unfoldTac. rewrite UnionSwap. econstructor. Focus 2. eapply SFork; eauto. 
-     unfoldTac. rewrite UnionSwap. rewriteUnspec. rewrite UnionSwap.
-     eapply IHspec_multistep_rev; eauto. rewrite H. rewrite tUnionSwap.
-     rewrite UnionSwap. erewrite specStepUnspecEq; eauto. rewrite UnionSwap. 
-     rewrite <- UnionSubtract. auto. auto. }
-    {inv H5. stacksNeq. destruct s1; simpl in *; inv H8. }
+   {exMid tid tid0. 
+    {apply UnionEqTID in x. invertHyp. eapply IHspec_multistep_rev. eauto. 
+     Focus 3. auto. Focus 2. auto. repeat rewrite unspecUnionComm. 
+     erewrite unspecSpecSame; eauto. }
+    {apply UnionNeqTID in x;auto. invertHyp. takeTStep. econstructor. Focus 2. 
+     eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap.  
+     eapply IHspec_multistep_rev; eauto. unspecsEq'. erewrite unspecSpecSame; eauto.
+     rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. }
    }
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
-    {varsEq x1 x0. erewrite HeapLookupReplace in H0; eauto. inv H0.  takeTStep. 
-     Focus 2. eapply SGet with(h:=remove h' x0); eauto. erewrite lookupRemoveNeq; eauto. 
-     rewrite removeReplaceSwitch; auto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
-     eapply IHspec_multistep_rev; eauto. rewrite lookupReplaceNeq in H0; eauto. rewrite H6. 
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     erewrite <- eraseTrmConsSame'; eauto. proveUnionEq H. rewrite H6. solveSet. }
-    {inv H6. stacksNeq. }
-   } 
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
+   {exMid tid tid0. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. 
+     stacksNeq. }
+    {exMid (plus(numForks b) (numForks' s0)::tid0) tid. 
+     {unfoldTac; rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct s1; simpl in *; inv H. }
+     {symmetry in x. apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SFork; auto. rewriteUnspec. unfoldTac. 
+      rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq'. rewrite UnionSwap. 
+      rewrite subtractUnion. auto. rewriteSolveSet. intros c. invertListNeq. }
+    }
+   }
+   {exMid TID tid. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. }
     {varsEq x1 x0. erewrite HeapLookupReplace in H0; eauto. inv H0. 
-     rewrite lookupReplaceNeq in H0; eauto. takeTStep. Focus 2. 
-     eapply SPut with(h:=remove h' x0); eauto. eapply lookupRemoveNeq; eauto. 
-     rewrite removeReplaceSwitch; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
-     eapply IHspec_multistep_rev; eauto. rewrite H6. rewrite subtractSingle. 
-     repeat rewrite unspecUnionComm. apply UnionEqL. erewrite <- eraseTrmConsSame'; eauto. 
-     proveUnionEq H. rewrite H6. solveSet. } 
-    {inv H6. stacksNeq. }
+     apply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2.
+     eapply SGet with(h:=Heap.remove h' x0); eauto.
+     erewrite lookupRemoveNeq; eauto. rewrite removeReplaceSwitch; eauto. 
+     rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto.
+     rewrite lookupReplaceNeq in H0; auto. eauto. unspecsEq'. rewrite UnionSwap. 
+     rewrite subtractUnion. eauto. rewriteSolveSet. }
    }
-   {copy x. unfoldSetEq x. eqIn H2. inv H4. 
-    {varsEq x1 x0. apply UnionSingletonEq in H. rewrite H in H1. unfoldTac. 
-     rewrite UnionSwap in H1. rewriteUnspecHyp. 
-
-
-
-admit. rewrite H4 in H1. 
-     eapply smultiRevNewFull in H1. invertHyp. heapsDisagree. auto. takeTStep. Focus 2. eapply SNew. 
-     erewrite removeExtendSwitch; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
-     eapply IHspec_multistep_rev; eauto. erewrite lookupExtendNeq in H0; eauto. 
-     rewrite H5. rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     erewrite <- eraseTrmConsSame'; eauto. proveUnionEq H. rewrite H5. solveSet. }
-    {inv H5. stacksNeq. rewrite removeExtend. rewrite unspecUnionComm in *.
-     apply UnionEqTID in H. invertHyp. erewrite <- eraseTrmConsSame' in H1; eauto. }
+   {exMid TID tid. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid x1 x0. erewrite HeapLookupReplace in H0; eauto. inv H0. 
+     apply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+     eapply SPut with (h:=Heap.remove h' x0); eauto. erewrite lookupRemoveNeq. eapply H2.
+     auto. auto. rewrite removeReplaceSwitch ;eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+     eapply IHspec_multistep_rev; eauto. rewrite lookupReplaceNeq in H0; eauto. unspecsEq'.
+     rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. }
    }
-   {copy x. unfoldSetEq x. eqIn H3. inv H4. 
-    {symmetry in H. apply UnionSingletonCoupleEq in H; eauto.  
-     rewrite H. unfoldTac. rewrite UnionSwap. econstructor. Focus 2. eapply SSpec; eauto. 
-     unfoldTac. rewrite UnionSwap. rewriteUnspec. rewrite UnionSwap.
-     eapply IHspec_multistep_rev; eauto. rewrite H. rewrite tUnionSwap.
-     rewrite UnionSwap. erewrite specStepUnspecEq; eauto. rewrite UnionSwap. 
-     rewrite <- UnionSubtract. auto. auto. }
-    {inv H5. stacksNeq. destruct s1; simpl in *; inv H8. }
+   {exMid tid tid0. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. rewrite removeExtend; eauto. 
+     rewrite unspecUnionComm in *. erewrite <- eraseTrmConsSame' in H1; eauto. }
+    {exMid x1 x0.
+     {apply UnionNeqTID in x; auto. invertHyp. rewrite H in H1. unfoldTac. 
+      rewrite UnionSwap in H1.  
+      assert(T = (tUnion
+               (Subtract thread T
+                  (tid0, aCons (nAct t E0 d0 x0) b, s0,
+                  fill E0 (ret (fvar x0)))) 
+               (tSingleton (tid0, aCons (nAct t E0 d0 x0) b, s0, fill E0 (ret (fvar x0)))))). 
+      rewrite H3. rewrite UnionSubtract. auto. 
+      assert(unspecPool
+            (Union thread T
+               (Single thread (tid, aCons (nAct M' E d x0) s1, s2, M))) =
+         unspecPool(Union thread
+            (Union thread
+               (Subtract thread T
+                  (tid0, aCons (nAct t E0 d0 x0) b, s0,
+                  fill E0 (ret (fvar x0)))) (Single thread (tid0, b, s0, t)))
+            (Single thread (tid, aCons (nAct M' E d x0) s1, s2, M)))).
+      rewrite H4. rewrite UnionSubtract. repeat rewrite unspecUnionComm. 
+      erewrite <- eraseTrmConsSame'. eauto. constructor. 
+      unfoldTac. rewrite H5 in H1. eapply smultiRevNewFull in H1. invertHyp. heapsDisagree. }
+     {eapply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2.
+      eapply SNew with (h:=Heap.remove h' x0); eauto. erewrite removeExtendSwitch; eauto. 
+      rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
+      erewrite lookupExtendNeq in H0; eauto. unspecsEq'. rewrite UnionSwap.
+      rewrite subtractUnion. auto. rewriteSolveSet. }
+    }
+   }
+   {unfoldTac. exMid tid tid0. 
+    {rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid tid (2::tid0). 
+     {rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. destruct s1; inv H. }
+     {symmetry in x. apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SSpec; eauto. rewriteUnspec. unfoldTac. 
+      rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq'. rewrite UnionSwap. 
+      rewrite subtractUnion. auto. rewriteSolveSet. intros c. invertListNeq. }
+    }
    }
   }
-  Grab Existential Variables. auto. auto. erewrite lookupExtendNeq in H0; eauto. 
-  erewrite lookupRemoveNeq; eauto. auto. auto. auto. auto. 
-
+  Grab Existential Variables. auto. eauto. erewrite lookupRemoveNeq; eauto. 
+  auto. auto. 
 Qed. 
 
 Theorem alignLists : forall (T:Type) (a:list T) b c d, 
@@ -483,281 +668,398 @@ Qed.
 
 Theorem passThroughRead : forall M M' T s1 ds1 ds2 sc s2 H H' tid TID x E N' d,
         heap_lookup x H' = Some (sfull sc (ds1++[tid]++ds2) SPEC TID N') -> ~List.In tid ds1 ->
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,aCons (rAct x M' E d) s1,s2,M))))
+        spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,aCons (rAct x M' E d) s1,s2,M))))
                        H' (tUnion T(tSingleton(tid,aCons (rAct x M' E d) s1,s2,M))) ->
-          spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,s1,s2,M'))))
+          spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,s1,s2,M'))))
                              (replace x (sfull sc (ds1++ds2) SPEC TID N') H') (tUnion T(tSingleton(tid,s1,s2,M'))). 
 Proof.
   intros. genDeps{ds1;ds2}. depInd H2. 
-  {symmetry in x. apply eqUnspec in x. unfold commitPool' in x. 
-   assert(tIn(tUnion T(tSingleton(tid,aCons(rAct x0 M' E d)s1,s2,M)))(tid,aCons(rAct x0 M' E d)s1,s2,M)). 
-   apply InL. constructor. apply x in H. inv H. destruct s1; inv H2. invertHyp. 
-   destruct s1; inv H. }
+  {symmetry in x. apply eqUnspec in x. unfoldTac. rewrite Union_commutative in x.
+   destruct s1; simpl in *; contradiction. }
   {inv H. 
-   {copy x. unfoldSetEq x. eqIn H5. inv H7. 
-    {takeTStep. Focus 2. eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap.  
-     eapply IHspec_multistep_rev; eauto. rewrite H8. rewrite subtractSingle.
-     repeat rewrite unspecUnionComm. apply UnionEqL. erewrite unspecSpecSame; eauto.
-     proveUnionEq H. rewrite H8. solveSet. }
-    {inv H8. apply UnionEqTID in H. invertHyp. cleanup. eapply IHspec_multistep_rev. 
-     Focus 3. auto. unspecsEq. eauto. auto. auto. }
+   {exMid tid tid0. 
+    {apply UnionEqTID in x. invertHyp. eapply IHspec_multistep_rev. Focus 2. auto.
+     Focus 2. auto. Focus 2. eauto. Focus 2. auto. repeat rewrite unspecUnionComm. 
+     erewrite unspecSpecSame; eauto. }
+    {apply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+     eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+     eapply IHspec_multistep_rev; eauto. unspecsEq'. erewrite unspecSpecSame; eauto.
+     rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. }
    }
-   {copy x. unfoldSetEq x. eqIn H4. inv H5. 
-    {symmetry in H. apply UnionSingletonCoupleEq in H; eauto.  
-     rewrite H. unfoldTac. rewrite UnionSwap. econstructor. Focus 2. eapply SFork; eauto. 
-     unfoldTac. rewrite UnionSwap. rewriteUnspec. rewrite UnionSwap.
-     eapply IHspec_multistep_rev; eauto. rewrite H. rewrite tUnionSwap.
-     rewrite UnionSwap. erewrite specStepUnspecEq; eauto. rewrite UnionSwap. 
-     rewrite <- UnionSubtract. auto. auto. }
-    {inv H6. stacksNeq. destruct s1; simpl in *; inv H9. }
-   } 
-   {copy x. unfoldSetEq x. eqIn H4. inv H6. 
-    {exMid tid TID0. 
-     {apply UnionEqTID in H. invertHyp. stacksNeq. rewrite replaceOverwrite. 
-      erewrite HeapLookupReplace in H0; eauto. inv H0. copy H10. eapply alignLists in H10; auto. 
-      invertHyp. simpl in *. rewrite replaceSame; eauto. rewrite unspecUnionComm in H2. 
-      erewrite <- eraseTrmConsSame' in H2; eauto. rewrite unspecUnionComm. eauto. }
-     {varsEq x1 x0. 
-      {copy H. erewrite HeapLookupReplace in H0; eauto. inv H0. copy H12. 
-       eapply alignLists' in H0; eauto. invertHyp. inversion H12. takeTStep. Focus 2.
-       eapply SGet with (h:=(replace x0 (sfull sc (x++ds2) SPEC TID N') h')).
-       erewrite HeapLookupReplace; eauto. repeat rewrite replaceOverwrite.  simpl. auto.
-       rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
-       rewrite H7. rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-       erewrite <- eraseTrmConsSame'; eauto. proveUnionEq H. rewrite H7. solveSet.
-       inversion H12. rewrite H13 in H3. eauto. intros c. apply H1. simpl. auto. }
-      {copy H. takeTStep. Focus 2. 
-       eapply SGet with (h:=(replace x0 (sfull sc (ds1++ds2) SPEC TID N') h')).
-       rewrite lookupReplaceNeq; eauto. rewrite lookupReplaceSwitch. auto. auto.
-       rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto.
-       rewrite H7. rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-       erewrite <- eraseTrmConsSame'; eauto. proveUnionEq H. rewrite H7. solveSet.
-       rewrite lookupReplaceNeq in H0; eauto. }
-     }
+   {exMid tid tid0. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid tid ((numForks b + numForks' s0)%nat :: tid0). 
+     {unfoldTac; rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct s1; simpl in *; inv H. }
+     {symmetry in x. unfoldTac. apply UnionCoupleNeqTID in x. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SFork; eauto. rewriteUnspec. unfoldTac. 
+      rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq'. rewrite UnionSwap. 
+      rewrite subtractUnion. auto. rewriteSolveSet. auto. auto. intros c. invertListNeq. }
     }
-    {inv H7. apply UnionEqTID in H. invertHyp. stacksNeq. rewrite replaceOverwrite. 
-      erewrite HeapLookupReplace in H0; eauto. inv H0. copy H12. eapply alignLists in H0; auto. 
-      invertHyp. simpl in *. rewrite replaceSame; eauto. rewrite unspecUnionComm in H2. 
-      erewrite <- eraseTrmConsSame' in H2; eauto. rewrite unspecUnionComm. eauto. }
    }
-   {copy x. unfoldSetEq x. eqIn H4. inv H6. 
-    {varsEq x1 x0. erewrite HeapLookupReplace in H0. inv H0. destruct ds1; inv H10. 
-     eauto. erewrite lookupReplaceNeq in H0. takeTStep. Focus 2. 
-     eapply SPut with(h:=replace x0 (sfull sc (ds1 ++ ds2) SPEC TID N') h'); eauto.
-     rewrite lookupReplaceNeq; eauto. rewrite lookupReplaceSwitch; eauto. 
-     rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
-     rewrite H7. rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     erewrite <- eraseTrmConsSame'; eauto. proveUnionEq H. rewrite H7. solveSet. auto. }
-    {inv H7. stacksNeq. }
+   {exMid TID0 tid. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. rewrite replaceOverwrite. 
+     erewrite HeapLookupReplace in H0; eauto. inv H0. copy H6. eapply alignLists in H0; auto. 
+      invertHyp. simpl in *. rewrite replaceSame; eauto. rewrite unspecUnionComm in *. 
+      erewrite <- eraseTrmConsSame' in H2; eauto. }
+    {varsEq x1 x0. 
+     {erewrite HeapLookupReplace in H0; eauto. inv H0. copy H6. 
+      eapply alignLists' in H; eauto. invertHyp. inversion H6. apply UnionNeqTID in x; auto. 
+      invertHyp. takeTStep. econstructor. Focus 2.
+      eapply SGet with (h:=(replace x0 (sfull sc (x1++ds2) SPEC TID N') h')).
+      erewrite HeapLookupReplace; eauto. repeat rewrite replaceOverwrite.  simpl. auto.
+      rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
+      unspecsEq'. rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet.
+      rewrite H0 in H3. eauto. intros c. apply H1. simpl. right; auto. }
+     {apply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+      eapply SGet with (h:=(replace x0 (sfull sc (ds1++ds2) SPEC TID N') h')).
+      rewrite lookupReplaceNeq; eauto. rewrite lookupReplaceSwitch. auto. auto.
+      rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto.
+      unspecsEq'. rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. 
+      rewrite lookupReplaceNeq in H0; auto. }
+    }
    }
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
-    {varsEq x1 x0. erewrite lookupExtend in H0; eauto. inv H0. takeTStep. 
-     Focus 2. eapply SNew with(h:=replace x0 (sfull sc (ds1 ++ ds2) SPEC TID N') h'); eauto.
+   {exMid TID0 tid. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid x1 x0. erewrite HeapLookupReplace in H0; eauto. inv H0. destruct ds1; inv H6. 
+     eapply UnionNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2.
+     eapply SPut with (h:=replace x0 (sfull sc (ds1++ds2) SPEC TID N') h'); eauto. 
+     rewrite lookupReplaceNeq; eauto. rewrite lookupReplaceSwitch; eauto. rewriteUnspec. 
+     unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq'. 
+     rewrite UnionSwap. rewrite subtractUnion. auto. rewriteSolveSet. 
+     rewrite lookupReplaceNeq in H0; eauto. }
+   }
+   {exMid tid tid0. 
+    {apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid x1 x0. erewrite lookupExtend in H0. inv H0. eapply UnionNeqTID in x; auto. 
+     invertHyp. takeTStep. econstructor. Focus 2.
+     eapply SNew with (h:=replace x0 (sfull sc (ds1++ds2) SPEC TID N') h'); eauto. 
      erewrite extendReplaceSwitch; eauto. erewrite lookupExtendNeq in H0; eauto.
      rewriteUnspec. unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. 
-     erewrite lookupExtendNeq in H0; eauto. rewrite H6. rewrite subtractSingle.
-     repeat rewrite unspecUnionComm. apply UnionEqL. erewrite <- eraseTrmConsSame'; eauto.
-     proveUnionEq H. rewrite H6. solveSet. erewrite lookupExtendNeq in H0; eauto. }
-    {inv H6. stacksNeq. }
+     erewrite lookupExtendNeq in H0; eauto. unspecsEq'. rewrite UnionSwap. 
+     rewrite subtractUnion. auto. rewriteSolveSet. erewrite lookupExtendNeq in H0; eauto. }
    }
-   {copy x. unfoldSetEq x. eqIn H4. inv H5. 
-    {symmetry in H. apply UnionSingletonCoupleEq in H; eauto.  
-     rewrite H. unfoldTac. rewrite UnionSwap. econstructor. Focus 2. eapply SSpec; eauto. 
-     unfoldTac. rewrite UnionSwap. rewriteUnspec. rewrite UnionSwap.
-     eapply IHspec_multistep_rev; eauto. rewrite H. rewrite tUnionSwap.
-     rewrite UnionSwap. erewrite specStepUnspecEq; eauto. rewrite UnionSwap. 
-     rewrite <- UnionSubtract. auto. auto. }
-    {inv H6. stacksNeq. destruct s1; simpl in *; inv H9. }
+   {unfoldTac. exMid tid tid0. 
+    {rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid tid (2::tid0). 
+     {rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. destruct s1; inv H. }
+     {symmetry in x. apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SSpec; eauto. rewriteUnspec. unfoldTac. 
+      rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq'. rewrite UnionSwap. 
+      rewrite subtractUnion. auto. rewriteSolveSet. intros c. invertListNeq. }
+    }
    }
   }
-  Grab Existential Variables. auto. auto. eauto.  rewrite lookupReplaceNeq. eauto. 
-  auto. auto. auto. auto. auto. 
+  Grab Existential Variables. auto. eauto. rewrite lookupReplaceNeq; eauto. auto. 
+  auto. 
+Qed. 
+
+Ltac unspecsEq'' :=
+  match goal with
+      |H:?T = ?x |- unspecPool(Union ?X ?T ?t') ~= ?z =>
+       rewrite H;repeat rewrite unspecUnionComm; erewrite unspecSpecSame; eauto
+      |H:?T = ?x |- unspecPool(Union ?X ?T ?t') ~= ?z => 
+       rewrite UnionSwap; rewrite subtractUnion;[idtac|rewriteSolveSet]; rewrite H;
+       rewrite UnionSwap; rewrite subtractUnion;[idtac|rewriteSolveSet]; rewrite coupleUnion;
+       repeat rewrite unspecUnionComm; rewrite unspecEmpty; unfoldTac; rewrite union_empty_r;
+       erewrite <- eraseTrmConsSame'; eauto
+      |H:?T = ?x |- unspecPool(Union ?X ?T ?t') ~= ?z =>
+       rewrite H; rewrite UnionSwap; rewrite subtractUnion;[rewrite UnionSwap;rewrite subtractUnion;
+                                                            [idtac|rewriteSolveSet]|rewriteSolveSet];
+       repeat rewrite unspecUnionComm
+  end.
+
+Ltac solveSet' :=
+  match goal with
+      | |- In ?A (Union ?A ?T1 ?T2) ?x =>
+        unfold Union; unfold In; apply in_app_iff; try solve[left;solveSet|right;solveSet]
+  end.
+
+Theorem pullOutSub : forall A T x x',
+                       x <> x' ->
+                       Subtract A (Union A T (Single A x)) x' = 
+                       Union A (Subtract A T x') (Single A x).
+Proof.
+  induction T; intros. 
+  {simpl. destruct (classicT(x=x')). contradiction. auto. }
+  {simpl. destruct (classicT(a=x')); auto. simpl. erewrite IHT; eauto. }
 Qed. 
 
 
-Axiom UnionCoupleNeq : forall T T' tid tid' n n' s1 s1' s2 s2' S1 S1' S2 S2' M M' N N',
-                           tid <> tid' -> 
-                           tUnion T (tCouple(tid,s1,s2,M)(n::tid,S1,S2,N)) = 
-                           tUnion T'(tCouple(tid',s1',s2',M')(n'::tid',S1',S2',N')) -> 
-                           T' = tUnion (Setminus thread T (tCouple(tid',s1',s2',M')(n'::tid',S1',S2',N')))
-                                       (tCouple(tid,s1,s2,M)(n::tid,S1,S2,N)) /\
-                           T = tUnion (Setminus thread T' (tCouple(tid,s1,s2,M)(n::tid,S1,S2,N)))
-                                       (tCouple(tid',s1',s2',M')(n'::tid',S1',S2',N')).
- 
+Ltac falseNeq :=
+  match goal with
+      |H:?x<>?x |- _ => exfalso; apply H; auto
+  end. 
+
+Ltac helper :=
+  match goal with
+      |H:List.In ?t (Couple ?X ?t1 ?t2) |- _ => inv H;[falseNeq|try helper]
+      |H:List.In ?t [?t'] |- _ => inv H;[falseNeq|try helper]
+      |H:List.In ?t [] |- _ => inv H
+  end.
+
+Theorem UnionCoupleNeq : forall (A:Type) T T' t1 t2 t3 t4,
+                           Union A T (Couple A t1 t2) = Union A T' (Couple A t3 t4) ->
+                           t1 <> t2 -> t2 <> t4 -> t1 <> t4 -> t2 <> t3 -> t3 <> t4 -> t1 <> t3 -> 
+                           T = Union A (Subtract A (Subtract A T' t1) t2) (Couple A t3 t4) /\
+                           T' = Union A (Subtract A (Subtract A T t3) t4) (Couple A t1 t2). 
+Proof.
+  intros. 
+  assert(In A (Union A T (Couple A t1 t2)) t3). rewrite H. solveSet'. 
+  assert(In A (Union A T (Couple A t1 t2)) t4). rewrite H. solveSet'. 
+  assert(In A (Union A T' (Couple A t3 t4)) t1). rewrite <- H. solveSet'. 
+  assert(In A (Union A T' (Couple A t3 t4)) t2). rewrite <- H. solveSet'. 
+  repeat invUnion. inv H6; inv H7; inv H8; inv H9; try helper.
+  {apply pullOut in H6. apply pullOut in H10. rewrite H6 in H. 
+   rewrite H10 in H. apply pullOut in H7. apply pullOut in H8. rewrite H8 in H.     
+   rewrite H7 in H. rewrite pullOutSub in H; auto. rewrite pullOutSub in H; auto.
+   rewrite <- (Union_associative A (Subtract A (Subtract A T t3) t4)) in H.
+   rewrite <- coupleUnion in H. 
+   rewrite <- (Union_associative A (Subtract A (Subtract A T' t1) t2)) in H. 
+   rewrite <- coupleUnion in H. rewrite UnionSwap in H. apply UnionEqL in H; auto. 
+   apply UnionEqL in H. split.
+   {rewrite <- H. rewrite couple_swap. rewrite coupleUnion. rewrite Union_associative. 
+    rewrite subtractUnion. auto. rewrite H6. rewrite pullOutSub; auto. solveSet. }
+   {rewrite H. rewrite couple_swap. rewrite coupleUnion. rewrite Union_associative. 
+    rewrite subtractUnion. auto. rewrite H8. rewrite pullOutSub; auto. solveSet. }
+  }
+Qed. 
+
+
+Theorem doubleSubtract : forall A T t1 t2,
+                           In A T t1 -> In A T t2 -> t1 <> t2 -> 
+                           Union A (Subtract A (Subtract A T t1) t2) (Couple A t1 t2) = T.
+Proof.
+  intros. rewrite couple_swap. rewrite coupleUnion. rewrite Union_associative. 
+  rewrite subtractUnion. rewrite subtractUnion; auto. apply InSubNeq; eauto. 
+Qed. 
+
+
+
 Theorem passThroughFork : forall M M' T s1 s2 H n H' tid E N' d s2' N,
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tCouple(tid,aCons (fAct M' E N' d n) s1,s2,M)
+        spec_multistep_rev H (unspecPool(tUnion T(tCouple(tid,aCons (fAct M' E N' d n) s1,s2,M)
                                                             (n::tid,locked nil, s2', N))))
                            H' (tUnion T(tCouple(tid,aCons (fAct M' E N' d n) s1,s2,M)
                                                (n::tid,locked nil, s2', N))) ->
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,s1,s2,M'))))
+        spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,s1,s2,M'))))
                            H' (tUnion T(tSingleton(tid,s1,s2,M'))). 
 Proof.
-  intros. generalize_eqs_vars H0. induction H0; simplify_dep_elim; intros.
-  {symmetry in x. apply eqUnspec in x. unfold commitPool' in x. 
-   assert(tIn(tUnion T (tCouple (tid, aCons (fAct M' E N' d n) s1, s2, M)
-              (n :: tid, locked [], s2', N)))(n :: tid, locked [], s2', N)). 
-   apply InL. apply Couple_r. apply x in H. inv H. inv H0. invertHyp. inv H. }
+  intros. dependent induction H0.   
+  {symmetry in x. apply eqUnspec in x. unfoldTac. rewrite Union_commutative in x. 
+   simpl in x. destruct s1; simpl in *; contradiction. }
   {inv H. 
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
-    {takeTStep. Focus 2. eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. 
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto.  rewrite H6.
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     erewrite unspecSpecSame; eauto. apply UnionSingletonCoupleEq in H. rewrite H. 
-     unfoldTac. rewrite UnionSwap. auto. rewrite H6. solveSet. }
-    {inv H6.
-     {unfoldTac. rewrite pullOutL in H. apply UnionEqTID in H. invertHyp. 
-      cleanup. eapply IHspec_multistep_rev. Focus 2. rewrite Union_associative. 
-      rewrite <- coupleUnion. rewrite couple_swap. auto. repeat rewrite coupleUnion. 
-      repeat rewrite unspecUnionComm. erewrite unspecSpecSame; eauto. }
-     {unfoldTac. rewrite pullOutR in H. apply UnionEqTID in H. invertHyp. cleanup. 
-      eapply IHspec_multistep_rev. Focus 2. rewrite Union_associative. 
-      rewrite <- coupleUnion. auto. repeat rewrite coupleUnion.
-      repeat rewrite unspecUnionComm. repeat apply UnionEqR. apply unspecSpecSame. auto. }
+   {unfoldTac; exMid tid tid0. 
+    {rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. 
+     eapply IHspec_multistep_rev. Focus 2. rewrite <- Union_associative. 
+     rewrite <- coupleUnion. rewrite couple_swap. auto. repeat rewrite coupleUnion. 
+     repeat rewrite unspecUnionComm. repeat rewrite unspecEmpty. 
+     erewrite unspecSpecSame; eauto. }
+    {exMid tid0 (n::tid). 
+     {rewrite pullOutR in x . apply UnionEqTID in x. invertHyp. 
+      eapply IHspec_multistep_rev. Focus 2. rewrite <- Union_associative. 
+      rewrite <- coupleUnion. auto. repeat rewrite coupleUnion. 
+      repeat rewrite unspecUnionComm. simpl. auto. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SBasicStep; eauto. rewriteUnspec. 
+      unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq''.
+      rewrite UnionSwap. rewrite doubleSubtract. auto. rewriteSolveSet. rewriteSolveSet. 
+      intros c. inversion c. invertListNeq. intros c. invertListNeq. }
     }
    }
-   {unfoldTac. exMid tid tid0. 
+   {exMid tid tid0; unfoldTac.  
     {repeat rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. 
-     apply UnionEqTID in H. invertHyp. inv H1. cleanup. rewrite coupleUnion in H0. 
+     apply UnionEqTID in H. invertHyp. rewrite coupleUnion in H0. 
      repeat rewrite unspecUnionComm in *. rewrite unspecEmpty in H0. unfoldTac. 
-     rewrite union_empty_r in H0. erewrite <- eraseTrmConsSame' in H0;eauto. }
-    {apply UnionCoupleNeq in x; auto. invertHyp. rewrite H. unfoldTac. rewrite UnionSwap. 
-     econstructor. Focus 2. eapply SFork; eauto. rewriteUnspec. unfoldTac. 
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite UnionSwap. 
-     rewrite UnionSetminus. rewrite H. rewrite UnionSwap. rewrite UnionSetminus. 
-     rewrite coupleUnion. repeat rewrite unspecUnionComm. rewrite unspecEmpty. 
-     unfoldTac. rewrite union_empty_r. erewrite <- eraseTrmConsSame'; eauto.
-     rewrite H2; solveSet. rewrite H2; solveSet. rewrite UnionSwap. 
-     rewrite UnionSetminus. auto. rewrite H2; solveSet. }
+     rewrite union_empty_r in H0. erewrite <- eraseTrmConsSame' in H0; eauto. }
+    {apply UnionCoupleNeq in x; auto. Focus 2. intros c. inversion c. 
+     destruct b; inv H3. Focus 2. introsInv. falseNeq. Focus 2. introsInv. 
+     rewrite pullOutL in x. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+     destruct b; inv H3. Focus 2. introsInv. destruct s1; inv H4. Focus 2. intros c. 
+     inversion c. destruct s1; inv H3. Focus 2. introsInv. falseNeq. 
+     invertHyp. takeTStep. econstructor. Focus 2. eapply SFork; eauto. rewriteUnspec.
+     unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite UnionSwap. 
+     rewrite doubleSubtract. rewrite H. rewrite UnionSwap. repeat rewrite unspecUnionComm. 
+     apply EqJMeq. apply UnionEqL'. erewrite SubSwitch. rewrite subtractUnspec.
+     rewrite unspecSubtractEmpty; auto. rewrite H2. apply InSubNeq. solveSet. intros c. 
+     inversion c. destruct b; inv H7. repeat erewrite <- unspecSingleton. 
+     erewrite <- eraseTrmConsSame'; eauto. rewriteSolveSet. rewriteSolveSet. intros c. 
+     inversion c. destruct s1; inv H7. rewrite UnionSwap. rewrite doubleSubtract. auto. 
+     rewriteSolveSet. rewriteSolveSet. intros c. inversion c. invertListNeq. }
    }
-   {copy x. unfoldSetEq x. eqIn H2. inv H4. 
-    {takeTStep. Focus 2. eapply SGet; eauto. rewriteUnspec. unfoldTac.
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite H5. 
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     apply UnionEqR. symmetry. apply eraseTrmConsSame'. auto. 
-     apply UnionSingletonCoupleEq in H. rewrite H.  unfoldTac. 
-     rewrite UnionSwap. auto. rewrite H5. solveSet. }
-    {inv H5. stacksNeq. destruct b; simpl in *; inv H8. }
+   {exMid TID tid. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid TID (n::tid). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct b; inv H. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+      eapply SGet; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+      eapply IHspec_multistep_rev; eauto. unspecsEq''. 
+      erewrite <- eraseTrmConsSame'; eauto. destruct b; constructor. 
+      rewrite UnionSwap. rewrite doubleSubtract; auto. rewriteSolveSet. 
+      rewriteSolveSet. intros c. inversion c. invertListNeq. intros c. invertListNeq. }
+    }
    }
-   {copy x. unfoldSetEq x. eqIn H2. inv H4. 
-    {takeTStep. Focus 2. eapply SPut; eauto. rewriteUnspec. unfoldTac.
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite H5. 
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     apply UnionEqR. symmetry. apply eraseTrmConsSame'. auto. 
-     apply UnionSingletonCoupleEq in H. rewrite H.  unfoldTac. 
-     rewrite UnionSwap. auto. rewrite H5. solveSet. }
-    {inv H5. stacksNeq. destruct b; simpl in *; inv H8. }
+   {exMid TID tid. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid TID (n::tid). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct b; inv H. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+      eapply SPut; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+      eapply IHspec_multistep_rev; eauto. unspecsEq''. 
+      erewrite <- eraseTrmConsSame'; eauto. destruct b; constructor. 
+      rewrite UnionSwap. rewrite doubleSubtract; auto. rewriteSolveSet. 
+      rewriteSolveSet. intros c. inversion c. invertListNeq. intros c. invertListNeq. }
+    }
    }
-   {copy x. unfoldSetEq x. eqIn H1. inv H3. 
-    {takeTStep. Focus 2. eapply SNew; eauto. rewriteUnspec. unfoldTac.
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite H4. 
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     apply UnionEqR. symmetry. apply eraseTrmConsSame'. auto. 
-     apply UnionSingletonCoupleEq in H. rewrite H.  unfoldTac. 
-     rewrite UnionSwap. auto. rewrite H4. solveSet. }
-    {inv H4. stacksNeq. destruct b; simpl in *; inv H7. }
+   {exMid tid0 tid. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid tid0 (n::tid). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct b; inv H. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+      eapply SNew; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+      eapply IHspec_multistep_rev; eauto. unspecsEq''. 
+      erewrite <- eraseTrmConsSame'; eauto. destruct b; constructor. 
+      rewrite UnionSwap. rewrite doubleSubtract; auto. rewriteSolveSet. 
+      rewriteSolveSet. intros c. inversion c. invertListNeq. intros c. invertListNeq. }
+    }
    }
-   {exMid tid tid0. 
-    {unfoldTac. repeat rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. 
-     stacksNeq. }
-    {apply UnionCoupleNeq in x; auto. invertHyp. rewrite H. unfoldTac. rewrite UnionSwap. 
-     econstructor. Focus 2. eapply SSpec; eauto. rewriteUnspec. unfoldTac. 
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. Focus 2. 
-     rewrite UnionSwap. erewrite UnionSetminus. auto. rewrite H2. solveSet.
-     rewrite UnionSwap. rewrite UnionSetminus. rewrite H. rewrite UnionSwap.
-     rewrite UnionSetminus. rewrite coupleUnion. repeat rewrite unspecUnionComm. 
-     rewrite unspecEmpty. erewrite <- eraseTrmConsSame'; eauto. unfoldTac. 
-     rewrite union_empty_r. auto. rewrite H2; solveSet. rewrite H2; solveSet. }
+   {exMid tid tid0; unfoldTac.  
+    {repeat rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {apply UnionCoupleNeq in x; auto. Focus 2. intros c. inversion c. 
+     destruct b; inv H3. Focus 2. introsInv. falseNeq. Focus 2. introsInv. 
+     rewrite pullOutL in x. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+     destruct b; inv H3. Focus 2. introsInv. destruct s1; inv H4. Focus 2. intros c. 
+     inversion c. destruct s1; inv H3. Focus 2. introsInv. falseNeq. 
+     invertHyp. takeTStep. econstructor. Focus 2. eapply SSpec; eauto. rewriteUnspec.
+     unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite UnionSwap. 
+     rewrite doubleSubtract. rewrite H. rewrite UnionSwap. repeat rewrite unspecUnionComm. 
+     apply EqJMeq. apply UnionEqL'. erewrite SubSwitch. rewrite subtractUnspec.
+     rewrite unspecSubtractEmpty; auto. rewrite H2. apply InSubNeq. solveSet. intros c. 
+     inversion c. destruct b; inv H7. repeat erewrite <- unspecSingleton. 
+     erewrite <- eraseTrmConsSame'; eauto. rewriteSolveSet. rewriteSolveSet. intros c. 
+     inversion c. destruct s1; inv H7. rewrite UnionSwap. rewrite doubleSubtract. auto. 
+     rewriteSolveSet. rewriteSolveSet. intros c. inversion c. invertListNeq. }
    }
   }
-  Grab Existential Variables. auto. eauto. auto. auto. 
+  Grab Existential Variables. auto. auto. eauto. auto. auto. auto. auto. 
 Qed. 
 
 Theorem passThroughSpec : forall M M' T s1 s2 H H' tid E s2' N M'' N'' d,
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tCouple(tid,aCons (srAct M' E M'' N'' d) s1,s2,M)
+        spec_multistep_rev H (unspecPool(tUnion T(tCouple(tid,aCons (srAct M' E M'' N'' d) s1,s2,M)
                                                             (2::tid,locked nil, s2', N))))
                            H' (tUnion T(tCouple(tid,aCons (srAct M' E M'' N'' d) s1,s2,M)
                                                (2::tid,locked nil, s2', N))) ->
-        spec_multistep_rev H (unspecPoolAux(tUnion T(tSingleton(tid,s1,s2,M'))))
+        spec_multistep_rev H (unspecPool(tUnion T(tSingleton(tid,s1,s2,M'))))
                            H' (tUnion T(tSingleton(tid,s1,s2,M'))). 
 Proof.
-  intros. generalize_eqs_vars H0. induction H0; simplify_dep_elim; intros.
-  {symmetry in x. apply eqUnspec in x. unfold commitPool' in x. 
-   assert(tIn(tUnion T (tCouple (tid, aCons (srAct M' E M'' N'' d) s1, s2, M)
-              (2:: tid, locked [], s2', N)))(2:: tid, locked [], s2', N)). 
-   apply InL. apply Couple_r. apply x in H. inv H. inv H0. invertHyp. inv H. }
+  intros. dependent induction H0.   
+  {symmetry in x. apply eqUnspec in x. unfoldTac. rewrite Union_commutative in x. 
+   simpl in x. destruct s1; simpl in *; contradiction. }
   {inv H. 
-   {copy x. unfoldSetEq x. eqIn H3. inv H5. 
-    {takeTStep. Focus 2. eapply SBasicStep; eauto. rewriteUnspec. unfoldTac. 
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto.  rewrite H6.
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     erewrite unspecSpecSame; eauto. apply UnionSingletonCoupleEq in H. rewrite H. 
-     unfoldTac. rewrite UnionSwap. auto. rewrite H6. solveSet. }
-    {inv H6.
-     {unfoldTac. rewrite pullOutL in H. apply UnionEqTID in H. invertHyp. 
-      cleanup. eapply IHspec_multistep_rev. Focus 2. rewrite Union_associative. 
-      rewrite <- coupleUnion. rewrite couple_swap. auto. repeat rewrite coupleUnion. 
-      repeat rewrite unspecUnionComm. erewrite unspecSpecSame; eauto. }
-     {unfoldTac. rewrite pullOutR in H. apply UnionEqTID in H. invertHyp. cleanup. 
-      eapply IHspec_multistep_rev. Focus 2. rewrite Union_associative. 
-      rewrite <- coupleUnion. auto. repeat rewrite coupleUnion.
-      repeat rewrite unspecUnionComm. repeat apply UnionEqR. apply unspecSpecSame. auto. }
+   {unfoldTac; exMid tid tid0. 
+    {rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. 
+     eapply IHspec_multistep_rev. Focus 2. rewrite <- Union_associative. 
+     rewrite <- coupleUnion. rewrite couple_swap. auto. repeat rewrite coupleUnion. 
+     repeat rewrite unspecUnionComm. repeat rewrite unspecEmpty. 
+     erewrite unspecSpecSame; eauto. }
+    {exMid tid0 (2::tid). 
+     {rewrite pullOutR in x . apply UnionEqTID in x. invertHyp. 
+      eapply IHspec_multistep_rev. Focus 2. rewrite <- Union_associative. 
+      rewrite <- coupleUnion. auto. repeat rewrite coupleUnion. 
+      repeat rewrite unspecUnionComm. simpl. auto. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. 
+      econstructor. Focus 2. eapply SBasicStep; eauto. rewriteUnspec. 
+      unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. unspecsEq''.
+      rewrite UnionSwap. rewrite doubleSubtract. auto. rewriteSolveSet. rewriteSolveSet. 
+      intros c. inversion c. invertListNeq. intros c. invertListNeq. }
     }
    }
-   {exMid tid tid0. 
-    {unfoldTac. repeat rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. 
-     stacksNeq. }
-    {apply UnionCoupleNeq in x; auto. invertHyp. rewrite H. unfoldTac. rewrite UnionSwap. 
-     econstructor. Focus 2. eapply SFork; eauto. rewriteUnspec. unfoldTac. 
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. Focus 2. 
-     rewrite UnionSwap. erewrite UnionSetminus. auto. rewrite H2. solveSet.
-     rewrite UnionSwap. rewrite UnionSetminus. rewrite H. rewrite UnionSwap.
-     rewrite UnionSetminus. rewrite coupleUnion. repeat rewrite unspecUnionComm. 
-     rewrite unspecEmpty. erewrite <- eraseTrmConsSame'; eauto. unfoldTac. 
-     rewrite union_empty_r. auto. rewrite H2; solveSet. rewrite H2; solveSet. }
+   {exMid tid tid0; unfoldTac.  
+    {repeat rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {apply UnionCoupleNeq in x; auto. Focus 2. intros c. inversion c. 
+     destruct b; inv H3. Focus 2. introsInv. falseNeq. Focus 2. introsInv. 
+     rewrite pullOutL in x. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+     destruct b; inv H3. Focus 2. introsInv. destruct s1; inv H4. Focus 2. intros c. 
+     inversion c. destruct s1; inv H3. Focus 2. introsInv. falseNeq. 
+     invertHyp. takeTStep. econstructor. Focus 2. eapply SFork; eauto. rewriteUnspec.
+     unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite UnionSwap. 
+     rewrite doubleSubtract. rewrite H. rewrite UnionSwap. repeat rewrite unspecUnionComm. 
+     apply EqJMeq. apply UnionEqL'. erewrite SubSwitch. rewrite subtractUnspec.
+     rewrite unspecSubtractEmpty; auto. rewrite H2. apply InSubNeq. solveSet. intros c. 
+     inversion c. destruct b; inv H7. repeat erewrite <- unspecSingleton. 
+     erewrite <- eraseTrmConsSame'; eauto. rewriteSolveSet. rewriteSolveSet. intros c. 
+     inversion c. destruct s1; inv H7. rewrite UnionSwap. rewrite doubleSubtract. auto. 
+     rewriteSolveSet. rewriteSolveSet. intros c. inversion c. invertListNeq. }
    }
-   {copy x. unfoldSetEq x. eqIn H2. inv H4. 
-    {takeTStep. Focus 2. eapply SGet; eauto. rewriteUnspec. unfoldTac.
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite H5. 
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     apply UnionEqR. symmetry. apply eraseTrmConsSame'. auto. 
-     apply UnionSingletonCoupleEq in H. rewrite H.  unfoldTac. 
-     rewrite UnionSwap. auto. rewrite H5. solveSet. }
-    {inv H5. stacksNeq. destruct b; simpl in *; inv H8. }
+   {exMid TID tid. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid TID (2::tid). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct b; inv H. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+      eapply SGet; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+      eapply IHspec_multistep_rev; eauto. unspecsEq''. 
+      erewrite <- eraseTrmConsSame'; eauto. destruct b; constructor. 
+      rewrite UnionSwap. rewrite doubleSubtract; auto. rewriteSolveSet. 
+      rewriteSolveSet. intros c. inversion c. invertListNeq. intros c. invertListNeq. }
+    }
    }
-   {copy x. unfoldSetEq x. eqIn H2. inv H4. 
-    {takeTStep. Focus 2. eapply SPut; eauto. rewriteUnspec. unfoldTac.
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite H5. 
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     apply UnionEqR. symmetry. apply eraseTrmConsSame'. auto. 
-     apply UnionSingletonCoupleEq in H. rewrite H.  unfoldTac. 
-     rewrite UnionSwap. auto. rewrite H5. solveSet. }
-    {inv H5. stacksNeq. destruct b; simpl in *; inv H8. }
+   {exMid TID tid. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid TID (2::tid). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct b; inv H. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+      eapply SPut; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+      eapply IHspec_multistep_rev; eauto. unspecsEq''. 
+      erewrite <- eraseTrmConsSame'; eauto. destruct b; constructor. 
+      rewrite UnionSwap. rewrite doubleSubtract; auto. rewriteSolveSet. 
+      rewriteSolveSet. intros c. inversion c. invertListNeq. intros c. invertListNeq. }
+    }
    }
-   {copy x. unfoldSetEq x. eqIn H1. inv H3. 
-    {takeTStep. Focus 2. eapply SNew; eauto. rewriteUnspec. unfoldTac.
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite H4. 
-     rewrite subtractSingle. repeat rewrite unspecUnionComm. apply UnionEqL. 
-     apply UnionEqR. symmetry. apply eraseTrmConsSame'. auto. 
-     apply UnionSingletonCoupleEq in H. rewrite H.  unfoldTac. 
-     rewrite UnionSwap. auto. rewrite H4. solveSet. }
-    {inv H4. stacksNeq. destruct b; simpl in *; inv H7. }
+   {exMid tid0 tid. 
+    {unfoldTac. rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. }
+    {exMid tid0 (2::tid). 
+     {unfoldTac. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+      destruct b; inv H. }
+     {apply UnionCoupleNeqTID in x; auto. invertHyp. takeTStep. econstructor. Focus 2. 
+      eapply SNew; eauto. rewriteUnspec. unfoldTac. rewrite UnionSwap. 
+      eapply IHspec_multistep_rev; eauto. unspecsEq''. 
+      erewrite <- eraseTrmConsSame'; eauto. destruct b; constructor. 
+      rewrite UnionSwap. rewrite doubleSubtract; auto. rewriteSolveSet. 
+      rewriteSolveSet. intros c. inversion c. invertListNeq. intros c. invertListNeq. }
+    }
    }
-   {unfoldTac. exMid tid tid0. 
-    {repeat rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq. 
-     apply UnionEqTID in H. invertHyp. inv H1. cleanup. rewrite coupleUnion in H0. 
+   {exMid tid tid0; unfoldTac.  
+    {repeat rewrite pullOutL in x. apply UnionEqTID in x. invertHyp. stacksNeq.
+     apply UnionEqTID in H. invertHyp. rewrite coupleUnion in H0. 
      repeat rewrite unspecUnionComm in *. rewrite unspecEmpty in H0. unfoldTac. 
-     rewrite union_empty_r in H0. erewrite <- eraseTrmConsSame' in H0;eauto. }
-    {apply UnionCoupleNeq in x; auto. invertHyp. rewrite H. unfoldTac. rewrite UnionSwap. 
-     econstructor. Focus 2. eapply SSpec; eauto. rewriteUnspec. unfoldTac. 
-     rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite UnionSwap. 
-     rewrite UnionSetminus. rewrite H. rewrite UnionSwap. rewrite UnionSetminus. 
-     rewrite coupleUnion. repeat rewrite unspecUnionComm. rewrite unspecEmpty. 
-     unfoldTac. rewrite union_empty_r. erewrite <- eraseTrmConsSame'; eauto.
-     rewrite H2; solveSet. rewrite H2; solveSet. rewrite UnionSwap. 
-     rewrite UnionSetminus. auto. rewrite H2; solveSet. }
+     rewrite union_empty_r in H0. erewrite <- eraseTrmConsSame' in H0; eauto. }
+    {apply UnionCoupleNeq in x; auto. Focus 2. intros c. inversion c. 
+     destruct b; inv H3. Focus 2. introsInv. falseNeq. Focus 2. introsInv. 
+     rewrite pullOutL in x. rewrite pullOutR in x. apply UnionEqTID in x. invertHyp. 
+     destruct b; inv H3. Focus 2. introsInv. destruct s1; inv H4. Focus 2. intros c. 
+     inversion c. destruct s1; inv H3. Focus 2. introsInv. falseNeq. 
+     invertHyp. takeTStep. econstructor. Focus 2. eapply SSpec; eauto. rewriteUnspec.
+     unfoldTac. rewrite UnionSwap. eapply IHspec_multistep_rev; eauto. rewrite UnionSwap. 
+     rewrite doubleSubtract. rewrite H. rewrite UnionSwap. repeat rewrite unspecUnionComm. 
+     apply EqJMeq. apply UnionEqL'. erewrite SubSwitch. rewrite subtractUnspec.
+     rewrite unspecSubtractEmpty; auto. rewrite H2. apply InSubNeq. solveSet. intros c. 
+     inversion c. destruct b; inv H7. repeat erewrite <- unspecSingleton. 
+     erewrite <- eraseTrmConsSame'; eauto. rewriteSolveSet. rewriteSolveSet. intros c. 
+     inversion c. destruct s1; inv H7. rewrite UnionSwap. rewrite doubleSubtract. auto. 
+     rewriteSolveSet. rewriteSolveSet. intros c. inversion c. invertListNeq. }
    }
   }
-  Grab Existential Variables. auto. eauto. auto. auto. 
+  Grab Existential Variables. auto. auto. eauto. auto. auto. auto. auto. 
+Qed. 
+
+Theorem AddUnion : forall (A:Type) T e, 
+                     Add A T e = Union A T (Single A e).
+Proof.
+  intros. reflexivity. 
 Qed. 
 
 Theorem rollbackWF : forall H H' T TR TR' tidR acts,
@@ -767,22 +1069,23 @@ Theorem rollbackWF : forall H H' T TR TR' tidR acts,
 Proof.
   intros. induction H1. 
   {auto. }
-  {subst. inv H0. inv H1. apply IHrollback. unfoldTac. 
-   econstructor; eauto. 
-   erewrite unspecHeapRBRead; eauto. rewrite <- Union_associative in H4. 
-   copy H4. rewrite smultiSmultiRevEq in H4. eapply passThroughRead in H4; eauto. 
-   repeat rewrite <- Union_associative. rewrite smultiSmultiRevEq. eauto. }
-  {subst. inv H0. inv H3. apply IHrollback. unfoldTac. econstructor; eauto. 
-   repeat rewrite <- Union_associative in *. rewrite smultiSmultiRevEq in *. 
+  {subst. inv H0.  apply IHrollback. unfoldTac. econstructor; eauto. 
+   erewrite unspecHeapRBRead; eauto. rewrite AddUnion in *. rewrite Union_associative in H1. 
+   copy H1. rewrite smultiSmultiRevEq in H1. eapply passThroughRead in H1; eauto. 
+   repeat rewrite Union_associative. rewrite smultiSmultiRevEq. eauto. }
+  {subst. inv H0. apply IHrollback. unfoldTac. econstructor; eauto. rewrite AddUnion. 
+   repeat rewrite Union_associative in *. rewrite smultiSmultiRevEq in *. 
    eapply passThroughFork; eauto. }
-  {subst. inv H0. inv H2. apply IHrollback. unfoldTac. econstructor; eauto. 
-   erewrite unspecHeapRBWrite; eauto. repeat rewrite <- Union_associative in *. 
-   rewrite smultiSmultiRevEq in *.  eapply passThroughWrite; eauto. }
-  {subst. inv H0. inv H3. apply IHrollback. unfoldTac. econstructor; eauto. 
-   erewrite <- unspecHeapRBNew; eauto. repeat rewrite <- Union_associative in *. 
+  {subst. inv H0. apply IHrollback. unfoldTac. econstructor; eauto. 
+   erewrite unspecHeapRBWrite; eauto. rewrite AddUnion in *. 
+   repeat rewrite Union_associative in *. rewrite smultiSmultiRevEq in *.  
+   eapply passThroughWrite; eauto. }
+  {subst. inv H0. apply IHrollback. unfoldTac. econstructor; eauto. 
+   erewrite <- unspecHeapRBNew; eauto. rewrite AddUnion in *. 
+   repeat rewrite Union_associative in *. 
    rewrite smultiSmultiRevEq in *. eapply passThroughNew; eauto. }
-  {subst. inv H0. inv H3. apply IHrollback. unfoldTac. econstructor; eauto. 
-   repeat rewrite <- Union_associative in *. rewrite smultiSmultiRevEq in *.
+  {subst. inv H0. apply IHrollback. unfoldTac. econstructor; eauto. rewrite AddUnion in *.
+   repeat rewrite Union_associative in *. rewrite smultiSmultiRevEq in *.
    eapply passThroughSpec; eauto. }
 Qed. 
 

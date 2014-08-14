@@ -501,7 +501,7 @@ Proof.
 Qed. 
 
 Theorem UnionEqR : forall (T:Type) (T1 T2 T2' : multiset T), 
-                    Union T1 T2 = Union T1 T2' -> T2 = T2'. 
+                    Union T T1 T2 = Union T T1 T2' -> T2 = T2'. 
 Proof.
   induction T1; intros. 
   {simpl in *. auto. }
@@ -509,7 +509,7 @@ Proof.
 Qed. 
 
 Theorem UnionEqL : forall (T:Type) (T1 T1' T2 : multiset T), 
-                    Union T1 T2 = Union T1' T2 -> T1 = T1'. 
+                    Union T T1 T2 = Union T T1' T2 -> T1 = T1'. 
 Proof.
   intros. rewrite Union_commutative in H. 
   rewrite (Union_commutative T T1') in H. apply UnionEqR in H. auto. 

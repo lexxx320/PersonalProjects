@@ -42,14 +42,14 @@ Proof.
 Qed. 
 
 Open Scope type_scope. 
-
+ 
 Definition thread := tid * actionStack * list action * trm. 
 Definition pool := multiset thread.
-Definition tAdd := @Add thread. 
-Definition tIn := @In thread. 
-Definition tUnion := @Union thread. 
-Definition tCouple := @Couple thread. 
-Definition tSingleton := @Single thread. 
+Definition tAdd := Add thread. 
+Definition tIn := In thread. 
+Definition tUnion := Union thread. 
+Definition tCouple := Couple thread. 
+Definition tSingleton := Single thread. 
 Definition tEmptySet := Empty_set thread. 
  
 Inductive lastAct : actionStack -> actionStack -> action -> Prop :=
@@ -274,7 +274,13 @@ Inductive basic_step : trm -> trm -> Prop :=
 |basicHandle : forall t E M N,
                  decompose t E (handle (raise M) N) -> basic_step t (fill E (AST.app N M))
 |basicHandleRet : forall t E M N,
-                    decompose t E (handle (ret M) N) -> basic_step t (fill E (ret M)). 
+                    decompose t E (handle (ret M) N) -> basic_step t (fill E (ret M))
+|specJoinRaise : forall t E M N,
+                   decompose t E (specJoin (ret M) (raise N)) ->
+                   basic_step t (fill E (raise N))
+|specJoinRet : forall t E M N,
+                 decompose t E (specJoin (ret M) (ret N)) ->
+                 basic_step t (fill E (ret (pair_ M  N))). 
 
 Definition notIn T tid := ~(exists t, thread_lookup T tid t). 
 
@@ -344,19 +350,12 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
               s1' = (wrapActs s1 N1 E (specRun (ret N1) N0) wf) ->
               step h T (tCouple t1 t2) 
                    (OK h T (tSingleton(2::tid,unlocked s1', s2', fill E (specJoin (ret N1) M)))) 
-|SpecRB : forall t E' h h' tid T T' E M' N0 s2 s1' s2' t1 t2 TRB, 
+|SpecRB : forall t E' h h' tid T T' E M' N0 s2 s1' s2' M'' t1 t2 TRB, 
             decompose t E' (specRun (raise E) N0) -> 
-            t1 = (tid,unlocked nil,s2,t) -> t2 = (2::tid, locked s1',s2',M') -> 
-            ~ (exists p, thread_lookup TRB (tid) p) -> 
-            thread_lookup TRB (2::tid) t2 -> 
-            ~ (exists p', thread_lookup T' (2::tid) p') ->
-            rollback (2::tid) (locked nil) h TRB h' T' ->
-            step h T (tAdd TRB t1) (OK h' T (tAdd T' (tid, unlocked nil, s2, fill E'(raise E))))
-|SpecRaise : forall E' N h tid s2 T E t1 t,
-               decompose t E' (specJoin(ret N)(raise E)) ->
-               t1 = (tid, unlocked nil, s2, t) -> 
-               step h T (tSingleton t1) 
-                    (OK h T (tSingleton (tid, unlocked nil, s2, fill E' (raise E))))
+            t1 = (tid,unlocked nil,s2,t) -> t2 = (2::tid, specStack s1' N0,s2',M') -> 
+            rollback (2::tid) (specStack nil N0) h (tAdd TRB t2) h' 
+                     (tAdd T' (2::tid,specStack nil N0, s2', M'')) ->
+            step h T (tUnion TRB (tCouple t2 t1)) (OK h' T (tAdd T' (tid, unlocked nil, s2, fill E'(raise E))))
 |PopRead : forall TID t s1 s1' s2 M M' N T h x ds E d h' ds1 ds2, 
              s1 = unlocked (s1' ++ [rAct x M' E d]) -> ds = ds1 ++ [TID] ++ ds2 -> 
              ~ List.In TID ds2 -> heap_lookup x h = Some (sfull COMMIT ds COMMIT t N) ->

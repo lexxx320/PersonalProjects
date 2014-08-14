@@ -290,8 +290,8 @@ Proof.
 Qed. 
 
 Theorem subtractSingle' : forall (A:Type) (x:A) T,
-                            In T x ->
-                            Union (Subtract T x) (Single x) = T. 
+                            In A T x ->
+                            Union A (Subtract A T x) (Single A x) = T. 
 Proof.
   induction T; intros. 
   {inversion H. }

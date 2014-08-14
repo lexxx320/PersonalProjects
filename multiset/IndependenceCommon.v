@@ -1,7 +1,5 @@
 Require Import erasure. 
 
-Axiom uniqueTP : forall T1 T2 t, tIn (tUnion T1 T2) t -> tIn T1 t -> tIn T2 t -> False. 
-
 Theorem UnionEqTID : forall T T' tid s1 s2 M s1' s2' M',
                        tUnion T (tSingleton(tid,s1,s2,M)) = tUnion T' (tSingleton(tid,s1',s2',M')) ->
                        T = T' /\ s1 = s1' /\ s2 = s2' /\ M = M'. 
@@ -16,11 +14,11 @@ Qed.
 
 Theorem UnionSingletonEq : forall T T' a b, 
                  tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
-                 tIn T' a -> T = tUnion (Subtract T' a) (tSingleton b).
+                 tIn T' a -> T = tUnion (Subtract thread T' a) (tSingleton b).
 Proof.
   intros. unfoldTac. apply pullOut in H0. rewrite H0 in H. 
   rewrite <- Union_associative in H.
-  rewrite (Union_commutative thread (Single a)) in H. rewrite Union_associative in H. 
+  rewrite (Union_commutative thread (tSingleton a)) in H. rewrite Union_associative in H. 
   apply UnionEqL in H. auto. 
 Qed. 
 
@@ -64,7 +62,7 @@ Qed.
 Theorem unspecLastActPool : forall tid s a s2 M' M, 
                          actionTerm a M' ->
                          unspecPool(tSingleton(tid,unlocked(s++[a]),s2,M)) = 
-                         unspecPool(tSingleton(tid,unlocked nil,s2,M')). 
+                         tSingleton(tid,unlocked nil,s2,M'). 
 Proof.
   induction s; intros. 
   {simpl. inv H; auto. }
@@ -77,7 +75,7 @@ Qed.
 Theorem unspecEraseTrm : forall tid s1 s2 M M', 
            eraseTrm s1 M M' ->
            unspecPool(tSingleton(tid,unlocked s1,s2,M)) = 
-           unspecPool(tSingleton(tid,unlocked nil,s2,M')). 
+           tSingleton(tid,unlocked nil,s2,M'). 
 Proof.
   intros. destructLast s1. 
    {inv H; try invertListNeq. auto. }
@@ -187,8 +185,8 @@ Ltac nonEmptyStackTac H :=
 Theorem UnionNeqTID : forall T T' tid tid' s1 s2 s1' s2' M M',
        tUnion T (tSingleton (tid, s1, s2, M)) =
        tUnion T' (tSingleton (tid', s1', s2', M')) -> tid <> tid' ->
-       T = tUnion (Subtract T' (tid,s1,s2,M)) (tSingleton(tid',s1',s2',M')) /\
-       T' = tUnion (Subtract T (tid',s1',s2',M')) (tSingleton(tid,s1,s2,M)).
+       T = tUnion (Subtract thread T' (tid,s1,s2,M)) (tSingleton(tid',s1',s2',M')) /\
+       T' = tUnion (Subtract thread T (tid',s1',s2',M')) (tSingleton(tid,s1,s2,M)).
 Proof.
   intros. assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) (tid',s1',s2',M')). 
   rewrite H. unfoldTac; invUnion. right; simpl; auto. 
@@ -253,10 +251,10 @@ Ltac varsEq a b := let n := fresh
 
 Theorem UnionSingletonCoupleEq : forall T T' a b c, 
                  tUnion T (tSingleton a) = tUnion T' (tCouple b c) -> 
-                  tIn T' a -> T = tUnion (Subtract T' a) (tCouple b c).
+                  tIn T' a -> T = tUnion (Subtract thread T' a) (tCouple b c).
 Proof. 
   intros. unfoldTac. apply pullOut in H0. rewrite H0 in H. 
-  rewrite <- Union_associative in H. rewrite (Union_commutative thread (Single a)) in H. 
+  rewrite <- Union_associative in H. rewrite (Union_commutative thread (tSingleton a)) in H. 
   rewrite Union_associative in H. apply UnionEqL in H. auto. 
 Qed. 
 
@@ -266,8 +264,8 @@ Theorem UnionCoupleNeqTID : forall tid tid' s1 s1' s2 s2' M
                   tUnion T (tSingleton(tid,s1,s2,M)) = 
                   tUnion T' (tCouple(tid',s1',s2',M')(tid'',s1'',s2'',M'')) ->
                   tid <> tid' -> tid <> tid'' -> tid' <> tid'' ->
-                  T = tUnion (Subtract T' (tid,s1,s2,M)) (tCouple(tid',s1',s2',M')(tid'',s1'',s2'',M'')) /\ 
-                  T' = tUnion (Subtract (Subtract T (tid',s1',s2',M'))(tid'',s1'',s2'',M'')) (tSingleton (tid,s1,s2,M)). 
+                  T = tUnion (Subtract thread T' (tid,s1,s2,M)) (tCouple(tid',s1',s2',M')(tid'',s1'',s2'',M'')) /\ 
+                  T' = tUnion (Subtract thread (Subtract thread T (tid',s1',s2',M'))(tid'',s1'',s2'',M'')) (tSingleton (tid,s1,s2,M)). 
 Proof.
   intros. assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) (tid',s1',s2',M')).  
   rewrite H. solveSet. 

@@ -178,7 +178,7 @@ Proof.
      rewrite Union_associative. repeat rewrite UnionSubtract. 
      rewrite <- Union_associative. rewrite <- Union_associative. 
      rewrite <- Union_associative. 
-     rewrite (Union_associative thread (Single(n::tid,locked[],[],e2))).
+     rewrite (Union_associative thread (tSingleton(n::tid,locked[],[],e2))).
      rewrite <- coupleUnion. rewrite couple_swap. rewrite Union_associative. 
      rewrite UnionSwap. rewrite <- Union_associative. reflexivity. intros c. 
      invertListNeq. 
@@ -668,7 +668,7 @@ Proof.
       rewrite coupleUnion.  rewrite Union_associative. repeat rewrite UnionSubtract. 
       rewrite <- Union_associative. rewrite <- Union_associative. 
       rewrite <- Union_associative. 
-      rewrite (Union_associative thread (Single(n::tid,locked s',[],N))).
+      rewrite (Union_associative thread (tSingleton(n::tid,locked s',[],N))).
       rewrite <- coupleUnion. rewrite couple_swap. rewrite Union_associative. 
       rewrite UnionSwap. rewrite <- Union_associative. reflexivity. intros c. 
       invertListNeq. }

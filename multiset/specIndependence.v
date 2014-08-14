@@ -288,6 +288,10 @@ Proof.
    replaceTac. rewrite <- joinFill. eapply basicHandle. eauto. introsInv. }
   {eapply fillDecompose in H0. invertHyp. rewrite H. Focus 2. constructor; eauto. 
    replaceTac. rewrite <- joinFill. eapply basicHandleRet. eauto. introsInv. }
+  {eapply fillDecompose in H0. invertHyp. rewrite H. Focus 2. constructor; eauto. 
+   replaceTac. rewrite <- joinFill. eapply specJoinRaise; eauto. introsInv. }
+  {eapply fillDecompose in H0. invertHyp. rewrite H. Focus 2. constructor; eauto. 
+   replaceTac. rewrite <- joinFill. eapply specJoinRet; eauto. introsInv. }
 Qed. 
 
 Theorem basicStepNeq : forall s1 x M M' M'' x0,

@@ -32,6 +32,7 @@ Inductive trm : Type :=
   |specJoin : trm -> trm -> trm
   |fst : trm -> trm
   |snd : trm -> trm
+  |done : trm -> trm
 .
 
 Fixpoint open (k:nat) (u:trm) (t:trm) : trm :=
@@ -52,6 +53,7 @@ Fixpoint open (k:nat) (u:trm) (t:trm) : trm :=
       |specJoin e1 e2 => specJoin (open k u e1) (open k u e2)
       |fst e => fst (open k u e)
       |snd e => snd (open k u e)
+      |done e => done (open k u e)
       |_ => t
   end. 
 
@@ -77,6 +79,7 @@ Inductive ptrm : Type :=
 |pspec : ptrm -> ptrm -> ptrm
 |pspecRun : ptrm -> ptrm -> ptrm
 |pspecJoin : ptrm -> ptrm -> ptrm
+|pdone : ptrm -> ptrm
 .
 
 Fixpoint popen (k:nat) (u:ptrm) (t:ptrm) : ptrm :=
@@ -97,6 +100,7 @@ Fixpoint popen (k:nat) (u:ptrm) (t:ptrm) : ptrm :=
       |pspec M N => pspec (popen k u M) (popen k u N)
       |pspecRun e1 e2 => pspecRun (popen k u e1) (popen k u e2)
       |pspecJoin e1 e2 => pspecJoin (popen k u e1) (popen k u e2)
+      |pdone e => pdone (popen k u e)
       |_ => t
   end. 
 
