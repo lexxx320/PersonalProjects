@@ -11,8 +11,8 @@ Inductive specFinalState : Type :=
 
 Inductive waitingOnEmpty : trm -> sHeap -> Prop := 
 |waitingOnEmpty_ : forall t E x H, 
-                     decompose t E (get (fvar x)) -> heap_lookup x H = Some(sempty COMMIT) ->
-                     waitingOnEmpty t H.
+         decompose t E (get (fvar x)) -> heap_lookup x H = Some(sempty COMMIT) ->
+         waitingOnEmpty t H.
 
 Fixpoint specFinished H (T:pool) :=
   match T with
@@ -24,16 +24,18 @@ Fixpoint specFinished H (T:pool) :=
 
 Inductive specRunPar (M:trm) : specFinalState -> Prop :=
 |specRunParDone : forall H' T tid s2 N, 
-                 multistep (Heap.empty ivar_state) 
-                           (tSingleton ([1], unlocked nil, nil, bind M (lambda (done (bvar 0)))))
-                           (Some(H', (tUnion T (tSingleton(tid, unlocked nil, s2, done N))))) -> 
-                 specFinished H' T -> specRunPar M (Done N)
-|specRunParError : multistep (Heap.empty ivar_state) 
-                             (tSingleton ([1], unlocked nil, nil, bind M (lambda (done (bvar 0)))))
-                             None -> specRunPar M Error
-|specrunParDiverge : SpecDiverge (Heap.empty ivar_state) 
-                                 (tSingleton([1],unlocked nil,nil,bind M (lambda (done (bvar 0))))) ->
-                     specRunPar M Diverge. 
+    multistep (Heap.empty ivar_state) 
+              (tSingleton ([1], unlocked nil, nil, bind M (lambda (done (bvar 0)))))
+              (Some(H', (tUnion T (tSingleton(tid, unlocked nil, s2, done N))))) -> 
+    specFinished H' T -> specRunPar M (Done N)
+|specRunParError :
+   multistep (Heap.empty ivar_state) 
+             (tSingleton ([1], unlocked nil, nil, bind M (lambda (done (bvar 0)))))
+             None -> specRunPar M Error
+|specrunParDiverge : 
+   SpecDiverge (Heap.empty ivar_state) 
+               (tSingleton([1],unlocked nil,nil,bind M (lambda (done (bvar 0))))) ->
+   specRunPar M Diverge. 
 
 Inductive parFinalState : Type :=
 |pDone : ptrm -> parFinalState
@@ -65,7 +67,8 @@ Inductive parRunPar (M:ptrm) : parFinalState -> Prop :=
                                
 
 Inductive specBehavior (M:trm) : (Ensemble specFinalState) := 
-|specBehavior_ : forall s, specRunPar M s -> Ensembles.In specFinalState (specBehavior M) s. 
+|specBehavior_ : forall s, 
+                   specRunPar M s -> Ensembles.In specFinalState (specBehavior M) s. 
 
 Inductive parBehavior (M:ptrm) : (Ensemble parFinalState) :=
 |parBehavior_ : forall s, parRunPar M s -> Ensembles.In parFinalState (parBehavior M) s. 
@@ -123,7 +126,8 @@ Qed.
 
 Ltac proveWF := econstructor; simpl; erewrite rawHeapsEq; auto; constructor. 
 
-Theorem SpecEqPar : forall M, eraseBehaviors (specBehavior M) = parBehavior (eraseTerm M).
+Theorem SpecEqPar : forall M, 
+                      eraseBehaviors (specBehavior M) = parBehavior (eraseTerm M).
 Proof.
   intros. eqSets. 
   {inv H. 

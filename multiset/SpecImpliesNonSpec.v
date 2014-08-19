@@ -4,8 +4,6 @@ Require Import NonSpecPureStep.
 Require Import stepWF. 
 Require Import IndependenceCommon.
 
-
-
 Hint Constructors pbasic_step. 
 
 Theorem eraseLastAct : forall tid s a s2 M' M, 

@@ -10,21 +10,6 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
 |CBasicStep : forall t t' tid s2 h T,
                basic_step t t' -> 
                prog_step h T (tSingleton(tid,unlocked nil,s2,t)) (OK h T (tSingleton(tid,unlocked nil,s2,t')))
-|CFork : forall tid h T M s2 E t n (d:decompose t E (fork M)), 
-          n = (numForks' s2) ->
-          prog_step h T (tSingleton (tid, unlocked nil, s2,t)) 
-        (OK h T(tCouple (tid, unlocked nil, fAct t E M d n::s2, fill E(ret unit)) 
-                        (n::tid, unlocked nil, nil, M)))
-|CGet : forall TID h h' T N s2 E x ds writer t (d:decompose t E (get (fvar x))),
-         heap_lookup x h = Some(sfull COMMIT ds COMMIT writer N) -> 
-         h' = replace x (sfull COMMIT (TID::ds) COMMIT writer N) h ->
-         prog_step h T (tSingleton (TID, unlocked nil, s2, t))
-              (OK h' T (tSingleton (TID, unlocked nil, rAct x t E d::s2, fill E(ret N))))
-|CPut : forall E x N h h' s2 TID T t (d:decompose t E (put (fvar x) N)), 
-         decompose t E (put (fvar x) N) -> heap_lookup x h = Some(sempty COMMIT) ->
-         h' = replace x (sfull COMMIT nil COMMIT TID N) h -> 
-         prog_step h T (tSingleton (TID, unlocked nil, s2, t)) (OK h' T
-              (tSingleton (TID, unlocked nil, wAct x t E N d::s2, fill E(ret unit))))
 |COverwrite : forall t E x N N' h h' h'' T TR s1 TR' s2' M A s2 ds TID TID' (d:decompose t E (put (fvar x) N)), 
                heap_lookup x h = Some (sfull COMMIT ds SPEC TID' N') ->
                thread_lookup TR TID' (TID', s1,s2',M) -> errorWriteStack x s1 A -> 
@@ -36,15 +21,6 @@ Inductive prog_step : sHeap -> pool -> pool -> config -> Prop :=
                 decompose t E (put (fvar x) N) ->
                 heap_lookup x h = Some(sfull COMMIT ds COMMIT tid' N') ->
                 prog_step h T (tSingleton (tid, unlocked nil, s2, t)) Error
-|CNew : forall E h h' x tid t s2 T (d:decompose t E new)
-              (p:heap_lookup x h = None),
-         h' = Heap.extend x (sempty COMMIT) h p -> 
-         prog_step h T (tSingleton (tid, unlocked nil, s2, fill E new)) 
-              (OK h' T (tSingleton (tid, unlocked nil, nAct t E d x::s2, fill E(ret(fvar x)))))
-|CSpec : forall E M t N tid s2 T h (d:decompose t E (spec M N)), 
-          prog_step h T (tSingleton (tid, unlocked nil, s2, t)) (OK h T
-               (tCouple (tid, unlocked nil, srAct t E M N d::s2,fill E (specRun M N)) 
-                        (2::tid, specStack nil N, nil, N))) 
 |CSpecJoin : forall t E M N0 N1 tid T h t1 t2 s1 s1' s2 s2' wf (p:decompose t E (specRun (ret N1) N0)),
               t1 = (tid,unlocked nil,s2, t) -> t2 = (2::tid,specStack s1 N0,s2',M) ->
               wf = decomposeWF t E (specRun (ret N1) N0) p ->

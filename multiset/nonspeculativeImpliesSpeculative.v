@@ -148,11 +148,32 @@ Theorem consNil : forall (T:Type) (a:T), [a] = a::nil. auto. Qed.
 
 Theorem eSpecTerm : forall e, exists e', specTerm e' = e. 
 Proof.
-  induction e; intros.
+  induction e; intros; try invertHyp. 
   {exists (pfvar i). auto. }
-  {Admitted. 
- 
+  {exists (pbvar i). auto. }
+  {exists punit; auto. }
+  {exists (ppair x0 x). auto. }
+  {exists (plambda x); auto. }
+  {exists (papp x0 x); auto. }
+  {exists (pret x); auto. }
+  {exists (pbind x0 x); auto. }
+  {exists (pfork x); auto. }
+  {exists pnew; auto. }
+  {exists (pput x0 x); auto. }
+  {exists (pget x); auto. }
+  {exists (praise x); auto. }
+  {exists (phandle x0 x); auto. }
+  {exists (pspec x0 x); auto. }
+  {exists (pspecRun x0 x); auto. }
+  {exists (pspecJoin x0 x); auto. }
+  {exists (pfst x); auto. }
+  {exists (psnd x); auto. }
+  {exists (pdone x); auto. }
+Qed.  
+
 Theorem eSpecCtxt : forall E, exists E', specCtxt E' = E. 
+Proof.
+  induction E; intros; try invertHyp. 
 Admitted. 
 
 Ltac existTac e := let n := fresh in
@@ -170,7 +191,7 @@ Theorem gatherDrop : forall t E N M tid,
 Proof.
   induction t; intros; try solve[inv H]. 
   {inv H. eapply IHt1 in H5. simpl. rewrite H5. 
-
+   Admitted. 
 
 Theorem nonspecImpliesSpec : forall PH PH' PT pt pt' T,
         pstep PH PT pt (pOK PH' PT pt') -> 
@@ -183,10 +204,11 @@ Proof.
   {admit. }
   {apply specUnionComm in H0. invertHyp. inv H0. 
    inv H4. copy H5. eapply gatherDecomp with (tid:=tid)in H0. invertHyp. 
-   unfoldTac. apply pullOut in H2. rewrite H2. rewrite <- Union_associative.
+   unfoldTac. apply pullOut in H2. rewrite H2. rewrite <- Union_associative. 
    rewrite singleton. rewrite <- coupleUnion. rewrite couple_swap. 
    rewrite Union_associative. econstructor. split. eapply multi_step. 
-   eapply SpecJoin with (N0:=specTerm M)(M:=specTerm M)(N1:=specTerm N)(E:=specCtxt E); eauto. 
+   eapply SpecJoin with (N0:=specTerm M)
+                          (M:=specTerm M)(N1:=specTerm N)(E:=specCtxt E); eauto. 
    simpl. constructor. unfoldTac.
    rewrite <- Union_associative. unfold pUnion. apply specUnionL. auto. 
    copy H5. eapply gatherDrop with(tid:=tid)in H5. rewrite <- H5. 
