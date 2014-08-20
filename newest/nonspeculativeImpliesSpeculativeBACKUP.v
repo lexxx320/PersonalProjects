@@ -112,6 +112,36 @@ Proof.
   apply replacePreservesUniqueness. auto. 
 Qed. 
 
+Fixpoint raw_specHeap (H:rawHeap pivar_state):= 
+  match H with 
+      |(i, pempty)::H' => (i, sempty COMMIT)::raw_specHeap H'
+      |(i, pfull M)::H' => (i, sfull COMMIT nil COMMIT nil (specTerm M))::raw_specHeap H'
+      |nil => nil
+  end. 
+
+Theorem specUnique : forall H S,
+                       unique pivar_state S H -> 
+                       unique ivar_state S (raw_specHeap H). 
+Proof.
+  induction H; intros. 
+  {constructor. }
+  {inv H0. simpl. destruct v. constructor. auto. eauto. constructor; auto. }
+Qed. 
+
+Definition specHeap H :=
+  match H with
+      |heap_ h p => 
+       heap_ ivar_state (raw_specHeap h) (specUnique h (Ensembles.Empty_set AST.id) p)
+  end. 
+
+
+Theorem specHeapReplaceFull : forall x tid M H,
+                                heap_lookup x H = Some pempty ->
+                                replace x (sfull COMMIT nil COMMIT tid (specTerm M)) (specHeap H) = 
+                                specHeap(replace x (pfull M) H). 
+Proof.
+  
+
 Theorem UnionEqR' : forall (U:Type) (T T1 T2:multiset U), T1 = T2 -> Union U T T1 = Union U T T2. 
 Proof.
   intros. subst; auto. 
@@ -258,23 +288,25 @@ Inductive gatherCtxt : pctxt -> pool -> Prop :=
                                    gatherCtxt (pspecJoinCtxt E t) (tUnion T1 T2)
 |gHoleCtxt : gatherCtxt pholeCtxt (Empty_set thread). 
 
-Theorem raw_specHeapLookupFull : forall x H M H',
-                               raw_heap_lookup x H = Some(pfull M) -> raw_specHeap H H' -> exists tid,
-                               raw_heap_lookup x H' = Some(sfull COMMIT nil COMMIT tid (specTerm M)).
+Theorem raw_specHeapLookupFull : forall x H M,
+                               raw_heap_lookup x H = Some(pfull M) ->
+                               raw_heap_lookup x (raw_specHeap H) = 
+                               Some(sfull COMMIT nil COMMIT nil (specTerm M)). 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. inv H1. simpl. rewrite eq. eauto. }
-   {destruct p; auto. inv H1. simpl. rewrite eq; auto. inv H1. simpl. rewrite eq; auto. }
+   {inv H0. simpl. rewrite eq; auto. }
+   {destruct p; auto. simpl. rewrite eq; auto. simpl. rewrite eq; auto. }
   }
 Qed. 
 
-Theorem specHeapLookupFull : forall x H M H',
-                               heap_lookup x H = Some(pfull M) -> specHeap H H' -> 
-                               exists tid, heap_lookup x H' = Some(sfull COMMIT nil COMMIT tid (specTerm M)). 
+Theorem specHeapLookupFull : forall x H M,
+                               heap_lookup x H = Some(pfull M) ->
+                               heap_lookup x (specHeap H) = 
+                               Some(sfull COMMIT nil COMMIT nil (specTerm M)). 
 Proof.
-  intros. destruct H. simpl in *. inv H1. eapply raw_specHeapLookupFull in H0; eauto. 
+  intros. destruct H. simpl. eapply raw_specHeapLookupFull; eauto. 
 Qed. 
 
 Theorem appSingle : forall (T:Type) (a:T) b, a::b = [a]++b. reflexivity. Qed. 
@@ -547,106 +579,105 @@ Proof.
   intros. destruct H. eapply raw_lookupSourceProg; eauto. 
 Qed. 
 
-Theorem raw_specHeapLookupEmpty : forall x H H',
-                               raw_heap_lookup x H = Some pempty -> raw_specHeap H H' -> 
-                               raw_heap_lookup x H' = Some(sempty COMMIT).
+Theorem raw_specHeapLookupEmpty : forall x H,
+                               raw_heap_lookup x H = Some pempty ->
+                               raw_heap_lookup x (raw_specHeap H) = Some(sempty COMMIT).
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. inv H1. simpl. rewrite eq. auto. }
-   {inv H1. simpl. rewrite eq. eauto. simpl. rewrite eq. eauto. }
+   {inv H0. simpl. rewrite eq; auto. }
+   {destruct p; auto. simpl. rewrite eq; auto. simpl. rewrite eq; auto. }
   }
 Qed. 
 
-Theorem specHeapLookupEmpty : forall x H H',
-                               heap_lookup x H = Some pempty -> specHeap H H' ->
-                               heap_lookup x H' = Some(sempty COMMIT).
+Theorem specHeapLookupEmpty : forall x H,
+                               heap_lookup x H = Some pempty ->
+                               heap_lookup x (specHeap H) = Some(sempty COMMIT).
 Proof.
-  intros. destruct H. simpl. inv H1. eapply raw_specHeapLookupEmpty in H0; eauto. 
+  intros. destruct H. simpl. eapply raw_specHeapLookupEmpty; eauto. 
 Qed. 
 
-Theorem nonspecImpliesSpec : forall PH PH' PT pt pt' T H,
+Theorem nonspecImpliesSpec : forall PH PH' PT pt pt' T,
         pstep PH PT pt (pOK PH' PT pt') -> 
-        speculate (pUnion PT pt) T -> PoolWF (pUnion PT pt) -> heapWF PH -> specHeap PH H ->
-        exists T' H', multistep H T (Some(H', T')) /\
-                   speculate (pUnion PT pt') T' /\ specHeap PH' H'. 
+        speculate (pUnion PT pt) T -> PoolWF (pUnion PT pt) -> heapWF PH -> 
+        exists T', multistep (specHeap PH) T (Some(specHeap PH', T')) /\
+                   speculate (pUnion PT pt') T'. 
 Proof.
-  intros. inv H0. 
-  {apply specUnionComm in H1. invertHyp. inv H1. inv H7. admit. }
-  {copy H9. apply specUnionComm in H1. invertHyp. inv H1. inv H8.
-   eapply gatherDecomp in H0; eauto. invertHyp. econstructor. econstructor. split. 
+  intros. inv H. 
+  {apply specUnionComm in H0. invertHyp. inv H0. inv H5. admit. }
+  {copy H7. apply specUnionComm in H0. invertHyp. inv H0. inv H6.
+   eapply gatherDecomp in H; eauto. invertHyp. econstructor. split. 
    unfoldTac. rewrite Union_associative. eapply multi_step. 
    eapply Spec.Spec with(M:=specTerm M)(N:=specTerm N)(E:=specCtxt E). 
    eapply multi_step. eapply PopSpec. rewrite app_nil_l. simpl. auto. constructor. 
-   split. unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto.
+   unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto.
    rewrite couple_swap. rewrite coupleUnion. repeat rewrite Union_associative. 
    replace (specRun(specTerm M)(specTerm N)) with (specTerm(pspecRun M N)); auto.  
    rewrite <- specFill. constructor. constructor. rewrite <- Union_associative. 
-   apply gatherFill; auto. inv H0. constructor; auto. auto. }
-  {copy H9. apply specUnionComm in H1. invertHyp. inv H1. inv H8. 
-   eapply gatherDecomp in H0; eauto. invertHyp. inv H0. unfoldTac. 
+   apply gatherFill; auto. inv H. constructor; auto. }
+  {copy H7. apply specUnionComm in H0. invertHyp. inv H0. inv H6. 
+   eapply gatherDecomp in H; eauto. invertHyp. inv H. unfoldTac. 
    repeat rewrite <- Union_associative. rewrite listToSingle. rewrite <- coupleUnion. 
-   rewrite couple_swap. repeat rewrite Union_associative. econstructor. econstructor. split.
+   rewrite couple_swap. repeat rewrite Union_associative. econstructor. split.
    eapply multi_step. eapply SpecJoin with (N0:=specTerm M)
                           (M:=specTerm M)(N1:=specTerm N)(E:=specCtxt E); eauto. 
-   simpl. constructor. split. unfoldTac. repeat rewrite <- Union_associative. apply specUnionComm'. 
+   simpl. constructor. unfoldTac. repeat rewrite <- Union_associative. apply specUnionComm'. 
    auto. rewrite (Union_associative thread x0).
    rewrite (Union_associative thread (Union thread x0 T1)). 
    replace (specJoin(ret(specTerm N)) (specTerm M)) with (specTerm (pspecJoin (pret N) M)); auto. 
    rewrite <- specFill. constructor. constructor. rewrite <- Union_associative. 
-   apply gatherFill. auto. constructor; auto. auto. }
-  {copy H9. apply specUnionComm in H1. invertHyp. inv H1. inv H8. 
-   eapply gatherDecomp in H0; eauto. invertHyp. inv H0. unfoldTac. 
+   apply gatherFill. auto. constructor; auto. }
+  {copy H7. apply specUnionComm in H0. invertHyp. inv H0. inv H6. 
+   eapply gatherDecomp in H; eauto. invertHyp. inv H. unfoldTac. 
    repeat rewrite <- Union_associative. rewrite listToSingle. rewrite <- coupleUnion. 
-   repeat rewrite Union_associative. rewrite <- Union_associative. econstructor. econstructor. split.  
-   eapply multi_step. apply decomposeSpec in H9.
+   repeat rewrite Union_associative. rewrite <- Union_associative. econstructor. split.  
+   eapply multi_step. apply decomposeSpec in H7.
    eapply SpecRB with (E:=specTerm N)(E':=specCtxt E)(N0:=specTerm M). eassumption. 
    auto. auto. eapply RBDone. unfold tAdd. unfold Add. unfoldTac. unfold In. 
-   apply in_app_iff. right. simpl. left; eauto. eauto.
-   constructor. split. unfoldTac. repeat rewrite <- Union_associative. apply specUnionComm'. 
-   auto. replace (raise (specTerm N)) with (specTerm (praise N)); auto. rewrite <- specFill.
-   apply gatherSourceProg in H12. Focus 2. apply poolWFComm in H2. simpl in H2. invertHyp.
-   apply ptrmDecomposeWF in H9; auto. inv H9. auto. subst. unfold Add. simpl. 
-   rewrite Union_associative. constructor. constructor. apply gatherFill; auto. auto. }
-  {copy H9. apply specUnionComm in H1. invertHyp. inv H1. inv H8. 
-   eapply gatherDecomp in H0; eauto. invertHyp. inv H0. copy H9. rewrite poolWFComm in H2. 
-   simpl in H2. invertHyp. apply ptrmDecomposeWF in H9; auto. simpl in H9. 
-   unfoldTac. rewrite Union_associative. econstructor. econstructor. split. eapply multi_step. 
+   apply in_app_iff. right. simpl. left; eauto. eauto. rewrite poolWFComm in H1. 
+   invertHyp. copy H6. simpl in H4. invertHyp. apply ptrmDecomposeWF in H7;[idtac|auto]. 
+   inv H7. apply gatherSourceProg in H10. Focus 2. auto. subst. unfold tAdd. unfold Add. 
+   simpl. constructor. unfoldTac. repeat rewrite <- Union_associative. apply specUnionComm'. 
+   auto. replace (raise (specTerm N)) with (specTerm (praise N)); auto. rewrite <- specFill. 
+   rewrite listToSingle. rewrite Union_associative. constructor. constructor. 
+   apply gatherFill; auto. }
+  {copy H7. apply specUnionComm in H0. invertHyp. inv H0. inv H6. 
+   eapply gatherDecomp in H; eauto. invertHyp. inv H. copy H7. rewrite poolWFComm in H1. 
+   simpl in H1. invertHyp. apply ptrmDecomposeWF in H7; auto. simpl in H7. 
+   unfoldTac. rewrite Union_associative. econstructor. split. eapply multi_step. 
    eapply Fork with (M:=specTerm M)(E:=specCtxt E). eauto. eapply multi_step. eapply PopFork. 
    rewrite app_nil_l. simpl. auto. auto. constructor. unfoldTac. rewrite <- Union_associative. 
-   split. apply specUnionComm'. auto. copy H7. apply gatherSourceProg in H7; auto. rewrite H7. 
+   apply specUnionComm'. auto. copy H5. apply gatherSourceProg in H5; auto. rewrite H5. 
    rewrite union_empty_r. rewrite coupleUnion. unfold pCouple. unfold Couple. simpl. 
    replace (ret unit) with (specTerm (pret punit)); auto. rewrite <- specFill. constructor. 
    rewrite <- union_empty_l. constructor. constructor. subst. eauto. 
-   rewrite <- union_empty_r. apply gatherFill. auto. repeat constructor. auto. }
-  {copy H11. apply specUnionComm in H1. invertHyp. inv H1. inv H8. copy H10. 
-   eapply specHeapLookupFull in H10; eauto. invertHyp. 
-   eapply gatherDecomp in H0; eauto. invertHyp. 
-   econstructor. econstructor. split. unfoldTac. rewrite Union_associative. eapply multi_step. 
-   eapply Get with (N:=specTerm M)(E:=specCtxt E). eauto. auto. eapply multi_step. eapply PopRead. 
+   rewrite <- union_empty_r. apply gatherFill. auto. repeat constructor. }
+  {copy H9. apply specUnionComm in H0. invertHyp. inv H0. inv H6. 
+   eapply gatherDecomp in H; eauto. invertHyp. copy H8. apply lookupSourceProg in H8; auto. 
+   econstructor. split. unfoldTac. rewrite Union_associative. eapply multi_step. 
+   eapply Get with (N:=specTerm M)(E:=specCtxt E). 
+   apply specHeapLookupFull; eauto. auto. eapply multi_step. eapply PopRead. 
    rewrite app_nil_l. simpl; auto. rewrite app_nil_r. rewrite app_nil_l. auto. introsInv. 
-   erewrite HeapLookupReplace; eauto. auto. rewrite replaceOverwrite. rewrite replaceSame. 
-   constructor. eauto. unfoldTac. rewrite Union_associative. repeat rewrite <- Union_associative. 
-   split. apply specUnionComm'. auto. inv H0. inv H9. simpl. 
+   erewrite HeapLookupReplace; eauto. eapply specHeapLookupFull; eauto. auto.
+   rewrite replaceOverwrite. rewrite replaceSame. constructor. eapply specHeapLookupFull; eauto. 
+   unfoldTac. rewrite Union_associative. repeat rewrite <- Union_associative. apply specUnionComm'. 
+   auto. inv H. inv H6. simpl. 
    replace (ret(specTerm M)) with (specTerm(pret M)); auto. rewrite <- specFill. 
    constructor. constructor. rewrite <- union_empty_r. apply gatherFill. auto. constructor.
-   gatherTac M. copy H8. apply gatherSourceProg in H8; eauto. subst. auto. Focus 2. auto.
-   eapply lookupSourceProg; eauto. }
-  {apply specUnionComm in H1. invertHyp. inv H1. inv H8. copy H7. 
-   eapply gatherDecomp in H7; eauto. invertHyp. rewrite poolWFComm in H2. simpl in H2. 
-   invertHyp. econstructor. econstructor. split. unfoldTac. rewrite Union_associative. 
-   eapply multi_step. copy H1. apply decomposeSpec in H1. eapply Put with (N:=specTerm M)(E:=specCtxt E).
-   simpl in *. eauto. eapply specHeapLookupEmpty; eauto. auto. eapply multi_step. 
+   gatherTac M. copy H5. apply gatherSourceProg in H5; eauto. subst. eauto. }
+  {apply specUnionComm in H0. invertHyp. inv H0. inv H6. copy H5. 
+   eapply gatherDecomp in H5; eauto. invertHyp. rewrite poolWFComm in H1. simpl in H1. 
+   invertHyp. econstructor. split. unfoldTac. rewrite Union_associative. eapply multi_step. 
+   copy H0. apply decomposeSpec in H0. eapply Put with (N:=specTerm M)(E:=specCtxt E).
+   simpl in *. eauto. apply specHeapLookupEmpty; eauto. auto. eapply multi_step. 
    eapply PopWrite. rewrite app_nil_l. simpl; auto. erewrite HeapLookupReplace; eauto. 
-   eapply specHeapLookupEmpty; eauto. auto. rewrite replaceOverwrite. constructor. 
-   split. unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto. 
-   inv H6. inv H13. unfoldTac. simpl in *. apply ptrmDecomposeWF in H1; auto. inv H1. 
-   eapply gatherSourceProg in H15; eauto. subst. rewrite union_empty_r in *.  
-   replace (ret unit) with (specTerm (pret punit)); auto. rewrite <- specFill. constructor. 
-   constructor. rewrite <- union_empty_r. apply gatherFill. auto. repeat constructor. 
-   apply specHeapReplaceFull; auto. }
-  {
+   eapply specHeapLookupEmpty; eauto. auto. rewrite replaceOverwrite. 
+
+
+
+
+
 
 
 Theorem nonspecImpliesSpecStar : forall PH PH' PT PT' T,

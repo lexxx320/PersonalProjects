@@ -1,7 +1,8 @@
-Require Import AST.   
-Require Import Heap.
-Require Import Coq.Sets.Ensembles. 
-Require Import sets. 
+Require Export AST.   
+Require Export Heap.
+Require Export sets. 
+Require Export Coq.Program.Equality.
+Require Export multiset. 
 
 Definition pHeap := heap pivar_state. 
 
@@ -108,10 +109,10 @@ Proof.
   {inv H; inv H0; try contradiction; auto. eapply IHM2 in H7; eauto. inv H7; auto. }
 Qed. 
 
-Definition pPool := Ensemble ptrm. 
-Definition pSingleton := Singleton ptrm. 
+Definition pPool := multiset ptrm. 
+Definition pSingle := Single ptrm. 
 Definition pUnion := Union ptrm. 
-
+Definition pCouple := Couple ptrm. 
 Inductive pconfig : Type :=
 |pError : pconfig
 |pOK : pHeap -> pPool -> pPool -> pconfig. 
@@ -130,65 +131,64 @@ Inductive pbasic_step : ptrm -> ptrm -> Prop :=
 |pbasicHandle : forall t E M N,
                  pdecompose t E (phandle (praise M) N) -> pbasic_step t (pfill E (papp N M))
 |pbasicHandleRet : forall t E M N,
-                    pdecompose t E (phandle (pret M) N) -> pbasic_step t (pfill E (pret M)). 
+                    pdecompose t E (phandle (pret M) N) -> pbasic_step t (pfill E (pret M))
+|pSpecJoinRaise : forall t M N E,
+                    pdecompose t E (pspecJoin (pret N) (praise M)) ->
+                    pbasic_step t (pfill E (praise M))
+|pspecJoinDone : forall t M N E,
+                   pdecompose t E (pspecJoin (pret N) (pret M)) ->
+                   pbasic_step t (pfill E (pret (ppair N M))). 
 
 Inductive pstep : pHeap -> pPool -> pPool -> pconfig -> Prop :=
 |PBasicStep : forall t t' h T,
-                pbasic_step t t' -> pstep h T (pSingleton t) (pOK h T (pSingleton t'))
+                pbasic_step t t' -> pstep h T (pSingle t) (pOK h T (pSingle t'))
 |pSpec : forall t M N T h E, pdecompose t E (pspec M N) ->
-                           pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (pspecRun M N))))
+                           pstep h T (pSingle t) (pOK h T (pSingle (pfill E (pspecRun M N))))
 |pSpecRun : forall t M N T h E,
               pdecompose t E (pspecRun (pret N) M) -> 
-              pstep h T (pSingleton t) 
-                    (pOK h T (pSingleton (pfill E (pspecJoin (pret N) M))))
-|pSpecRunDone : forall t M N T h E,
-                  pdecompose t E (pspecJoin (pret N) (pret M)) ->
-                  pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (ppair N M))))
+              pstep h T (pSingle t) 
+                    (pOK h T (pSingle (pfill E (pspecJoin (pret N) M))))
 |pSpecRunRaise : forall t M N T h E,
                    pdecompose t E (pspecRun (praise N) M) -> 
-                   pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (praise N))))
-|pSpecJoinRaise : forall t M N T h E,
-                   pdecompose t E (pspecJoin (pret N) (praise M)) ->
-                   pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E (praise M))))
+                   pstep h T (pSingle t) (pOK h T (pSingle (pfill E (praise N))))
 |pFork : forall E t M h T,
            pdecompose t E (pfork M) -> 
-           pstep h T (pSingleton t) (pOK h T (Couple ptrm (pfill E(pret punit)) M))
+           pstep h T (pSingle t) (pOK h T (pCouple (pfill E(pret punit)) M))
 |PGet : forall E M t h T x,
            heap_lookup x h = Some(pfull M) -> pdecompose t E (pget (pfvar x)) -> 
-          pstep h T (pSingleton t) (pOK h T (pSingleton (pfill E(pret M))))
+          pstep h T (pSingle t) (pOK h T (pSingle (pfill E(pret M))))
 |PPut : forall E t M h h' T x,
           pdecompose t E (pput (pfvar x) M) -> heap_lookup x h = Some pempty ->
           h' = replace x (pfull M) h ->
-          pstep h T (pSingleton t) (pOK h' T (pSingleton (pfill E (pret punit))))
+          pstep h T (pSingle t) (pOK h' T (pSingle (pfill E (pret punit))))
 |PPutError : forall E t M h T x N,
                pdecompose t E (pput (pfvar x) M) -> heap_lookup x h = Some (pfull N) ->
-               pstep h T (pSingleton t) pError
+               pstep h T (pSingle t) pError
 |PNew : forall E t h h' T x (p:heap_lookup x h = None),
           pdecompose t E pnew ->  h' = extend x pempty h p ->
-          pstep h T (pSingleton t) (pOK h' T (pSingleton (pfill E (pret (pfvar x)))))
+          pstep h T (pSingle t) (pOK h' T (pSingle (pfill E (pret (pfvar x)))))
 .
 
-Inductive pmultistep : pHeap -> pPool -> pPool -> pconfig -> Prop :=
-|pmulti_refl : forall h p1 p2, pmultistep h p1 p2 (pOK h p1 p2)
-|pmulti_step : forall T1 T2 h h' t t' c,
-                 pstep h (pUnion T1 T2) (pSingleton t) (pOK h' (pUnion T1 T2) t') ->
-                 pmultistep h' T1 (pUnion T2 t') c ->
-                 pmultistep h T1 (Add ptrm T2 t) c
-|pmulti_error : forall T1 T2 h t,
-                  ~ In ptrm T2 t ->
-                  pstep h (pUnion T1 T2) (pSingleton t) pError -> 
-                  pmultistep h T1 (Add ptrm T2 t) pError.    
+Inductive pmultistep : pHeap -> pPool -> option (pHeap * pPool) -> Prop :=
+|pmulti_refl : forall H T, pmultistep H T (Some (H, T))
+|pmulti_step : forall H H' T t t' c,
+                 pstep H T t (pOK H' T t') -> pmultistep H' (pUnion T t') c ->
+                 pmultistep H (pUnion T t) c
+|pmulti_error : forall H T t,
+                  pstep H T t pError -> 
+                  pmultistep H (pUnion T t) None.    
 
-Require Import Coq.Sets.Powerset_facts. 
+Ltac depInd H := generalize_eqs_vars H; induction H; simplify_dep_elim; intros.
 
-
-Theorem pSingletonMultistep : forall h h' T T' t t',
-          pmultistep h T (Union ptrm (Empty_set ptrm) t) (pOK h' T' t') ->
-          pmultistep h T t (pOK h' T' t'). 
+Theorem pmulti_trans : forall H T H' T' H'' T'',
+                         pmultistep H T (Some (H', T')) -> 
+                         pmultistep H' T' (Some (H'', T'')) ->
+                         pmultistep H T (Some (H'', T'')).
 Proof.
-  intros. rewrite Union_commutative in H. rewrite union_empty_r in H. 
-  assumption. Qed.   
-
+  intros. depInd H0. 
+  {auto. }
+  {econstructor; eauto. }
+Qed. 
 
 Inductive pctxtWF (e:ptrm) : pctxt -> Prop :=
 |pbindWF : forall N E, pctxtWF e E -> ~pval (pfill E e) -> pctxtWF e (pbindCtxt E N)

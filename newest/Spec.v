@@ -1,12 +1,5 @@
-Require Import Heap.     
-Require Import NonSpec.  
-Require Import sets.  
-Require Import SpecLib. 
-Require Import Coq.Sets.Ensembles. 
-Require Import Coq.Logic.Classical_Prop. 
-Require Import Coq.Program.Equality. 
-Require Import Coq.Sets.Powerset_facts. 
-Require Import AST.   
+Require Export NonSpec. 
+Require Export Coq.Logic.Classical_Prop. 
 
 (*Representation for specualtive heaps (see Heap.v for details)*)
 Definition sHeap := heap (ivar_state).
@@ -49,16 +42,14 @@ Proof.
 Qed. 
 
 Open Scope type_scope. 
-
+ 
 Definition thread := tid * actionStack * list action * trm. 
-Definition pool := Ensemble thread.
+Definition pool := multiset thread.
 Definition tAdd := Add thread. 
 Definition tIn := In thread. 
 Definition tUnion := Union thread. 
 Definition tCouple := Couple thread. 
-Definition tSetminus := Setminus thread. 
-Definition tSingleton := Singleton thread. 
-Definition tIntersection := Intersection thread. 
+Definition tSingleton := Single thread. 
 Definition tEmptySet := Empty_set thread. 
  
 Inductive lastAct : actionStack -> actionStack -> action -> Prop :=
@@ -76,10 +67,10 @@ Inductive rollback : tid -> actionStack -> sHeap -> pool -> sHeap -> pool -> Pro
 RBDone : forall T h M tid s1 s2 t1,
            tIn T t1 -> t1 = (tid, s1, s2, M) ->
            rollback (tid) s1 h T h T
-|RBRead : forall s1 s1' s2 x TID TID' M M' N h h' h'' T T' sc t A S ds t1 SRoll E d, 
-            s1 = aCons (rAct x M' E d) s1' -> In tid ds TID' ->
-            heap_lookup x h = Some (sfull sc ds (aCons S A) t N) ->
-            h' = replace x (sfull sc (Subtract tid ds TID') (aCons S A) t N) h -> 
+|RBRead : forall s1 s1' s2 x TID TID' ds1 ds2 M M' N h h' h'' T T' sc t ds t1 SRoll E d, 
+            s1 = aCons (rAct x M' E d) s1' -> ds = ds1 ++ [TID'] ++ ds2 -> ~ List.In TID' ds1 ->
+            heap_lookup x h = Some (sfull sc ds SPEC t N) ->
+            h' = replace x (sfull sc (ds1++ds2) SPEC t N) h -> 
             ~(tIn T t1) -> t1 = (TID', s1, s2, M) ->
             rollback TID SRoll h' (tAdd T (TID', s1', s2, M')) h'' T' ->
             rollback TID SRoll h (tAdd T t1) h'' T'
@@ -88,16 +79,16 @@ RBDone : forall T h M tid s1 s2 t1,
             t1 = (TID', s1, s2, M) -> t2 = (n::TID', locked nil, s2', N) ->
             rollback TID SRoll h (tAdd T (TID', s1', s2, M')) h' T' ->
             rollback TID SRoll h (tUnion T (tCouple t1 t2)) h' T'
-|RBWrite : forall s1 s1' s2 TID TID' M M' N S A sc T T' h h' h'' x t1 SRoll E N' d,
+|RBWrite : forall s1 s1' s2 TID TID' M M' sc T T' h h' h'' x t1 SRoll E N' d,
              s1 = aCons (wAct x M' E N' d) s1' ->
-             heap_lookup x h = Some(sfull sc (Empty_set tid) (aCons S A) TID' N) ->
+             heap_lookup x h = Some(sfull sc nil SPEC TID' N') ->
              h' = replace x (sempty sc) h -> ~(tIn T t1) ->
              t1 = (TID', s1, s2, M) -> rollback TID SRoll h' (tAdd T (TID', s1', s2, M')) h'' T' ->
              rollback TID SRoll h (tAdd T t1) h'' T'
-|RBNew : forall s1 s1' s2 TID TID' M M' S A T T' h h' h'' x t1 SRoll E d,
+|RBNew : forall s1 s1' s2 TID TID' M M' T T' h h' h'' x t1 SRoll E d,
            s1 = aCons (nAct M' E d x) s1' -> decompose M' E new -> 
-           heap_lookup x h = Some (sempty (aCons S A)) ->
-           h' = remove h x -> ~(tIn T t1) -> t1 = (TID', s1, s2, M) ->
+           heap_lookup x h = Some (sempty SPEC) ->
+           h' = Heap.remove h x -> ~(tIn T t1) -> t1 = (TID', s1, s2, M) ->
            rollback TID SRoll h' (tAdd T (TID', s1', s2, M')) h'' T' ->
            rollback TID SRoll h (tAdd T t1) h'' T'
 |RBSpec : forall s1 s1' s2 s2' TID TID' M M' M'' N'' N E T T' h h' t1 t2 SRoll d,
@@ -105,7 +96,7 @@ RBDone : forall T h M tid s1 s2 t1,
             ~(tIn T t1) -> ~(tIn T t2) ->
             t1 = (TID', s1, s2, M) -> t2 = (2::TID', locked nil, s2', N) ->
             rollback TID SRoll h (tAdd T (TID', s1', s2, M')) h' T' ->
-            rollback TID SRoll h (tAdd (tAdd T t1) t2) h' T'
+            rollback TID SRoll h (tUnion T (tCouple t1 t2)) h' T'
 .
 
 Hint Constructors rollback. 
@@ -283,7 +274,13 @@ Inductive basic_step : trm -> trm -> Prop :=
 |basicHandle : forall t E M N,
                  decompose t E (handle (raise M) N) -> basic_step t (fill E (AST.app N M))
 |basicHandleRet : forall t E M N,
-                    decompose t E (handle (ret M) N) -> basic_step t (fill E (ret M)). 
+                    decompose t E (handle (ret M) N) -> basic_step t (fill E (ret M))
+|specJoinRaise : forall t E M N,
+                   decompose t E (specJoin (ret M) (raise N)) ->
+                   basic_step t (fill E (raise N))
+|specJoinRet : forall t E M N,
+                 decompose t E (specJoin (ret M) (ret N)) ->
+                 basic_step t (fill E (ret (pair_ M  N))). 
 
 Definition notIn T tid := ~(exists t, thread_lookup T tid t). 
 
@@ -301,6 +298,14 @@ Definition numForks s :=
       |specStack s N => numForks' s
   end. 
 
+Inductive errorWriteStack x : actionStack -> actionStack -> Prop :=
+|errorWriteLocked : forall s1 t E M d s2,  
+                      errorWriteStack x (locked(s1++[wAct x t E M d]++s2)) (locked s2)
+|errorWriteUnlocked : forall s1 t E M d s2,
+                        errorWriteStack x (unlocked(s1++[wAct x t E M d]++s2)) (locked s2)
+|errorWriteSpecStack : forall s1 t E M d s2 N,
+                         errorWriteStack x (specStack(s1++[wAct x t E M d]++s2)N) (specStack s2 N).
+
 Inductive step : sHeap -> pool -> pool -> config -> Prop :=
 |BasicStep : forall t t' tid s1 s2 h T,
                basic_step t t' -> step h T (tSingleton(tid,s1,s2,t)) (OK h T (tSingleton(tid,s1,s2,t')))
@@ -309,132 +314,102 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
           step h T (tSingleton (tid, s1, s2,t)) 
         (OK h T(tCouple (tid, aCons (fAct t E M d n)s1, s2, fill E(ret unit)) 
                         (n::tid, locked nil, nil, M)))
-|Get : forall TID h h' T N s1 s2 E x s ds writer t (d:decompose t E (get (fvar x))),
-         heap_lookup x h = Some(sfull (unlocked nil) ds s writer N) -> 
-         h' = replace x (sfull (unlocked nil) (Add tid ds TID) s writer N) h ->
+|Get : forall TID h h' T N s1 s2 E x sc s ds writer t (d:decompose t E (get (fvar x))),
+         heap_lookup x h = Some(sfull sc ds s writer N) -> 
+         h' = replace x (sfull sc (TID::ds) s writer N) h ->
          step h T (tSingleton (TID, s1, s2, t))
               (OK h' T (tSingleton (TID, aCons (rAct x t E d) s1, s2, fill E(ret N))))
 |Put : forall E x sc N h h' s1 s2 TID T t (d:decompose t E (put (fvar x) N)), 
          decompose t E (put (fvar x) N) -> heap_lookup x h = Some(sempty sc) ->
-         h' = replace x (sfull sc (Empty_set tid) (aCons (wAct x t E N d)s1) TID N) h -> 
+         h' = replace x (sfull sc nil SPEC TID N) h -> 
          step h T (tSingleton (TID, s1, s2, t)) (OK h' T
               (tSingleton (TID, aCons(wAct x t E N d) s1, s2, fill E(ret unit))))
-|Overwrite : forall t E x N N' h h' h'' T TR TR' S' A s2 ds TID TID' (d:decompose t E (put (fvar x) N)), 
-               heap_lookup x h = Some (sfull (unlocked nil) ds (aCons S' A) TID' N') ->
-               rollback TID' A h TR h' TR' -> heap_lookup x h' = Some(sempty (unlocked nil)) ->
-               h'' = replace x (sfull (unlocked nil) (Empty_set tid) (unlocked [wAct x t E N d]) TID N) h' -> 
+|Overwrite : forall t E x N N' h h' h'' T TR s1 TR' s2' M A s2 ds TID TID' (d:decompose t E (put (fvar x) N)), 
+               heap_lookup x h = Some (sfull COMMIT ds SPEC TID' N') ->
+               thread_lookup TR TID' (TID', s1,s2',M) -> errorWriteStack x s1 A -> 
+               rollback TID' A h TR h' TR' -> heap_lookup x h' = Some(sempty COMMIT) ->
+               h'' = replace x (sfull COMMIT nil SPEC TID N) h' -> 
                step h T (tAdd TR (TID, unlocked nil, s2, fill E(put (fvar x) N))) (OK h'' T
                     (tAdd TR' (TID, unlocked [wAct x t E N d], s2, fill E (ret unit))))
 |ErrorWrite : forall h T t E x N N' tid tid' ds s2,  
                 decompose t E (put (fvar x) N) ->
-                heap_lookup x h = Some(sfull (unlocked nil) ds (unlocked nil) tid' N') ->
+                heap_lookup x h = Some(sfull COMMIT ds COMMIT tid' N') ->
                 step h T (tSingleton (tid, unlocked nil, s2, t)) Error
 |New : forall E h h' x tid t s1 s2 T (d:decompose t E new)
               (p:heap_lookup x h = None),
-         h' = extend x (sempty (aCons (nAct t E d x)s1)) h p -> 
+         h' = Heap.extend x (sempty SPEC) h p -> 
          step h T (tSingleton (tid, s1, s2, fill E new)) 
               (OK h' T (tSingleton (tid, aCons (nAct t E d x) s1, s2, fill E(ret(fvar x)))))
 |Spec : forall E M t N tid s1 s2 T h (d:decompose t E (spec M N)), 
           step h T (tSingleton (tid, s1, s2, t)) (OK h T
                (tCouple (tid, aCons (srAct t E M N d)s1, s2,fill E (specRun M N)) 
                         (2::tid, locked nil, nil, N))) 
-|SpecJoin : forall t E M N0 N1 tid T h t1 t2 s1 s1' s2 s2' wf (p:decompose t E (specRun (ret N1) N0)),
-              t1 = (tid,unlocked nil,s2, t) -> t2 = (2::tid,specStack s1 N0,s2',M) ->
+|SpecJoin : forall t E M N0 N1 tid T h t1 t2 tid' s1 s1' s2 s2' wf (p:decompose t E (specRun (ret N1) N0)),
+              t1 = (tid,unlocked nil,s2, t) -> t2 = (tid',specStack s1 N0,s2',M) ->
               wf = decomposeWF t E (specRun (ret N1) N0) p ->
               s1' = (wrapActs s1 N1 E (specRun (ret N1) N0) wf) ->
               step h T (tCouple t1 t2) 
-                   (OK h T (tSingleton(tid,unlocked s1', s2, fill E (specJoin (ret N1) M)))) 
-|SpecRB : forall t E' h h' tid T T' E M' N0 s2 s1' s2' t1 t2 TRB, 
+                   (OK h T (tSingleton(tid',unlocked s1', s2', fill E (specJoin (ret N1) M)))) 
+|SpecRB : forall t E' h h' tid T T' E M' tid' N0 s2 s1' s2' M'' t1 t2 TRB, 
             decompose t E' (specRun (raise E) N0) -> 
-            t1 = (tid,unlocked nil,s2,t) -> t2 = (2::tid, locked s1',s2',M') -> 
-            ~ (exists p, thread_lookup TRB (tid) p) -> 
-            thread_lookup TRB (2::tid) t2 -> 
-            ~ (exists p', thread_lookup T' (2::tid) p') ->
-            rollback (2::tid) (locked nil) h TRB h' T' ->
-            step h T (tAdd TRB t1) (OK h' T (tAdd T' (tid, unlocked nil, s2, fill E'(raise E))))
-|SpecRaise : forall E' N h tid s2 T E t1 t,
-               decompose t E' (specJoin(ret N)(raise E)) ->
-               t1 = (tid, unlocked nil, s2, t) -> 
-               step h T (tSingleton t1) 
-                    (OK h T (tSingleton (tid, unlocked nil, s2, fill E' (raise E))))
-|PopRead : forall TID t s1 s1' s2 M M' N T h x ds E d h', 
-             s1 = unlocked (s1' ++ [rAct x M' E d]) -> In tid ds TID ->
-             heap_lookup x h = Some (sfull (unlocked nil) ds (unlocked nil) t N) ->
-             h' = replace x (sfull (unlocked nil) (Subtract tid ds TID) (unlocked nil) t N) h ->
+            t1 = (tid,unlocked nil,s2,t) -> t2 = (tid', specStack s1' N0,s2',M') -> 
+            rollback tid' (specStack nil N0) h (tAdd TRB t2) h' 
+                     (tAdd T' (tid',specStack nil N0, s2', M'')) ->
+            step h T (tUnion TRB (tCouple t2 t1)) (OK h' T (tAdd T' (tid, unlocked nil, s2, fill E'(raise E))))
+|PopRead : forall TID t s1 s1' s2 M M' N T h x ds E d h' ds1 ds2, 
+             s1 = unlocked (s1' ++ [rAct x M' E d]) -> ds = ds1 ++ [TID] ++ ds2 -> 
+             ~ List.In TID ds2 -> heap_lookup x h = Some (sfull COMMIT ds COMMIT t N) ->
+             h' = replace x (sfull COMMIT (ds1++ds2) COMMIT t N) h ->
              step h T (tSingleton (TID, s1, s2, M)) (OK h' T (tSingleton (TID, unlocked s1', (rAct x M' E d)::s2, M)))
-|PopWrite : forall tid s1 s1' s2 M M' M'' T h h' x ds a b E d,
+|PopWrite : forall tid s1 s1' s2 M M' M'' T h h' x ds E d,
               s1 = unlocked (s1' ++ [wAct x M' E M'' d]) -> 
-              heap_lookup x h = Some(sfull (unlocked nil) ds (aCons a b) tid M'') ->
-              h' = replace x (sfull (unlocked nil) ds (unlocked nil) tid M'') h -> 
+              heap_lookup x h = Some(sfull COMMIT ds SPEC tid M'') ->
+              h' = replace x (sfull COMMIT ds COMMIT tid M'') h -> 
               step h T (tSingleton (tid, s1, s2, M)) 
                    (OK h' T (tSingleton (tid, unlocked s1', (wAct x M' E M'' d)::s2, M)))
-|PopNewFull : forall h h' s1 s1' s2 i tid M' ds t M N T E d a b y z, 
+|PopNewFull : forall h h' s1 s1' s2 i tid M' ds t M N T E d, 
                 s1 = unlocked(s1' ++ [nAct M' E d i]) -> 
-                heap_lookup i h = Some(sfull (aCons a b) ds (aCons y z) t N) ->
-                h' = replace i (sfull (unlocked nil) ds (aCons y z) t N) h -> 
+                heap_lookup i h = Some(sfull SPEC ds SPEC t N) ->
+                h' = replace i (sfull COMMIT ds SPEC t N) h -> 
                 step h T (tSingleton (tid, s1, s2, M)) 
                      (OK h' T (tSingleton (tid, unlocked s1', nAct M' E d i::s2, M)))
-|PopNewEmpty : forall h h' s1 s1' s2 i tid M' M T E d a b, 
-                 s1 = unlocked(s1' ++ [nAct M' E d i]) -> heap_lookup i h = Some(sempty (aCons a b)) ->
-                  h' = replace i (sempty (unlocked nil)) h -> 
+|PopNewEmpty : forall h h' s1 s1' s2 i tid M' M T E d, 
+                 s1 = unlocked(s1' ++ [nAct M' E d i]) -> heap_lookup i h = Some(sempty SPEC) ->
+                  h' = replace i (sempty COMMIT) h -> 
                  step h T (tSingleton (tid, s1, s2, M))
                       (OK h' T (tSingleton (tid, unlocked s1', nAct M' E d i::s2, M)))
 |PopFork : forall h s1 s1' s2 tid M' M N T M'' E n d s1'', 
              s1 = unlocked(s1' ++ [fAct M' E M'' d n]) -> n = numForks' s2 ->
              step h T (tCouple (tid, s1, s2, M) (n::tid, locked s1'', nil, N)) (OK h T 
                   (tCouple (tid, unlocked s1', fAct M' E M'' d n::s2, M)
-                           (1::tid, unlocked s1'', nil, N)))
-|PopSpec : forall h s1 s1' s1'' s2 s2' t tid M' M N T E d M'', 
+                           (n::tid, unlocked s1'', nil, N)))
+|PopSpec : forall h s1 s1' s1'' s2 t tid M' M N T E d M'', 
              s1 = unlocked (s1' ++ [srAct t E M N d]) -> 
-             step h T (tCouple(tid, s1, s2, M')(2::tid,locked s1'',s2',M''))
-                  (OK h T (tCouple(tid,unlocked s1',srAct t E M N d::s2,M')(2::tid,specStack s1'' N,s2',M'')))
+             step h T (tCouple(tid, s1, s2, M')(2::tid,locked s1'',nil,M''))
+                  (OK h T (tCouple(tid,unlocked s1',srAct t E M N d::s2,M')(2::tid,specStack s1'' N,nil,M'')))
 .
 
 Hint Constructors step. 
- 
-Inductive multistep : sHeap -> pool -> pool -> config -> Prop :=
-|multi_refl : forall h p1 p2, multistep h p1 p2 (OK h p1 p2)
-|multi_step : forall c T1 T2 P1 P2 P2' h h',
-                T2 = tUnion P1 P2 ->
-                step h (tUnion P1 T1) P2 (OK h' (tUnion P1 T1) P2') ->
-                multistep h' T1 (tUnion P1 P2') c ->
-                multistep h T1 T2 c
-|multi_error1 : forall T1 T2 P1 P2 h, 
-                  T2 = tUnion P1 P2 ->
-                  step h (tUnion P1 P2) P2 Error ->
-                  multistep h T1 T2 Error
-. 
- 
+
+Inductive multistep : sHeap -> pool -> option (sHeap * pool) -> Prop :=
+|multi_refl : forall H T, multistep H T (Some (H, T))
+|multi_step : forall H H' c T t t',
+                step H T t (OK H' T t') -> multistep H' (tUnion T t') c ->
+                multistep H (tUnion T t) c
+|smulti_error : forall H T t, 
+                  step H T t Error -> multistep H (tUnion T t) None. 
+
 Hint Constructors multistep. 
 
-Inductive specActionsAux (T:pool) : Ensemble (tid*actionStack) :=
-|saAux : forall t s1, (exists s2 M, thread_lookup T t (t, s1, s2, M)) ->
-                      In (tid*actionStack) (specActionsAux T) (t, s1)
-.
-
-Inductive specActions : pool -> Ensemble (tid * actionStack) -> Prop :=
-|sa : forall T, specActions T (specActionsAux T). 
-
-Hint Constructors specActions specActionsAux. 
-
-Inductive commitActionsAux (T:pool) : Ensemble (tid*list action) :=
-|caAux : forall t s2, (exists s1 M, thread_lookup T t (t, s1, s2, M)) -> 
-                      In (tid*list action) (commitActionsAux T) (t, s2).
-
-Inductive commitActions : pool -> Ensemble (tid*list action) -> Prop :=
-|ca : forall T, commitActions T (commitActionsAux T). 
-
-Hint Constructors commitActions commitActionsAux. 
- 
-
-
+Theorem multi_trans : forall H T H' T' H'' T'',
+                        multistep H T (Some(H', T')) -> 
+                        multistep H' T' (Some(H'', T'')) ->
+                        multistep H T (Some (H'', T'')). 
+Proof.
+  intros. depInd H0; eauto. 
+Qed. 
 
 (*------------------------------------Theorems------------------------------------*)
-
-Theorem IncludedSingleton : forall T S s, Included T (Singleton T s) S -> In T S s. 
-Proof.
-  intros. unfold Included in H. assert(In T (Singleton T s) s). constructor. apply H in H0. 
-  assumption. Qed. 
 
 Theorem stepUnusedPool : forall t1 t2 t2' p1 h h', 
                            step h (tUnion t1 p1) t2 (OK h' (tUnion t1 p1) t2') <->
@@ -444,29 +419,3 @@ Proof.
   {intros. inversion H; eauto. }
   {intros. inversion H; eauto. }
 Qed. 
-
-Theorem multistepUnusedPool : forall h h' t1 t2 p1 p1',
-                                multistep h (tUnion t1 t2) p1 (OK h' (tUnion t1 t2) p1') <->
-                                multistep h t2 p1 (OK h' t2 p1'). 
-Proof.
-  split. 
-  {intros. remember (OK h' (tUnion t1 t2) p1'). induction H. 
-   {inversion Heqc. subst. constructor. }
-   {subst. unfold tUnion in H0. rewrite Union_commutative in H0. apply stepUnusedPool in H0. 
-    econstructor. reflexivity. unfold tUnion. rewrite Union_commutative. apply stepUnusedPool. 
-    eauto. eauto. }
-   {inversion Heqc. }
-  }
-  {intros. remember (OK h' t2 p1'). induction H; eauto. 
-   {inversion Heqc; subst. constructor. }
-   {eapply multi_step. eassumption.  unfold tUnion. rewrite Union_commutative. 
-    rewrite Union_associative. rewrite stepUnusedPool. rewrite Union_commutative. eassumption. 
-    apply IHmultistep. assumption. }
-   {inversion Heqc. }
-  }
-Qed. 
-
-Axiom MultistepUntouchedUnused : forall h h' T1 T2 T2' T3,
-                                   multistep h T3 (tUnion T1 T2) (OK h' T3 (tUnion T1 T2')) <->
-                                   multistep h (tUnion T1 T3) T2 (OK h' (tUnion T1 T3) T2'). 
- 

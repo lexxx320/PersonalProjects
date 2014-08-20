@@ -1,14 +1,4 @@
-Require Import AST.    
-Require Import NonSpec.   
-Require Import Spec. 
-Require Import Coq.Sets.Ensembles. 
-Require Import SfLib. 
-Require Import Heap. 
-Require Import sets. 
-Require Import hetList.
-Require Import SpecLib.  
-Require Import unspec. 
-Require Import classifiedStep. 
+Require Export unspec. 
 
 Fixpoint eraseTerm (t:trm) : ptrm :=
   match t with
@@ -31,23 +21,18 @@ Fixpoint eraseTerm (t:trm) : ptrm :=
     |spec e1 e2 => pspec (eraseTerm e1) (eraseTerm e2)
     |specRun e1 e2 => pspecRun (eraseTerm e1) (eraseTerm e2)
     |specJoin e1 e2 => pspecJoin (eraseTerm e1) (eraseTerm e2)
+    |done e => pdone (eraseTerm e)
   end. 
 
 Fixpoint raw_eraseHeap (h:rawHeap ivar_state) : rawHeap pivar_state :=
    match h with
      | nil => []
-     | (i, sempty a) :: H' =>
-       if commit a
-       then (i, pempty) :: raw_eraseHeap H'
-       else raw_eraseHeap H'
-     | (i, sfull a1 _ a3 a4 a5) :: H' =>
-       if commit a1
-       then
-         if commit a3
-         then (i, pfull (eraseTerm a5)) :: raw_eraseHeap H'
-         else (i, pempty) :: raw_eraseHeap H'
-       else raw_eraseHeap H'
-  end.
+     | (i, sempty COMMIT)::H' => (i, pempty) :: raw_eraseHeap H'
+     | (i, sempty SPEC)::H' => raw_eraseHeap H'
+     | (i, sfull COMMIT _ COMMIT _ N)::H' => (i, pfull (eraseTerm N))::raw_eraseHeap H'
+     | (i, sfull COMMIT _ SPEC _ _)::H' => (i, pempty)::raw_eraseHeap H'
+     | (i, sfull SPEC _ _ _ _) :: H' => raw_eraseHeap H'
+   end. 
 
 Theorem eraseUnique : forall H S,
                         unique ivar_state S H ->
@@ -57,19 +42,9 @@ Proof.
   {simpl. constructor. }
   {simpl. destruct a. 
    {destruct i0. 
-    {destruct (commit a). 
-     {inv H0. constructor. auto. eauto. }
-     {inv H0. eapply IHlist. eapply uniqueSubset; eauto. unfold Included. 
-      intros. constructor; auto. }
-    }
-    {destruct (commit a). 
-     {destruct (commit a0). 
-      {inv H0. auto. }
-      {inv H0. constructor. auto. auto. }
-     }
-     {inv H0. eapply IHlist. eapply uniqueSubset; eauto. unfold Included. intros. 
-      constructor. auto.  }
-    }
+    {inv H0. destruct s; eauto. eapply uniqueSubset; eauto. constructor. auto. }
+    {inv H0. destruct s. eapply uniqueSubset; eauto. constructor. auto. destruct s0. 
+     constructor; auto. constructor; auto. }
    }
   }
 Qed. 
@@ -77,46 +52,22 @@ Qed.
 Definition eraseHeap H := 
   match H with
       heap_ h' prf => heap_ pivar_state (raw_eraseHeap h')
-                            (eraseUnique h' (Empty_set AST.id) prf)
+                            (eraseUnique h' (Ensembles.Empty_set AST.id) prf)
   end. 
 
-Inductive eraseThread : thread -> pPool -> Prop :=
-|tEraseCommit : forall tid s2 M, eraseThread (tid, unlocked nil, s2, M) (pSingleton  (eraseTerm M))
-|tEraseRead : forall tid s1 s1' s2 x M M' E (d:decompose M' E (get (fvar x))),
-               s1 = unlocked (s1' ++ [rAct x M' E d]) -> 
-               eraseThread (tid, s1, s2, M) (pSingleton (eraseTerm M'))
-|tEraseWrite : forall tid M M' x s1 s2 s1' E N (d:decompose M' E (put (fvar x) N)),
-                s1 = unlocked(s1' ++ [wAct x M' E N d]) ->
-                eraseThread (tid, s1, s2, M) (pSingleton (eraseTerm M'))
-|tEraseNew : forall tid M M' x s1 s2 s1' E (d:decompose M' E new),
-              s1 = unlocked(s1' ++ [nAct M' E d x]) -> 
-              eraseThread (tid, s1, s2, M) (pSingleton (eraseTerm M'))
-|tEraseFork : forall tid M M' s1 s2 s1' E N n (d:decompose M' E (fork N)),
-                s1 = unlocked(s1' ++ [fAct M' E N d n]) -> 
-                eraseThread (tid, s1, s2, M) (pSingleton (eraseTerm M'))
-|tEraseSpecRet : forall tid M M' s1 s2 s1' E N N' (d:decompose M' E (spec N N')),
-                s1 = unlocked(s1' ++ [srAct M' E N N' d]) -> 
-                eraseThread (tid, s1, s2, M) (pSingleton (eraseTerm M'))
-|tEraseLocked : forall tid M s1 s2,
-                       eraseThread (tid, locked s1, s2, M) (Empty_set ptrm)
-|tEraseSpecStack : forall tid M s1 s2 N,
-                     eraseThread(tid,specStack s1 N,s2,M) (Empty_set ptrm)
-.
+Definition eraseThread (t:thread) :=
+  match t with
+      |(tid,unlocked nil,s2,M) => pSingle (eraseTerm M)
+      |(tid,unlocked (a::b),s2,M) => pSingle(eraseTerm(getTrm(last (a::b) a)))
+      |(tid,locked l, s2, M) => Empty_set ptrm
+      |(tid,specStack l N, s2, M) => Empty_set ptrm
+  end. 
 
-Hint Constructors eraseThread. 
-
-Inductive erasePoolAux (T:pool) : pPool :=
-|eraseAux : forall t t' s1 s2 M, 
-              thread_lookup T t (t, s1, s2, M) -> 
-              eraseThread (t, s1, s2, M) t' ->
-              Included ptrm t' (erasePoolAux T). 
-
-Hint Constructors erasePoolAux. 
-
-Inductive erasePool : pool -> pPool -> Prop :=
-|eraseP : forall T, erasePool T (erasePoolAux T).
-
-Hint Constructors erasePool. 
+Fixpoint erasePool (T:pool) :=
+  match T with
+      |t::ts => eraseThread t++erasePool ts
+      |nil => nil
+  end. 
 
 Fixpoint eraseCtxt (c:ctxt) : pctxt :=
   match c with
@@ -133,41 +84,16 @@ Fixpoint eraseCtxt (c:ctxt) : pctxt :=
     |holeCtxt => pholeCtxt
   end. 
 
-Ltac eraseThreadTac :=
-  match goal with
-      | |- eraseThread (?tid, unlocked[rAct ?a ?b ?c ?d], ?s2, ?N) ?m => eapply tEraseRead
-      | |- eraseThread (?tid, unlocked[wAct ?a ?b ?c ?d ?e], ?s2, ?N) ?m => eapply tEraseWrite
-      | |- eraseThread (?tid, unlocked[nAct ?a ?b ?c ?d], ?s2, ?N) ?m => eapply tEraseNew
-      | |- eraseThread (?tid, unlocked[fAct ?a ?b ?c ?d ?n], ?s2, ?N) ?m => eapply tEraseFork
-      | |- eraseThread (?tid, unlocked[srAct ?a ?b ?c ?d ?e], ?s2, ?N) ?m => eapply tEraseSpecRet
-      | |- eraseThread (?tid, locked ?x, ?s2, ?N) ?m => eapply tEraseLocked
-      | |- eraseThread (?tid, unlocked(?z++[rAct ?a ?b ?c ?d]), ?s2, ?N) ?m => eapply tEraseRead
-      | |- eraseThread (?tid, unlocked(?z++[wAct ?a ?b ?c ?d ?e]), ?s2, ?N) ?m => eapply tEraseWrite
-      | |- eraseThread (?tid, unlocked(?z++[nAct ?a ?b ?c ?d]), ?s2, ?N) ?m => eapply tEraseNew
-      | |- eraseThread (?tid, unlocked(?z++[fAct ?a ?b ?c ?d ?n]), ?s2, ?N) ?m => eapply tEraseFork
-      | |- eraseThread (?tid, unlocked(?z++[srAct ?a ?b ?c ?d ?e]), ?s2, ?N) ?m => eapply tEraseSpecRet
-  end. 
-
 (*------------------------------------Theorems------------------------------------*)
-
-Theorem eraseThreadTotal : forall t, exists p, eraseThread t p. 
-Proof.
-  intros. destruct t. destruct p. destruct p. destruct a. 
-  eauto. destructLast l0. eauto. invertHyp. destruct x; econstructor; simpl in *; eraseThreadTac; auto.
-  eauto. 
-Qed. 
-
-Axiom erasePoolEraseThread : forall T T' t, erasePool T T' -> tIn T t -> 
-                                              exists t', eraseThread t t'. 
 
 Theorem raw_eraseUnspecHeapIdem : forall H, raw_eraseHeap (raw_unspecHeap H) = raw_eraseHeap H. 
 Proof.
   induction H; intros. 
   {auto. }
   {simpl in *. destruct a. destruct i0. 
-   {simpl. destruct (commit a)eqn:eq. simpl. rewrite eq. rewrite IHlist. auto. eauto. }
-   {destruct (commit a)eqn:eq1; auto. destruct (commit a0)eqn:eq2; auto. simpl. rewrite eq1. 
-    rewrite eq2. rewrite IHlist; auto. simpl. rewrite eq1. rewrite IHlist. auto. }
+   {simpl. destruct s. auto. simpl. rewrite IHlist; auto. }
+   {destruct s; auto. destruct s0. simpl. rewrite IHlist; auto. simpl. 
+    rewrite IHlist; auto. }
   }
 Qed. 
 
@@ -177,61 +103,29 @@ Proof.
   intros. destruct H. simpl. apply rawHeapsEq. apply raw_eraseUnspecHeapIdem. 
 Qed. 
 
-Hint Unfold Included. 
-
 Ltac decompErase :=
   match goal with
       |H:decompose ?t ?E ?e |- _ => apply decomposeEq in H; subst; auto
   end. 
 
-Theorem eraseUnspecPoolAuxEq : forall T, erasePoolAux (unspecPoolAux T) = 
-                                         erasePoolAux T. 
+Theorem eraseUnionComm : forall T1 T2, 
+                erasePool(tUnion T1 T2) = pUnion (erasePool T1)(erasePool T2). 
 Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. 
-  split; intros. 
-  {inversion H; subst. inversion H0; subst. cleanup. 
-   match goal with
-       |H:thread_lookup (unspecPoolAux ?T) ?TID ?t |- _ =>
-        assert(US:unspecPool T (unspecPoolAux T)) by constructor;
-          eapply LookupSame with(tid:=TID) in US; inversion US as [EX1 EX2];
-          inversion EX2; clear EX2
-   end. Focus 2. eassumption. destruct EX1. destruct p. destruct p. 
-   inv H4. inv H7. econstructor; eauto. inv H5; try(apply SingletonEq in H11; inv H11). 
-   {assumption. }
-   {inversion H1; subst; try invertListNeq. 
-    {eapply tEraseRead. auto. }
-   }
-   {inversion H1; subst; try invertListNeq. eapply tEraseWrite; eauto. }
-   {inversion H1; subst; try invertListNeq. eapply tEraseNew; eauto. }
-   {inversion H1; subst; try invertListNeq. eapply tEraseFork; eauto. }
-   {inversion H1; subst; try invertListNeq. eapply tEraseSpecRet; eauto. }
-   {symmetry in H11. apply SingletonNeqEmpty in H11. inv H11. }
-   {inv H1; subst; try solveByInv. }
-  }
-  {inversion H; subst. inversion H0; subst. cleanup. inversion H1; subst. 
-   {econstructor; eauto. econstructor; eauto. econstructor; eauto. constructor. }
-   {econstructor. econstructor. econstructor. eauto. econstructor; eauto. constructor. 
-    auto. eauto. auto. }
-   {econstructor. econstructor. econstructor. eauto. eapply unspecWrite; eauto. constructor. 
-    auto. auto. auto. }
-   {econstructor. econstructor. econstructor. eauto. eapply unspecCreate; eauto. constructor. 
-    auto. auto. auto. }
-   {econstructor. econstructor. econstructor. eauto. eapply unspecFork; eauto. constructor. 
-    auto. auto. auto. }
-   {econstructor. econstructor. econstructor. eauto. eapply unspecSpecret; eauto. constructor. 
-    auto. auto. auto. }
-   {inv H2. }
-   {inv H2. }
-  }
+  induction T1; intros. 
+  {simpl. auto. }
+  {simpl. destruct a. destruct p. destruct p. destruct a; simpl; auto. 
+   destruct l0. rewrite IHT1; eauto. simpl. rewrite IHT1; eauto. }
 Qed. 
 
-
-Theorem eraseUnspecPoolIdem : forall T T' T'',
-                                unspecPool T T' -> erasePool T' T'' ->
-                                erasePool T T''. 
+Theorem eraseUnspecPoolAuxEq : forall T, erasePool (unspecPool T) = 
+                                         erasePool T. 
 Proof.
-  intros. inversion H. inversion H0; subst. rewrite eraseUnspecPoolAuxEq. 
-  constructor. Qed. 
+  induction T; intros. 
+  {simpl. auto. }
+  {simpl. rewrite eraseUnionComm. destruct a. destruct p. destruct p. 
+   destruct a; simpl; auto. destruct l0; simpl. rewrite IHT; auto. 
+   rewrite IHT; eauto. }
+Qed. 
 
 Ltac applyHyp :=
   match goal with
@@ -242,31 +136,6 @@ Theorem eraseFill : forall E e,
                            eraseTerm (fill E e) = (pfill (eraseCtxt E) (eraseTerm e)). 
 Proof.
   induction E; intros; try solve[simpl; rewrite IHE; auto]; auto. 
-Qed. 
-
-Theorem inErasure : forall T T' t, erasePoolAux T = T' -> Ensembles.In ptrm T' t ->
-                                   Ensembles.In ptrm (erasePoolAux T) t. 
-Proof.
-  intros. subst. inv H0.  econstructor. eauto. eauto. auto. Qed. 
-
-Hint Constructors thread_lookup erasePoolAux Singleton eraseThread. 
-
-Theorem eraseThreadDeterminsim : forall t t' t'', eraseThread t t' -> eraseThread t t'' -> t' = t''. 
-Proof.
-intros. inv H; inv H0; auto; try solve[invertListNeq]; inv H5;
-  match goal with
-               |H:[] = [] ++ [?x] |- _ => inversion H       
-               |H:[] = ?x ++ [?y] |- _ => destruct x; inversion H
-               |H:?s1++[?x]=?s2++[?y]|-_ => apply lastElementEq in H; inversion H
-  end; subst; auto. 
-Qed. 
-
-Theorem erasePoolSingleton : forall t pt, eraseThread t pt -> erasePoolAux(tSingleton t) = pt. 
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
-  {inv H0. inv H1. inv H4. inv H0. eapply eraseThreadDeterminsim in H2; eauto. subst. auto. }
-  {destruct t. destruct p. destruct p. econstructor. econstructor. constructor. 
-   auto. eauto. auto. }
 Qed. 
 
 Hint Constructors pval val. 
@@ -376,6 +245,7 @@ Proof.
   {exists (spec x0 x); auto. }
   {exists (specRun x0 x); auto. }
   {exists (specJoin x0 x); auto. }
+  {exists (done x). auto. }
 Qed. 
 
 Theorem eCtxt : forall E', exists E, eraseCtxt E = E'. 
@@ -402,32 +272,15 @@ Proof.
   {exists holeCtxt. auto. }
 Qed. 
   
-Theorem eThread : forall t', exists t, eraseThread t (pSingleton t').
+Theorem eThread : forall t', exists t, eraseThread t = (pSingle t').
 Proof.
-  induction t'; 
-  match goal with
-      | |- exists t, eraseThread t (pSingleton ?M) => 
-        assert(E:exists M', eraseTerm M' = M) by apply eTerm; inversion E as [Ex1 Ex2];
-        rewrite <- Ex2; exists (nil,unlocked nil,nil,Ex1); auto
+  induction t'; match goal with
+      | |- exists t, eraseThread t = (pSingle ?M) => 
+        assert(E:exists M', eraseTerm M' = M) by apply eTerm; 
+          inversion E as [Ex1 Ex2];
+          rewrite <- Ex2; exists (nil,unlocked nil,nil,Ex1); auto
   end. 
 Qed. 
-
-
-Theorem eraseUnionComm : forall T1 T2, erasePoolAux (tUnion T1 T2) = 
-                                       Union ptrm (erasePoolAux T1) (erasePoolAux T2).
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
-  {inv H. inv H0. inv H3. inv H. 
-   {econstructor. econstructor. econstructor. eauto. eauto. eauto. auto. }
-   {apply Union_intror. econstructor. econstructor; eauto. eauto. auto. }
-  }
-  {inv H. 
-   {inv H0. inv H. inv H3. econstructor. econstructor. econstructor. eauto. auto. eauto. auto. }
-   {inv H0. inv H. inv H3. econstructor. econstructor. apply Union_intror. eauto. 
-    eauto. eauto. auto. }
-  }
-Qed.
-
 
 Theorem eraseTermUnique : forall M M', eraseTerm M = eraseTerm M' -> M = M'. 
 Proof.
@@ -465,32 +318,20 @@ Qed.
 
 Hint Resolve app_nil_l. 
 
-Theorem eraseLastAct : forall A s2 M M' t tid,
+Theorem eraseLastAct : forall A s2 M M' tid,
                          actionTerm A M' ->
-                         (eraseThread (tid, unlocked[A], s2, M) t <->
-                          eraseThread (tid, unlocked nil, s2, M') t). 
+                         eraseThread (tid, unlocked[A], s2, M) =
+                          eraseThread (tid, unlocked nil, s2, M'). 
 Proof.
-  intros. split; intros. 
-  {inv H0; try solve[destruct s1'; simpl in *; inv H6;[inv H;auto; inv H6|invertListNeq]]. }
-  {inv H0; try invertListNeq. inv H; auto; try solve[eraseThreadTac; rewrite app_nil_l; eauto].  }
+  intros. inv H; auto. 
 Qed. 
 
-Theorem eraseTwoActs : forall tid tid' A1 A2 As s2 M M' t,
-                         eraseThread (tid, aCons A1 (aCons A2 As), s2, M') t <->
-                         eraseThread (tid', (aCons A2 As), s2, M) t. 
+Theorem eraseTwoActs : forall tid tid' A1 A2 As s2 M M',
+                         eraseThread (tid, aCons A1 (aCons A2 As), s2, M') =
+                         eraseThread (tid', (aCons A2 As), s2, M) . 
 Proof.
-  intros. split; intros. 
-  {inv H; destruct As; simpl in *; try invertListNeq; try solveByInv.
-   {inv H5. apply listAlign in H0. invertHyp. rewrite H. eauto. }
-   {inv H5. apply listAlign in H0. invertHyp. rewrite H. eauto. }
-   {inv H5. apply listAlign in H0. invertHyp. rewrite H. eauto. }
-   {inv H5. apply listAlign in H0. invertHyp. rewrite H. eauto. }
-   {inv H5. apply listAlign in H0. invertHyp. rewrite H. eauto. }
-   {auto. }
-   {inv H2. auto. }
-  }
-  {inv H; destruct As; simpl in *; try invertListNeq; try(inv H5; rewrite H0;
-   rewrite app_comm_cons; eauto); try solveByInv; eauto. }
+  intros. destruct As; simpl; auto. 
+  destruct l; auto. erewrite getLastNonEmpty. eauto. 
 Qed. 
 
 Theorem eraseOpenComm : forall e e' n, eraseTerm (open n e e') = popen n (eraseTerm e) (eraseTerm e'). 
@@ -500,28 +341,14 @@ Proof.
   {intros. simpl. destruct (beq_nat n i); auto. }
 Qed. 
 
-Theorem eraseSpecSame : forall tid tid' y x a s2 s2' t t' t'',
-                          eraseThread (tid, unlocked(x++[a]), s2, t) t' ->
-                          eraseThread (tid', unlocked(y++[a]), s2', t'') t'. 
-Proof.
-  intros. inv H. invertListNeq.
-  {inv H5. apply lastElementEq in H0. subst. eauto. }
-  {inv H5. apply lastElementEq in H0. subst. eauto. }
-  {inv H5. apply lastElementEq in H0. subst. eauto. }
-  {inv H5. apply lastElementEq in H0. subst. eauto. }
-  {inv H5. apply lastElementEq in H0. subst. eauto. }
-Qed. 
-
 Theorem raw_eraseHeapDependentRead : forall H x sc ds s w N ds',
-                                       raw_heap_lookup x H = Some(sfull sc ds s w N) ->
-                                       raw_eraseHeap(raw_replace x (sfull sc ds' s w N) H) = raw_eraseHeap H. 
+                raw_heap_lookup x H = Some(sfull sc ds s w N) ->
+                raw_eraseHeap(raw_replace x (sfull sc ds' s w N) H) = raw_eraseHeap H. 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
-   {inv H0. destruct (commit sc) eqn:eq1; auto. destruct (commit s)eqn:eq2. simpl. 
-    apply beq_nat_true in eq. subst; auto. rewrite eq1. rewrite eq2. auto. simpl. rewrite eq1.  
-    rewrite eq2. apply beq_nat_true in eq. subst; auto. simpl. rewrite eq1. auto. }
+   {simpl. apply beq_nat_true in eq. subst. inv H0. destruct sc; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
 Qed. 
@@ -534,59 +361,31 @@ Proof.
   eauto. 
 Qed. 
 
-Theorem raw_eraseHeapWrite : forall H x sc a b TID N ds, 
+Theorem raw_eraseHeapWrite : forall H x sc TID N ds, 
                                raw_heap_lookup x H = Some(sempty sc) ->
-                               raw_eraseHeap (raw_replace x (sfull sc ds (aCons a b) TID N) H) = raw_eraseHeap H. 
+                               raw_eraseHeap (raw_replace x (sfull sc ds SPEC TID N) H) = raw_eraseHeap H. 
 Proof.
   induction H; intros. 
   {inv H. }
   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq.
-   {inv H0. apply beq_nat_true in eq. subst.  destruct (commit sc) eqn:eq2; auto. simpl. 
-    rewrite eq2. destruct b; simpl; auto. simpl. rewrite eq2. auto. }
+   {inv H0. apply beq_nat_true in eq. subst.  destruct sc; auto. }
    {simpl. erewrite IHlist; eauto. }
   }
-Qed. 
+Qed.  
 
-Theorem eraseHeapWrite : forall H x sc a b TID N ds, 
+Theorem eraseHeapWrite : forall H x sc TID N ds, 
                                heap_lookup x H = Some(sempty sc) ->
-                               eraseHeap (replace x (sfull sc ds (aCons a b) TID N) H) = eraseHeap H. 
+                               eraseHeap (replace x (sfull sc ds SPEC TID N) H) = eraseHeap H. 
 Proof.
   intros. destruct H; simpl in *. apply rawHeapsEq. apply raw_eraseHeapWrite. auto. 
 Qed. 
 
-Theorem raw_eraseHeapNew : forall H a b x,
-                         raw_eraseHeap (raw_extend x (sempty (aCons a b)) H) = 
-                         raw_eraseHeap H.
-Proof. 
-  induction H; intros. 
-  {simpl. destruct b; simpl; auto. }
-  {simpl in *. destruct a. simpl. destruct b; auto. }
-Qed.
-  
-Theorem eraseHeapNew : forall x H a b p,
-                         eraseHeap (extend x (sempty (aCons a b)) H p) =
+Theorem eraseHeapNew : forall x H p,
+                         eraseHeap (Heap.extend x (sempty SPEC) H p) =
                          eraseHeap H.                  
 Proof.
-  intros. destruct H. simpl in *.  
-  eapply rawHeapsEq. eapply raw_eraseHeapNew. 
+  intros. destruct H. simpl in *.  eapply rawHeapsEq. auto. 
 Qed. 
-
-Theorem erasePoolDeterminism : forall T T' T'', 
-                                 erasePool T T' -> erasePool T T'' ->
-                                 T' = T''. 
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. 
-  split; intros. 
-  {inversion H; subst. inversion H0; subst. assumption. }
-  {inversion H; subst. inversion H0; subst. assumption. }
-Qed. 
-
-
-Ltac helper := 
-  match goal with
-      | |- erasePool ?t (erasePoolAux (tSingleton ?t')) => 
-        assert(exists t'', eraseThread t' t'') by apply eraseThreadTotal; invertHyp
-  end. 
 
 Theorem listAlign2 : forall (T:Type) b a, exists (c : list T) d, a::b = c++[d]. 
 Proof.
@@ -595,89 +394,370 @@ Proof.
   {specialize (IHb a). invertHyp. rewrite H0. exists (a0::x). exists x0. auto. }
 Qed. 
 
-Ltac alignTac a b := assert(exists c d, a::b = c++[d]) by apply listAlign2; invertHyp. 
+Ltac alignTac a b := assert(exists c d, a::b = c++[d]) by apply listAlign2; invertHyp.
  
-Theorem specSingleStepErase : forall H T H' T' T'' P,
-                                spec_step H P T H' P T' -> erasePool T T'' -> 
-                                eraseHeap H' = eraseHeap H /\ erasePool T' T''.
+Theorem unspecSpecStep : forall H t H' T t', 
+                           spec_step H T t H' T t' ->  
+                           unspecHeap H = unspecHeap H' /\ unspecPool t' = unspecPool t. 
+Proof.
+  intros. inversion H0; subst.
+  {split; eauto. inv H2; simpl; eauto. }
+  {split; auto. destruct b; simpl; auto. destruct l; auto.
+   erewrite getLastNonEmpty'. simpl. eauto. }
+  {split. symmetry. eapply unspecHeapRBRead; eauto. destruct b; simpl; auto. 
+   destruct l; auto. erewrite getLastNonEmpty'; simpl; eauto. }
+  {split. symmetry. eapply unspecHeapAddWrite; eauto. destruct b; simpl; auto. 
+   destruct l; auto. erewrite getLastNonEmpty'; simpl; eauto. }
+  {split. symmetry. eapply unspecHeapExtend; eauto. destruct b; simpl; auto. 
+   destruct l; auto. erewrite getLastNonEmpty'; simpl; eauto. }
+  {split; auto. destruct b; simpl; auto. destruct l; auto. 
+   erewrite getLastNonEmpty'; simpl; eauto. }
+  Grab Existential Variables. auto. auto. auto. auto. auto. 
+Qed. 
+
+Theorem specSingleStepErase : forall H T H' T' P,
+                                spec_step H P T H' P T' -> 
+                                erasePool T' = erasePool T /\ 
+                                eraseHeap H' = eraseHeap H .
 Proof.
   intros.
   inversion H0; subst. 
-  {split; auto. inv H1. inv H3. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-   {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. alignTac a b. 
-    rewrite H. eapply eraseSpecSame. rewrite H in H1. eauto. }
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. }
-  }
-  {split; auto. inv H1. unfoldTac. rewrite coupleUnion. destruct b. 
-   {erewrite erasePoolSingleton; eauto. erewrite eraseUnionComm. simpl. 
-    repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_l. auto. }
-   {destruct l. 
-    {simpl. erewrite erasePoolSingleton; eauto. rewrite eraseUnionComm. 
-     erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
-     rewrite union_empty_r. auto. eraseThreadTac. rewrite app_nil_l; eauto. }
-    {fold tSingleton. helper. erewrite erasePoolSingleton; eauto. rewrite eraseUnionComm. 
-     erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. rewrite union_empty_r. 
-     eauto. uCons a l; auto. rewrite eraseTwoActs. eauto. }
-   }
-   {erewrite erasePoolSingleton; eauto. rewrite eraseUnionComm. erewrite erasePoolSingleton; eauto.
-    erewrite erasePoolSingleton; eauto. rewrite union_empty_r. auto. simpl. auto. }
-  }
-  {split; auto; inv H1. eapply eraseHeapDependentRead; eauto. destruct b. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. simpl. auto. }
-   {destruct l. 
-    {simpl. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
-     eraseThreadTac. rewrite app_nil_l. auto. }
-    {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto.
-     uCons a l; auto. rewrite eraseTwoActs; eauto. }
-   }
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. simpl; auto. }
-  }
-  {split; auto; inv H1. eapply eraseHeapWrite; eauto. destruct b. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. simpl. auto. }
-   {destruct l. 
-    {simpl. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
-     eraseThreadTac. rewrite app_nil_l. auto. }
-    {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto.
-     uCons a l; auto. rewrite eraseTwoActs; eauto. }
-   }
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. simpl. auto. }
-  }
-  {split; auto; inv H1. eapply eraseHeapNew; eauto. destruct b. 
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. simpl. auto. }
-   {destruct l. 
-    {simpl. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
-     eraseThreadTac. rewrite app_nil_l. auto. }
-    {helper. erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto.
-     uCons a l; auto. rewrite eraseTwoActs; eauto. }
-   }
-   {erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. simpl; auto. }
-  }
-  {split; auto. inv H1. unfoldTac. rewrite coupleUnion. destruct b. 
-   {erewrite erasePoolSingleton; eauto. erewrite eraseUnionComm. simpl. 
-    repeat erewrite erasePoolSingleton; eauto. rewrite union_empty_l. auto. }
-   {destruct l. 
-    {simpl. erewrite erasePoolSingleton; eauto. rewrite eraseUnionComm. 
-     erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. 
-     rewrite union_empty_r. auto. eraseThreadTac. rewrite app_nil_l; eauto. }
-    {fold tSingleton. helper. erewrite erasePoolSingleton; eauto. rewrite eraseUnionComm. 
-     erewrite erasePoolSingleton; eauto. erewrite erasePoolSingleton; eauto. rewrite union_empty_r. 
-     eauto. uCons a l; auto. rewrite eraseTwoActs. eauto. }
-   }
-   {erewrite erasePoolSingleton; eauto. rewrite eraseUnionComm. erewrite erasePoolSingleton; eauto.
-    erewrite erasePoolSingleton; eauto. rewrite union_empty_r. auto. simpl; auto. }
-  }
+  {split; auto. inv H2; simpl; auto. }
+  {split; auto. destruct b; simpl; auto. destruct l; auto. erewrite getLastNonEmpty'. 
+   simpl; eauto. }
+  {split. destruct b; simpl; auto. destruct l; auto. erewrite getLastNonEmpty'; simpl; auto. 
+   erewrite eraseHeapDependentRead; eauto. }
+  {split. destruct b; simpl; auto. destruct l; auto.
+   erewrite getLastNonEmpty'; simpl; auto. erewrite eraseHeapWrite; eauto. }
+  {split. destruct b; simpl; auto. destruct l; auto. 
+   erewrite getLastNonEmpty'; simpl; auto. erewrite eraseHeapNew; eauto. }
+  {split; auto. destruct b; simpl; auto. destruct l; auto. 
+   erewrite getLastNonEmpty'; simpl; auto. }
+  Grab Existential Variables. auto. auto. auto. auto. auto. 
 Qed. 
 
-Theorem spec_multistepErase : forall H T H' T' T'',
-                                spec_multistep H T H' T' -> erasePool T T'' -> 
-                                eraseHeap H' = eraseHeap H /\ erasePool T' T''.
+Theorem spec_multistepErase : forall H T H' T',
+                                spec_multistep H T H' T' -> erasePool T = erasePool T' /\
+                                eraseHeap H = eraseHeap H'. 
 Proof. 
-  intros. genDeps{T''}. induction H0; subst; auto; intros. 
-  inv H1. apply specSingleStepErase with (T'':=erasePoolAux t) in H; auto. 
-  inv H. rewrite <- H1. apply IHspec_multistep. rewrite eraseUnionComm. inv H2. 
-  rewrite <- eraseUnionComm. constructor.  
+  intros. induction H0; subst; auto; intros. 
+  eapply specSingleStepErase in H. invertHyp. split. rewrite eraseUnionComm. 
+  rewrite <- H3. rewrite <- eraseUnionComm. auto. rewrite <- H4. rewrite H2. 
+  auto. 
 Qed. 
 
+Theorem raw_lookupEraseSpecFull : forall x H ds tid N, 
+                                raw_heap_lookup x H = Some(sfull COMMIT ds SPEC tid N) ->
+                                raw_heap_lookup x (raw_eraseHeap H) = Some pempty. 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {destruct i0. destruct s. erewrite IHlist; eauto. simpl. rewrite eq. 
+    erewrite IHlist; eauto. destruct s. eauto. destruct s0; simpl; rewrite eq; eauto. }
+  }
+Qed. 
 
+Theorem lookupEraseSpecFull : forall x H ds tid N, 
+                                heap_lookup x H = Some(sfull COMMIT ds SPEC tid N) ->
+                                heap_lookup x (eraseHeap H) = Some pempty. 
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupEraseSpecFull. eauto. 
+Qed.  
+ 
+Theorem raw_eraseHeapCommitWrite : forall H x ds t N,
+                                 raw_heap_lookup x H = Some(sfull COMMIT ds SPEC t N) ->
+                                 raw_eraseHeap(raw_replace x (sfull COMMIT ds COMMIT t N) H) = 
+                                 raw_replace x (pfull (eraseTerm N)) (raw_eraseHeap H). 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {simpl. erewrite IHlist; eauto. destruct i0. destruct s; auto.  simpl. rewrite eq. 
+    auto. destruct s;auto. destruct s0; simpl; rewrite eq; auto. }
+  }
+Qed. 
 
+Theorem eraseHeapCommitWrite : forall H x ds t N,
+                                 heap_lookup x H = Some(sfull COMMIT ds SPEC t N) ->
+                                 eraseHeap(replace x (sfull COMMIT ds COMMIT t N) H) = 
+                                 replace x (pfull (eraseTerm N)) (eraseHeap H). 
+Proof.
+  intros. destruct H; simpl. apply rawHeapsEq. eapply raw_eraseHeapCommitWrite; eauto. 
+Qed. 
+
+Theorem raw_lookupEraseCommitFull : forall x H ds tid N, 
+       raw_heap_lookup x H = Some(sfull COMMIT ds COMMIT tid N) ->
+       raw_heap_lookup x (raw_eraseHeap H) = Some (pfull (eraseTerm N)). 
+Proof.
+  induction H; intros.  
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq. auto. }
+   {destruct i0. destruct s. eauto. simpl. rewrite eq. eauto. destruct s. 
+    eauto. destruct s0; simpl; rewrite eq; eauto. }
+  }
+Qed. 
+
+Theorem lookupEraseCommitFull : forall x H ds tid N, 
+       heap_lookup x H = Some(sfull COMMIT ds COMMIT tid N) ->
+       heap_lookup x (eraseHeap H) = Some (pfull (eraseTerm N)). 
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupEraseCommitFull; eauto. 
+Qed. 
+
+Theorem raw_lookupUnspecSpecFullEmpty : forall x H ds t N,
+                                          raw_heap_lookup x H = Some(sfull COMMIT ds SPEC t N) ->
+                                          raw_heap_lookup x (raw_unspecHeap H) = Some(sempty COMMIT). 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H0. simpl. rewrite eq; auto. }
+   {destruct i0. destruct s; eauto. simpl. rewrite eq; eauto. 
+    destruct s; eauto. destruct s0; simpl; rewrite eq; eauto. }
+  }
+Qed. 
+
+Theorem lookupUnspecSpecFullEmpty : forall x H ds t N,
+                                          heap_lookup x H = Some(sfull COMMIT ds SPEC t N) ->
+                                          heap_lookup x (unspecHeap H) = Some(sempty COMMIT). 
+Proof.
+  intros. destruct H; simpl. eapply raw_lookupUnspecSpecFullEmpty; eauto. 
+Qed. 
+
+ 
+
+Theorem raw_eraseHeapCommitNewFull : forall x ds t N H S,
+                                   unique ivar_state S H -> 
+                                   raw_heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                                   raw_eraseHeap (raw_replace x (sfull COMMIT ds SPEC t N) H) =
+                                   raw_extend x pempty (raw_eraseHeap H).
+Proof.
+  intros. apply heapExtensionality. genDeps{S; N; t; ds; x; H}. induction H; intros. 
+  {inv H1. } 
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H1. simpl. destruct (beq_nat x0 x) eqn:eq2; auto. }
+   {simpl. destruct (beq_nat x0 x) eqn:eq2; eauto.
+    {destruct i0. destruct s. erewrite IHlist. rewrite eq2. auto. 
+     auto. inv H0;  eauto. apply beq_nat_true in eq2. subst. simpl. rewrite eq. inv H0.
+     eapply IHlist with(x0:=x) in H1; eauto. rewrite <- beq_nat_refl in H1. eauto. 
+     destruct s. inv H0. eapply IHlist with(x0:=x0) in H1; eauto. rewrite eq2 in H1. 
+     eauto. destruct s0. apply beq_nat_true in eq2. subst. simpl. rewrite eq. inv H0. 
+     eapply IHlist with(x0:=x) in H1; eauto. rewrite <- beq_nat_refl in H1. eauto. 
+     simpl. apply beq_nat_true in eq2. subst. rewrite eq. inv H0. 
+     eapply IHlist with(x0:=x) in H1; eauto. rewrite <- beq_nat_refl in H1. auto. }
+    {destruct i0. destruct s. inv H0. eapply IHlist with(x0:=x0)in H1; eauto. 
+     rewrite eq2 in H1. auto. simpl. destruct (beq_nat x0 i)eqn:eq3; auto. 
+     inv H0. eapply IHlist with(x0:=x0)in H1. rewrite eq2 in H1. auto. eauto.
+     destruct s. inv H0. eapply IHlist with(x0:=x0) in H1. rewrite eq2 in H1. auto. 
+     eauto. destruct s0. simpl. destruct (beq_nat x0 i) eqn:eq3; auto. 
+     eapply IHlist with(x0:=x0) in H1; eauto. rewrite eq2 in H1. auto. inv H0; eauto. 
+     simpl. destruct (beq_nat x0 i); auto. eapply IHlist with(x0:=x0) in H1. 
+     rewrite eq2 in H1. auto. inv H0; eauto. }
+   }
+  }
+Qed. 
+
+Theorem eraseHeapCommitNewFull : forall x ds t N H p,
+                                   heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                                   eraseHeap (replace x (sfull COMMIT ds SPEC t N) H) =
+                                   Heap.extend x pempty (eraseHeap H) p.
+Proof.
+  intros. destruct H. simpl in *. apply rawHeapsEq. eapply raw_eraseHeapCommitNewFull; eauto. 
+Qed.
+
+Theorem raw_eraseHeapCommitNewEmpty : forall x S H,
+                                   unique ivar_state S H -> 
+                                   raw_heap_lookup x H = Some(sempty SPEC) ->
+                                   raw_eraseHeap (raw_replace x (sempty COMMIT) H) =
+                                   raw_extend x pempty (raw_eraseHeap H).
+Proof.
+  intros. apply heapExtensionality. genDeps{S; x; H}. induction H; intros. 
+  {inv H1. }
+  {simpl in H1. simpl. destruct a. destruct (beq_nat x i)eqn:eq. 
+   {inv H1. destruct (beq_nat x0 x) eqn:eq2. simpl. rewrite eq2. auto. simpl. rewrite eq2. 
+    auto. }
+   {simpl. destruct i0. 
+    {destruct s. 
+     {destruct (beq_nat x0 x) eqn:eq2. 
+      {simpl in *. inv H0. eapply IHlist with(x0:=x0) in H1; eauto. rewrite eq2 in H1. 
+       auto. }
+      {erewrite IHlist. simpl. rewrite eq2. auto. eauto. inv H0; eauto. }
+     }
+     {simpl. destruct(beq_nat x0 i)eqn:eq2. 
+      {apply beq_nat_true in eq2. subst. rewrite beq_nat_sym in eq. rewrite eq. auto. }
+      {destruct(beq_nat x0 x) eqn:eq3.
+       {eapply IHlist with(x0:=x0) in H1. simpl in *. rewrite eq3 in H1. auto. inv H0; eauto. }
+       {erewrite IHlist; eauto. simpl. rewrite eq3. auto. inv H0; eauto. }
+      }
+     }
+    }
+    {destruct s. 
+     {destruct (beq_nat x0 x)eqn:eq2. 
+      {eapply IHlist with(x0:=x0) in H1. simpl in *. rewrite eq2 in H1. auto. inv H0; eauto. }
+      {erewrite IHlist; eauto. simpl. rewrite eq2. auto. inv H0; eauto. }
+     }
+     {destruct s0. 
+      {destruct (beq_nat x0 x) eqn:eq2. 
+       {simpl. apply beq_nat_true in eq2. subst. rewrite eq.
+        eapply IHlist with(x0:=x) in H1; eauto. simpl in *. rewrite <- beq_nat_refl in H1. auto. 
+        inv H0; eauto. }
+       {simpl. destruct (beq_nat x0 i); auto. erewrite IHlist; eauto. simpl. rewrite eq2. auto. 
+        inv H0; eauto. }
+      }
+      {simpl. destruct (beq_nat x0 i) eqn:eq2. 
+       {apply beq_nat_true in eq2. subst. rewrite beq_nat_sym in eq. rewrite eq. auto. }
+       {destruct (beq_nat x0 x) eqn:eq3. 
+        {simpl in *. eapply IHlist with(x0:=x0) in H1. rewrite eq3 in H1. eauto. inv H0; eauto. }
+        {erewrite IHlist; eauto. simpl. rewrite eq3. auto. inv H0; eauto. }
+       }
+      }
+     }
+    }
+   }
+  }
+Qed. 
+
+Theorem eraseHeapCommitNewEmpty : forall x H p,
+                                   heap_lookup x H = Some(sempty SPEC) ->
+                                   eraseHeap (replace x (sempty COMMIT) H) =
+                                   Heap.extend x pempty (eraseHeap H) p.
+Proof.
+  intros. destruct H. simpl in *. apply rawHeapsEq. eapply raw_eraseHeapCommitNewEmpty; eauto. 
+Qed.
+
+Theorem uniqueLookupNone : forall (T:Type) x H S, 
+                            unique T S H -> Ensembles.In (AST.id) S x ->
+                            raw_heap_lookup x H = None. 
+Proof.
+  induction H; intros. 
+  {auto. }
+  {inv H0. simpl. assert(x <> m). intros c. subst. contradiction.
+   apply beq_nat_false_iff in H0. rewrite H0. eapply IHlist; eauto.
+   constructor. auto. }
+Qed. 
+
+Theorem raw_lookupNoneBoth : forall x H,
+                           raw_heap_lookup x H = None ->
+                           raw_heap_lookup x (raw_eraseHeap H) = None. 
+Proof.
+  induction H; intros; auto. simpl in *. 
+  destruct a. destruct (beq_nat x i) eqn:eq. 
+  {inv H0. }
+  {destruct i0. destruct s; auto. simpl. rewrite eq. auto. destruct s; auto. 
+   destruct s0; simpl; rewrite eq; auto. }
+Qed. 
+ 
+Theorem raw_lookupEraseSpecNone : forall x H t S N ds,
+                                    unique ivar_state S H ->
+                                    raw_heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                                    raw_heap_lookup x (raw_eraseHeap H) = None. 
+Proof.
+  induction H; intros. 
+  {inv H0. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H1. inv H0. eapply uniqueLookupNone in H6. Focus 2. 
+    apply Ensembles.Union_intror. constructor. apply raw_lookupNoneBoth. 
+    apply beq_nat_true in eq. subst. auto. }
+   {destruct i0. 
+    {destruct s. inv H0. eauto. simpl. rewrite eq. inv H0. eauto. }
+    {destruct s; auto. inv H0; eauto. inv H0. destruct s0; simpl; rewrite eq; eauto. }
+   }
+  }
+Qed.
+
+Theorem lookupEraseSpecNone : forall x H t N ds,
+                                heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                                heap_lookup x (eraseHeap H) = None. 
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupEraseSpecNone; eauto. 
+Qed.
+
+Theorem raw_lookupEraseSpecNoneEmpty : forall x H S,
+                                    unique ivar_state S H ->
+                                    raw_heap_lookup x H = Some(sempty SPEC) ->
+                                    raw_heap_lookup x (raw_eraseHeap H) = None. 
+Proof.
+  induction H; intros. 
+  {inv H0. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H1. inv H0. eapply uniqueLookupNone in H6. Focus 2. 
+    apply Ensembles.Union_intror. constructor. apply raw_lookupNoneBoth. 
+    apply beq_nat_true in eq. subst. auto. }
+   {destruct i0.  
+    {destruct s. inv H0; eauto. simpl. rewrite eq. inv H0; eauto. }
+    {inv H0. destruct s; eauto. destruct s0; simpl; rewrite eq; eauto. }
+   }
+  }
+Qed.
+
+Theorem lookupEraseSpecNoneEmpty : forall x H,
+                                heap_lookup x H = Some(sempty SPEC) ->
+                                heap_lookup x (eraseHeap H) = None. 
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupEraseSpecNoneEmpty; eauto. 
+Qed.  
+
+Theorem raw_lookupUnspecNoneBoth : forall x H,
+                           raw_heap_lookup x H = None ->
+                           raw_heap_lookup x (raw_unspecHeap H) = None. 
+Proof.
+  induction H; intros; auto. simpl in *. 
+  destruct a. destruct (beq_nat x i) eqn:eq. 
+  {inv H0. }
+  {destruct i0. destruct s; eauto. simpl. rewrite eq; eauto. destruct s. eauto. 
+   destruct s0; simpl; rewrite eq; eauto. }
+Qed. 
+
+Theorem raw_lookupUnspecSpecNone : forall x H t S N ds,
+                                    unique ivar_state S H ->
+                                    raw_heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                                    raw_heap_lookup x (raw_unspecHeap H) = None. 
+Proof.
+  induction H; intros. 
+  {inv H0. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H1.  inv H0. eapply uniqueLookupNone in H6. Focus 2. 
+    apply Ensembles.Union_intror. constructor. apply raw_lookupUnspecNoneBoth. 
+    apply beq_nat_true in eq. subst. auto. }
+   {destruct i0. 
+    {inv H0. destruct s; eauto. simpl. rewrite eq. eauto. }
+    {inv H0. destruct s; eauto. destruct s0; simpl; rewrite eq; eauto. }
+   }
+  }
+Qed. 
+
+Theorem lookupUnspecSpecNone : forall x H t N ds,
+                                heap_lookup x H = Some(sfull SPEC ds SPEC t N) ->
+                                heap_lookup x (unspecHeap H) = None. 
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupUnspecSpecNone; eauto. 
+Qed. 
+
+Theorem raw_lookupUnspecSpecEmptyNone : forall x H S,
+                                    unique ivar_state S H ->
+                                    raw_heap_lookup x H = Some(sempty SPEC) ->
+                                    raw_heap_lookup x (raw_unspecHeap H) = None. 
+Proof.
+  induction H; intros. 
+  {inv H0. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {inv H1. inv H0. eapply uniqueLookupNone in H6. Focus 2. 
+    apply Ensembles.Union_intror. constructor. apply raw_lookupUnspecNoneBoth. 
+    apply beq_nat_true in eq. subst. auto. }
+   {destruct i0. 
+    {inv H0. destruct s; eauto. simpl. rewrite eq. eauto. }
+    {inv H0. destruct s; eauto. destruct s0; simpl; rewrite eq; eauto. }
+   }
+  }
+Qed. 
+
+Theorem lookupUnspecSpecEmptyNone : forall x H,
+                                heap_lookup x H = Some(sempty SPEC) ->
+                                heap_lookup x (unspecHeap H) = None. 
+Proof.
+  intros. destruct H. simpl. eapply raw_lookupUnspecSpecEmptyNone; eauto. 
+Qed. 

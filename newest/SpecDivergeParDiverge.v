@@ -1,57 +1,141 @@
-Require Import AST.          
-Require Import NonSpec.    
-Require Import Spec. 
-Require Import Coq.Sets.Ensembles. 
-Require Import Heap. 
-Require Import sets. 
-Require Import erasure.  
-Require Import classifiedStep.  
-Require Import Powerset_facts. 
-Require Import unspec.
-Require Import hetList. 
-Require Import Coq.Program.Equality. 
- 
+Require Import erasure.   
+Require Import progStepImpliesSpec. 
+Require Import progStepWF. 
+
 (*Definitions*)
 CoInductive ParDiverge : pHeap -> pPool -> Prop :=
 |divergeStep : forall T1 T2 T2' H H',
                  pstep H T1 T2 (pOK H' T1 T2') -> 
-                 ParDiverge H' (Union ptrm T1 T2') -> ParDiverge H (Union ptrm T1 T2)
+                 ParDiverge H' (pUnion T1 T2') -> ParDiverge H (pUnion T1 T2)
 .
- 
-(*H; T ->+ H'; T'*)
-Inductive pstepPlus : pHeap -> pPool -> pPool -> pconfig -> Prop :=
-|stepPlus : forall T1 T2 h h' t t' c,
-              pstep h (pUnion T1 T2) (pSingleton t) (pOK h' (pUnion T1 T2) t') ->
-              pmultistep h' T1 (pUnion T2 t') c ->
-              pstepPlus h T1 (Add ptrm T2 t) c
-|stepError : forall h T1 T2 t, 
-               pstep h (pUnion T1 T2) (pSingleton t) pError ->
-               pstepPlus h T1 (Add ptrm T2 t) pError. 
 
 CoInductive ParDiverge' : pHeap -> pPool -> Prop :=
-|divergeMulti : forall T1 T2 T2' H H',
-                  pstepPlus H T1 T2 (pOK H' T1 T2') ->
-                  ParDiverge' H' (pUnion T1 T2') -> ParDiverge' H (pUnion T1 T2). 
+|divergeStep' : forall H H' T T',
+                 pstepPlus H T H' T' -> ParDiverge' H' T' -> ParDiverge' H T. 
 
-(*Theorems that should be proven elsewhere, but relied upon here*)
-Theorem specImpliesNonSpec : forall H H' T t t' PT pt, 
-                               erasePool T PT -> erasePool t pt -> 
-                               prog_step H T t (OK H' T t') -> wellFormed H (tUnion T t) ->
-                               exists PH' pt', pstepPlus (eraseHeap H) PT pt (pOK PH' PT pt') /\
-                                               eraseHeap H' = PH' /\ erasePool t' pt'. 
-Admitted. 
+Theorem ParDivergeEq : forall H T, ParDiverge H T <-> ParDiverge' H T. 
+Proof. 
+  intros. split; intros. 
+  {genDeps{T; H}. cofix. intros. inv H0. econstructor. econstructor. eauto. 
+   constructor. eapply ParDivergeEq; eassumption. }
+  {genDeps{T; H}. cofix CH. intros. inv H0. inv H2. inv H4. 
+   {econstructor. eassumption. eapply CH. eauto. }
+   {assert(ParDiverge' H'0 (pUnion T t0)). econstructor. econstructor. 
+    eassumption. eassumption. assumption. econstructor. eassumption. 
+    eapply CH. rewrite <- H2. eauto. }
+  }
+Qed. 
+
+Theorem eActTerm : forall x, exists M, actionTerm x M. 
+Proof.
+  intros. destruct x; repeat econstructor. 
+Qed. 
+
+Ltac actTermTac x := assert(exists M, actionTerm x M) by apply eActTerm; invertHyp. 
+
+Theorem getLastApp : forall (T:Type) a c (b:T),
+                       last(a++[b]) c = b.
+Proof.
+  induction a; intros. 
+  {simpl. auto. }
+  {simpl. destruct (a0++[b]) eqn:eq. 
+   {invertListNeq. }
+   {rewrite <- eq. eauto. }
+  }
+Qed. 
+
+Theorem unspecLastActPool : forall tid s a s2 M' M, 
+                         actionTerm a M' ->
+                         unspecPool(tSingleton(tid,unlocked(s++[a]),s2,M)) = 
+                         tSingleton(tid,unlocked nil,s2,M'). 
+Proof.
+  induction s; intros. 
+  {simpl. inv H; auto. }
+  {simpl. destruct (s++[a0])eqn:eq. 
+   {invertListNeq. }
+   {rewrite <- eq. rewrite getLastApp. inv H; auto. }
+  }
+Qed. 
+
+Theorem actionTrmConsSame'' : forall a M' N s1 s2 tid,
+                             actionTerm a M' -> 
+                             unspecPool(tSingleton(tid,unlocked s1,s2,M')) = 
+                             unspecPool(tSingleton(tid,aCons a (unlocked s1),s2,N)). 
+Proof.
+  induction s1; intros. 
+  {simpl. inv H; auto.  }
+  {simpl. destruct s1. auto. erewrite getLastNonEmpty; eauto. }
+Qed. 
+
+Theorem actionTrmConsSame' : forall a M' N s1 s2 tid,
+                             actionTerm a M' -> 
+                             unspecPool(tSingleton(tid,s1,s2,M')) = 
+                             unspecPool(tSingleton(tid,aCons a s1,s2,N)). 
+Proof.
+  intros. destruct s1; auto. apply actionTrmConsSame''. auto. 
+Qed. 
+
+Theorem unspecEmpty : forall tid s1 s2 M, 
+                unspecPool(tSingleton(tid,locked s1,s2,M)) = (Empty_set thread).
+Proof.
+  intros. simpl. auto. 
+Qed. 
+
+Ltac sswfHelper := eapply spec_multi_trans;[eassumption|econstructor].
+
+Hint Constructors actionTerm spec_multistep. 
+
+Theorem specStepWF : forall H T H' t t',
+                       wellFormed H (tUnion T t) -> spec_step H T t H' T t' ->
+                       wellFormed H' (tUnion T t'). 
+Proof.
+  intros. inv H1. 
+  {inv H0. econstructor. rewrite unspecUnionComm in *. destruct s1. 
+   {simpl in *. sswfHelper; auto. eapply SBasicStep; eauto. }
+   {destructLast l. inv H3. invertHyp. actTermTac x. erewrite unspecLastActPool in *; eauto. 
+    sswfHelper; eauto. eapply SBasicStep; eauto. }
+   {simpl in *. sswfHelper; eauto. eapply SBasicStep; eauto. }
+  }
+  {unfoldTac. inv H0. econstructor. rewrite coupleUnion. repeat rewrite unspecUnionComm in *.
+   destruct b. 
+   {simpl in *. sswfHelper. eapply SFork; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'. rewrite unspecEmpty. unfoldTac. rewrite union_empty_r. 
+    sswfHelper. eapply SFork; eauto. constructor. auto. }
+   {simpl in *.  sswfHelper. eapply SFork; eauto. constructor. }
+  }
+  {inv H0. econstructor. rewrite unspecUnionComm in *. destruct b. 
+   {simpl in *. erewrite unspecHeapRBRead; eauto. sswfHelper. eapply SGet; eauto. constructor. }
+   {erewrite unspecHeapRBRead; eauto. erewrite <- actionTrmConsSame'; auto. sswfHelper. 
+    eapply SGet; eauto. constructor. }
+   {simpl in *. erewrite unspecHeapRBRead; eauto. sswfHelper. eapply SGet; eauto. constructor. }
+  }
+  {inv H0. constructor. rewrite unspecHeapAddWrite; auto. rewrite unspecUnionComm in *.
+   destruct b. 
+   {simpl in *. sswfHelper. eapply SPut; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'; eauto. sswfHelper. eapply SPut; eauto. constructor. }
+   {simpl in *. sswfHelper. eapply SPut; eauto. constructor. }
+  }
+  {inv H0. constructor. rewrite unspecHeapExtend. rewrite unspecUnionComm in *. destruct b. 
+   {sswfHelper. eapply SNew; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'; eauto. sswfHelper. eapply SNew; eauto. constructor. }
+   {sswfHelper. eapply SNew; eauto. constructor. }
+  }
+  {inv H0. constructor. unfoldTac. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
+   rewrite unspecEmpty. unfoldTac. rewrite union_empty_r. destruct b. 
+   {sswfHelper. eapply SSpec; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'; eauto. sswfHelper. eapply SSpec; eauto. constructor. }
+   {sswfHelper. eapply SSpec; eauto. constructor. }
+  }
+Qed. 
 
 Theorem specMultiWF : forall H T H' T', wellFormed H T -> spec_multistep H T H' T' ->
                                         wellFormed H' T'. 
-Admitted. 
+Proof.
+  intros. induction H1. 
+  {auto. }
+  {eapply specStepWF in H; eauto. }
+Qed. 
 
-
-Theorem prog_stepWF : forall H T t H' t', prog_step H T t (OK H' T t') ->
-                                          wellFormed H (tUnion T t) -> 
-                                          wellFormed H' (tUnion T t'). 
-Admitted. 
-
-(*Divergence Theorem and Supporting Lemmas*)
 Theorem pstepDiffUnused : forall H H' T T' t t',
                             pstep H T t (pOK H' T t') ->
                             pstep H T' t (pOK H' T' t'). 
@@ -60,66 +144,34 @@ Proof.
 Qed. 
 
 Theorem pstepSingleton : forall H T1 T2 H' T2', 
-                           pstep H T1 T2 (pOK H' T1 T2') -> exists t, T2 = Singleton ptrm t. 
+                           pstep H T1 T2 (pOK H' T1 T2') -> exists t, T2 = Single ptrm t. 
 Proof.
   intros. inv H0; eauto. 
 Qed.
-
-Theorem pmultiMoveFromUnused : forall H T1 T2 H' T2',
-                                 pmultistep H T1 T2 (pOK H' T1 T2') ->
-                                 pmultistep H (Empty_set ptrm) (pUnion T1 T2)
-                                            (pOK H' (Empty_set ptrm) (pUnion T1 T2')). 
-Proof.
-  intros. dependent induction H0. 
-  {constructor. }
-  {unfold pUnion. unfold Add. rewrite <- Union_associative. econstructor. 
-   unfold pUnion. rewrite union_empty_l. eassumption. unfold pUnion. 
-   rewrite Union_associative. eauto. }
-Qed. 
-
-Theorem ParDiverge'Multistep : forall H T H' T', 
-                   ParDiverge' H T ->
-                   pmultistep H (Empty_set ptrm) T (pOK H' (Empty_set ptrm) T') ->
-                   ParDiverge' H' T'.
-Proof. 
-  intros. Admitted. 
-
-Theorem DivergeIFFDiverge' : forall H T, ParDiverge H T <-> ParDiverge' H T. 
-Proof.
-  intros. split; intros. 
-  {genDeps{H; T}. cofix. intros. inversion H0; subst. econstructor. 
-   rewrite <- (union_empty_l ptrm T2). copy H2. apply pstepSingleton in H2. invertHyp. 
-   econstructor. unfold pUnion. rewrite union_empty_r. eauto. unfold pUnion. 
-   rewrite union_empty_l. constructor. eapply DivergeIFFDiverge'. assumption. }
-  {genDeps{H; T}. cofix CH. intros. inversion H0; subst. inversion H2; subst. 
-   unfold Add. unfold pUnion. rewrite <- Union_associative. econstructor. 
-   eapply pstepDiffUnused. eauto. eapply CH. eapply ParDiverge'Multistep. Focus 2.
-   eapply pmulti_step. unfold pUnion. rewrite union_empty_l. eassumption. 
-   constructor. unfold Add. unfold pUnion. rewrite Union_associative. eassumption. }
-Qed.
-
-
+ 
 CoInductive SpecDiverge : sHeap -> pool-> Prop :=
 |specDiverge : forall T1 T2 T2' H H' H'' T,
                  spec_multistep H T H' (tUnion T1 T2) -> 
                  prog_step H' T1 T2 (OK H'' T1 T2') -> 
                  SpecDiverge H'' (tUnion T1 T2') -> SpecDiverge H T.
 
-Theorem SpecDivergeParDiverge : forall H T T',
-                                  wellFormed H T -> erasePool T T' ->
-                                  SpecDiverge H T -> ParDiverge' (eraseHeap H) T'. 
+Theorem SpecDivergeParDiverge' : forall H T,
+                wellFormed H T -> 
+                SpecDiverge H T -> ParDiverge' (eraseHeap H) (erasePool T). 
 Proof.
-  cofix CH. intros. inversion H2; subst. copy H4. apply specMultiWF in H4; auto. 
-  eapply spec_multistepErase with (H'':=eraseHeap H)(T'':=T') in H3; [idtac|eauto|eauto]. 
-  invertHyp. rewrite <- H7. inversion H8; subst. 
-  copy H5. eapply specImpliesNonSpec with(PT:=erasePoolAux T1)(pt:=erasePoolAux T2)in H5. 
-  apply prog_stepWF in H3. 
-  invertHyp. inv H11. rewrite eraseUnionComm. Focus 2. eauto. Focus 2. auto.
-  econstructor. eassumption. rewrite <- eraseUnionComm. eapply CH. eapply H3. constructor. 
-  eauto. constructor. eassumption.
+  cofix CH. intros. inv H1. copy H3. apply specMultiWF in H3; auto. 
+  eapply spec_multistepErase in H1. invertHyp. rewrite H6. rewrite H2.
+  rewrite eraseUnionComm in *. copy H4. apply prog_specImpliesNonSpec in H4; auto. 
+  invertHyp.  apply prog_stepWF in H1; auto. rewrite eraseUnionComm in *. 
+  econstructor. eassumption. eapply CH. eauto. eauto. 
 Qed. 
 
-
+Theorem SpecDivergeParDiverge : forall H T,
+              wellFormed H T -> 
+              SpecDiverge H T -> ParDiverge (eraseHeap H) (erasePool T). 
+Proof.
+  intros. apply SpecDivergeParDiverge' in H1. rewrite ParDivergeEq. auto. auto. 
+Qed. 
 
 
 

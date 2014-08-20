@@ -16,6 +16,8 @@ Inductive unique (T:Type) (seen:Ensemble id) : rawHeap T -> Prop :=
 Inductive heap (T:Type) : Type := 
 |heap_ : forall h, unique T (Empty_set id) h -> heap T. 
 
+Definition empty (T:Type) : heap T := heap_ T (@nil (id * T)) (nilUnique T (Empty_set id)). 
+
 Fixpoint raw_heap_lookup {T : Type} (i : id) (h : rawHeap T) := 
   match h with
     |(n, v)::h' => if beq_nat i n then Some v else raw_heap_lookup i h'
@@ -196,44 +198,6 @@ Proof.
   destruct H. intros. simpl in *. rewrite <- beq_nat_refl. auto. 
 Qed. 
 
-Theorem raw_lookupReplaceNeq : forall (T:Type) H x x' v (v':T), 
-                                 x<>x' -> 
-                                 (raw_heap_lookup x H = v <->
-                                  raw_heap_lookup x (raw_replace x' v' H) = v).
-Proof.
-  intros. split; intros. 
-  {induction H. 
-   {inv H1. auto. }
-   {simpl in *. destruct a.
-    destruct (beq_nat x i) eqn:eq1; destruct (beq_nat x' i) eqn:eq2. 
-    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. exfalso. 
-     apply H0; auto. }
-    {simpl. rewrite eq1. auto. }
-    {simpl. apply beq_nat_false_iff in H0. rewrite H0; auto. }
-    {simpl. rewrite eq1. auto. }
-   }
-  }
-  {induction H.
-   {inv H1. auto. }
-   {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq1; 
-                            destruct (beq_nat x' i)eqn:eq2. 
-    {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. 
-     exfalso. apply H0; auto. }
-    {simpl in *. rewrite eq1 in H1. auto. }
-    {simpl in *. apply beq_nat_false_iff in H0. rewrite H0 in H1. auto. }
-    {simpl in *. rewrite eq1 in H1. auto. }
-   }
-  }
-Qed. 
-
-Theorem lookupReplaceNeq : forall (T:Type) H x x' v (v':T), 
-                             x<>x' -> 
-                             (heap_lookup x H = v <->
-                              heap_lookup x (replace x' v' H) = v).
-Proof.
-  intros. destruct H. simpl. apply raw_lookupReplaceNeq. auto. 
-Qed. 
-
 Theorem rawHeapsEq : forall T H H' prf prf',  H = H' -> heap_ T H prf = heap_ T H' prf'. 
 Proof.
   intros. subst. assert(prf=prf'). apply proof_irrelevance. subst. auto.
@@ -292,5 +256,79 @@ Axiom heapExtensionality : forall (T:Type) (H H' : rawHeap T),
                              (forall x, raw_heap_lookup x H = raw_heap_lookup x H') -> H = H'. 
 
 
+Theorem raw_extendReplaceSwitch : forall (T:Type)x x' (v v':T) H z,
+                                x <> x' -> raw_heap_lookup x' H = Some z -> 
+                                raw_extend x v (raw_replace x' v' H) = raw_replace x' v' (raw_extend x v H). 
+Proof.
+  induction H; intros. 
+  {inv H0. }
+  {simpl in *. destruct a. destruct (beq_nat x' i) eqn:eq1. 
+   {inv H1. rewrite <- beq_nat_false_iff in H0. rewrite SfLib.beq_nat_sym in H0. rewrite H0.
+    auto. }
+   {rewrite <- beq_nat_false_iff in H0. rewrite SfLib.beq_nat_sym in H0. rewrite H0. 
+    rewrite H0 in IHlist. unfold raw_extend. auto. }
+  }
+Qed. 
 
+Theorem extendReplaceSwitch : forall (T:Type)x x' (v v':T) H z p p',
+                                x <> x' -> heap_lookup x' H = Some z -> 
+                                extend x v (replace x' v' H) p' = replace x' v' (extend x v H p). 
+Proof.
+  intros. destruct H. apply rawHeapsEq. eapply raw_extendReplaceSwitch; eauto. 
+Qed. 
 
+Theorem raw_lookupReplaceNeq : forall (T:Type) H x x'  (v':T),
+                             x <> x' -> raw_heap_lookup x (raw_replace x' v' H) = raw_heap_lookup x H. 
+Proof.
+  induction H; intros. 
+  {simpl. auto. }
+  {simpl in *. destruct a. destruct (beq_nat x' i) eqn:eq1; destruct (beq_nat x i) eqn:eq2. 
+   simpl. apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. exfalso. apply H0. 
+   auto. simpl. rewrite <- beq_nat_false_iff in H0. rewrite H0. auto. simpl. rewrite eq2. 
+   auto. simpl. rewrite eq2. auto. }
+Qed.
+
+Theorem lookupReplaceNeq : forall (T:Type) H x x' (v':T),
+                             x <> x' -> heap_lookup x (replace x' v' H) = heap_lookup x H. 
+Proof.
+  intros. destruct H. simpl. apply raw_lookupReplaceNeq; auto. 
+Qed. 
+
+Theorem raw_replaceSame : forall (T:Type) H x (v:T),
+                        raw_heap_lookup x H = Some v -> raw_replace x v H = H. 
+Proof.
+  induction H; intros. 
+  {inv H. }
+  {simpl in *. destruct a. destruct (beq_nat x i)eqn:eq. 
+   {inv H0. apply beq_nat_true in eq. subst. auto. }
+   {rewrite IHlist; eauto. }
+  }
+Qed. 
+
+Theorem replaceSame : forall (T: Type) H x (v:T),
+                        heap_lookup x H = Some v -> replace x v H = H. 
+Proof.
+  intros. destruct H. simpl. apply rawHeapsEq. eapply raw_replaceSame; eauto. 
+Qed. 
+
+Theorem extendExtendSwitch : forall (T:Type) x x' (v v':T) H p p' p'' p''', 
+                               extend x v (extend x' v' H p) p' = 
+                               extend x' v' (extend x v H p'') p'''. 
+Proof.
+  intros. destruct H. simpl in *. eapply rawHeapsEq. destruct (beq_nat x x') eqn:eq. 
+  inv p'. unfold raw_extend. apply heapExtensionality. intros. 
+  simpl. destruct (beq_nat x0 x) eqn:eq1. 
+  {destruct (beq_nat x0 x') eqn:eq2. 
+   {apply beq_nat_true in eq1. apply beq_nat_true in eq2. subst. apply beq_nat_false in eq. 
+    exfalso. apply eq. auto. }
+   {auto. }
+  }
+  {destruct (beq_nat x0 x') eqn:eq2; auto. }
+Qed. 
+
+Theorem replaceExtendOverwrite : forall (T:Type) x H (v v':T) p p',
+                                   replace x v (extend x v' H p) = extend x v H p'. 
+Proof.
+  intros. destruct H. apply rawHeapsEq. unfold raw_extend. simpl. rewrite <- beq_nat_refl. 
+  auto. 
+Qed. 

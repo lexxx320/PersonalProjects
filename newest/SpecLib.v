@@ -88,9 +88,9 @@ Ltac invertHyp :=
       |H : Singleton ?T ?t = Singleton ?T ?t' |- _ => apply SingletonEq in H; subst
   end. 
 
-Ltac unfoldSetEq H := apply eqImpliesSameSet in H; unfold Same_set in H; unfold Included in H;
-                      inv H.
-Ltac eqSets := apply Extensionality_Ensembles; unfold Same_set; unfold Included; split; intros. 
+Ltac eqSets := apply Extensionality_Ensembles; unfold Same_set; unfold Included; split; intros.
+Ltac unfoldSetEq H := apply eqImpliesSameSet in H; unfold Same_set in H; unfold Included in H; inv H.
+
 
 Theorem destructEnd : forall (T:Type) (l : list T), l = [] \/ exists (a:T) l', l = l' ++ [a]. 
 Proof.
