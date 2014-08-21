@@ -219,12 +219,6 @@ Proof.
   {simpl. destruct (beq_nat n i); auto. }
 Qed. 
 
-Theorem simBasicStep : forall t t', 
-                         pbasic_step t t' ->
-                         basic_step (specTerm t) (specTerm t'). 
-Proof.
-  intros. inv H. 
-  {rewrite specFill. rewrite specOpen. eapply basicBeta. Admitted. 
 
 Theorem specUnionComm' : forall T1 T1' T2 T2', 
                            speculate T1 T1' -> speculate T2 T2' ->
@@ -436,28 +430,39 @@ Fixpoint psourceProg t :=
       |pdone e => psourceProg e
   end. 
 
+Theorem pval_dec : forall t, (pval t) + (~pval t). 
+Proof.
+  induction t; intros; try solve[left; auto]; try solve[right; introsInv]. 
+  {inv IHt1; inv IHt2. left; auto. right. introsInv. contradiction.
+   right. introsInv. contradiction. right. introsInv. contradiction. }
+Qed. 
+
 Fixpoint ptermWF t :=
   match t with
       |pfvar x => True
       |pbvar x => True
       |punit => True
-      |ppair e1 e2 => ptermWF e1 /\ ptermWF e2
-      |plambda e => ptermWF e
+      |ppair e1 e2 => if pval_dec e1
+                      then if pval_dec e2
+                           then psourceProg e1 /\ psourceProg e2
+                           else ptermWF e1 /\ ptermWF e2
+                      else ptermWF e1 /\ ptermWF e2
+      |plambda e => psourceProg e
       |papp e1 e2 => ptermWF e1 /\ ptermWF e2
-      |pret e => ptermWF e
+      |pret e => psourceProg e
       |pbind e1 e2 => ptermWF e1 /\ psourceProg e2
       |pfork e => psourceProg e
       |pnew => True
       |pput e1 e2 => ptermWF e1 /\ psourceProg e2
       |pget e => ptermWF e
-      |praise e => ptermWF e
+      |praise e => psourceProg e
       |phandle e1 e2 => ptermWF e1 /\ psourceProg e2
       |pspec e1 e2 => psourceProg e1 /\ psourceProg e2
       |pspecRun e1 e2 => ptermWF e1 /\ psourceProg e2
       |pspecJoin e1 e2 => ptermWF e1 /\ ptermWF e2
       |pfst e => ptermWF e
       |psnd e => ptermWF e
-      |pdone e => ptermWF e
+      |pdone e => psourceProg e
   end. 
 
 Fixpoint PoolWF (T:pPool) :=
@@ -475,25 +480,27 @@ Proof.
   {simpl in *. invertHyp. split; auto. apply IHT1. auto. }
 Qed. 
 
-Theorem ptrmDecomposeWF : forall t E e, pdecompose t E e -> ptermWF t -> ptermWF e. 
-Proof.
-  intros. induction H; eauto; inv H0; auto. 
-Qed. 
-
 Theorem sourceProgWF : forall t, psourceProg t -> ptermWF t. 
 Proof.
   induction t; intros; auto; 
   simpl in *; try invertHyp;  auto. 
-  contradiction. contradiction. 
+  destruct (pval_dec t1). 
+  {destruct (pval_dec t2). 
+   {split; auto. }
+   {split; eauto. }
+  }
+  {split; auto. }
+  {contradiction. }
+  {contradiction. }
 Qed.  
 
-Theorem pstepWF : forall H T t H' t', 
-                    PoolWF (pUnion T t) -> pstep H T t (pOK H' T t') ->
-                    PoolWF (pUnion T t'). 
+Theorem ptrmDecomposeWF : forall t E e, pdecompose t E e -> ptermWF t -> ptermWF e. 
 Proof.
-  intros. inv H1. 
-  {rewrite poolWFComm in *. invertHyp. split; auto. inv H6. 
-   {Admitted. 
+  intros. induction H; eauto; try solve[ inv H0; auto]. 
+  {simpl in *. destruct (pval_dec M). contradiction. invertHyp. eauto. }
+  {simpl in *. Hint Resolve sourceProgWF. destruct (pval_dec M); destruct (pval_dec N); 
+   invertHyp; apply IHpdecompose; auto. }
+Qed. 
 
 Hint Constructors gather. 
 
@@ -566,17 +573,320 @@ Proof.
   intros. destruct H. simpl. inv H1. eapply raw_specHeapLookupEmpty in H0; eauto. 
 Qed. 
 
+Theorem specHeapExtend : forall x H H' p p',
+                           heap_lookup x H = None -> specHeap H H' ->
+                           specHeap(Heap.extend x pempty H p) (Heap.extend x (sempty COMMIT) H' p'). 
+Proof.
+  intros. destruct H. simpl in *. erewrite rawHeapsEq; eauto. destruct H'. simpl. 
+  erewrite (rawHeapsEq ivar_state). constructor. auto.  
+  Grab Existential Variables. unfold raw_extend. constructor. inv H1. auto. 
+  apply extendPreservesUniqueness with(prf := u). simpl. assumption. assumption. 
+Qed. 
+
+Theorem raw_specHeapLookupNone : forall H H' x, 
+                               raw_specHeap H H' -> raw_heap_lookup x H = None ->
+                               raw_heap_lookup x H' = None. 
+Proof.
+  induction H; intros. 
+  {inv H. auto. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {solveByInv. }
+   {inv H0. simpl. rewrite eq. eauto. simpl. rewrite eq. auto. }
+  }
+Qed. 
+
+Theorem specHeapLookupNone : forall H H' x, 
+                               specHeap H H' -> heap_lookup x H = None ->
+                               heap_lookup x H' = None. 
+Proof.
+  intros. destruct H. simpl in *. inv H0. simpl. eapply raw_specHeapLookupNone; eauto. 
+Qed. 
+
+
+Theorem simBasicStep : forall t t', 
+                         pbasic_step t t' ->
+                         basic_step (specTerm t) (specTerm t'). 
+Proof.
+  intros. inv H. 
+  {rewrite specFill. rewrite specOpen. eapply basicBeta. apply decomposeSpec in H0. 
+   eauto. }
+  {rewrite specFill. eapply basicProjL. apply decomposeSpec in H0. simpl in *; eauto. }
+  {rewrite specFill. eapply basicProjR. apply decomposeSpec in H0. simpl in *; eauto. }
+  {rewrite specFill. eapply basicBind. apply decomposeSpec in H0. eauto. }
+  {rewrite specFill. eapply basicBindRaise. apply decomposeSpec in H0. eauto. }
+  {rewrite specFill. apply basicHandle. apply decomposeSpec in H0. eauto. }
+  {rewrite specFill. eapply basicHandleRet. apply decomposeSpec in H0. eauto. }
+  {rewrite specFill. eapply specJoinRaise. apply decomposeSpec in H0. simpl in *. eauto. }
+  {rewrite specFill. eapply specJoinRet. apply decomposeSpec in H0. simpl in *. eauto. }
+Qed. 
+
+Theorem pvalSourceProg : forall t, ptermWF t -> pval t -> psourceProg t. 
+Proof.
+  induction t; intros; try solveByInv; auto.  
+  {inv H0. simpl in *. destruct (pval_dec t1); try contradiction. 
+   destruct (pval_dec t2); try contradiction. auto. }
+Qed. 
+
+Theorem pdecomposeApp : forall E t e N, pdecompose t E (papp (plambda e) N) -> ptermWF t ->
+                                     psourceProg e /\ psourceProg N.
+Proof. 
+  induction E; intros; try solve[inv H; eauto]. 
+  {inv H. inv H0. eapply IHE. eauto. auto. }
+  {inv H. inv H0. eapply IHE. eauto. auto. }
+  {inv H. inv H0. eapply IHE. eauto. auto. }
+  {inv H. inv H0. eapply IHE. eauto. auto. }
+  {inv H. simpl in *. destruct (pval_dec M). contradiction. invertHyp. 
+   eauto. }
+  {inv H. simpl in *. destruct (pval_dec p). destruct (pval_dec N0). 
+   contradiction. invertHyp. eauto. contradiction. }
+  {inv H. inv H0. eauto. }
+  {inv H. inv H0. eauto. }
+  {inv H. inv H0. simpl in *. apply pvalSourceProg in H1; auto. }
+Qed. 
+Hint Resolve sourceProgWF.
+
+Theorem UnionEqEmpty : forall A T1 T2, Union A T1 T2 = Empty_set A -> T1 = Empty_set A /\
+                                                                      T2 = Empty_set A. 
+Proof.
+  intros. destruct T1; destruct T2; auto; simpl in *; inv H.  Qed. 
+
+
+Theorem gatherOpen : forall e' n e, gather e (Empty_set thread) -> gather e' (Empty_set thread) ->
+                                      gather (popen n e e') (Empty_set thread).
+Proof.
+  induction e'; intros; auto; try solve[simpl in *; inv H0; eauto];
+  try solve[simpl; inv H0; apply UnionEqEmpty in H3; invertHyp; constructor; auto]. 
+  {simpl. destruct (beq_nat n i); auto. }
+  {inv H0. unfoldTac. rewrite Union_commutative in H3. inv H3. }
+Qed. 
+
+Theorem pdecomposeFST : forall E t e, pdecompose t E (pfst e) -> ptermWF t ->
+                                      gather e (Empty_set thread). 
+Proof.
+  induction E; intros; try solve[inv H; inv H0; eauto]. 
+  {inv H. simpl in *. destruct (pval_dec M); try contradiction. invertHyp. eauto. }
+  {inv H. simpl in *. destruct (pval_dec p); try contradiction. 
+   destruct (pval_dec N); try contradiction. invertHyp. eauto. }
+  {inv H. simpl in *. eauto. }
+  {inv H. simpl in *. eauto. }
+  {inv H. apply pvalSourceProg in H3; auto. gatherTac e. copy H1.  
+   eapply gatherSourceProg in H1; eauto. subst. auto. }
+Qed. 
+
+Theorem pdecomposeSND : forall E t e, pdecompose t E (psnd e) -> ptermWF t ->
+                                      gather e (Empty_set thread). 
+Proof.
+  induction E; intros; try solve[inv H; inv H0; eauto]. 
+  {inv H. simpl in *. destruct (pval_dec M); try contradiction. invertHyp. eauto. }
+  {inv H. simpl in *. destruct (pval_dec p); try contradiction. 
+   destruct (pval_dec N); try contradiction. invertHyp. eauto. }
+  {inv H. simpl in *. eauto. }
+  {inv H. simpl in *. eauto. }
+  {inv H. apply pvalSourceProg in H3; auto. gatherTac e. copy H1.  
+   eapply gatherSourceProg in H1; eauto. subst. auto. }
+Qed. 
+
+Theorem gatherEmptyUnique : forall t T, gather t (Empty_set thread) -> gather t T ->
+                                        T = Empty_set thread. 
+Proof.
+  induction t; intros; try solve[inv H0; auto]; try solve[inv H; inv H0; eauto]. 
+  {inv H. inv H0. apply UnionEqEmpty in H3. invertHyp. eapply IHt1 in H2; auto. 
+   eapply IHt2 in H7; auto. subst. auto. }
+  {inv H. inv H0. apply UnionEqEmpty in H3. invertHyp. eapply IHt1 in H2; auto. 
+   eapply IHt2 in H7; auto. subst. auto. }
+  {inv H. inv H0. apply UnionEqEmpty in H3. invertHyp. eapply IHt1 in H2; auto. 
+   eapply IHt2 in H7; auto. subst. auto. }
+  {inv H. inv H0. apply UnionEqEmpty in H3. invertHyp. eapply IHt1 in H2; auto. 
+   eapply IHt2 in H7; auto. subst. auto. }
+  {inv H. inv H0. apply UnionEqEmpty in H3. invertHyp. eapply IHt1 in H2; auto. 
+   eapply IHt2 in H7; auto. subst. auto. }
+  {inv H. inv H0. apply UnionEqEmpty in H3. invertHyp. eapply IHt1 in H2; auto. 
+   eapply IHt2 in H7; auto. subst. auto. }
+  {inv H. unfoldTac. rewrite Union_commutative in H3. inv H3. }
+  {inv H. inv H0. apply UnionEqEmpty in H3. invertHyp. eapply IHt1 in H2; auto. 
+   eapply IHt2 in H7; auto. subst. auto. }
+Qed. 
+
+
+Theorem decomposeSpecJoin : forall E t N M, pdecompose t E (pspecJoin N M) -> ptermWF t ->
+                                            gather N (Empty_set thread). 
+Proof.
+  induction E; intros; try solve[inv H; eauto]; try solve[inv H; inv H0; eauto]. 
+  {inv H. simpl in *. destruct (pval_dec M0); try contradiction. invertHyp. eauto. }
+  {inv H. simpl in *. destruct (pval_dec p); try contradiction. 
+   destruct (pval_dec N0); try contradiction. invertHyp. eauto. }
+  {inv H. simpl in H0. invertHyp. eapply pvalSourceProg in H4; auto. gatherTac N.
+   copy H2. eapply gatherSourceProg in H2; eauto. subst. auto. }
+Qed. 
+
+Theorem basicStepGather : forall t t' T, 
+                            pbasic_step t t' -> ptermWF t -> 
+                            gather t T -> gather t' T. 
+Proof.
+  intros. inv H. 
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H.  
+   apply pdecomposeApp in H; eauto. invertHyp. inv H2.
+   eapply gatherSourceProg in H6; eauto. subst. unfoldTac. apply gatherFill. 
+   auto. copy H8. apply gatherSourceProg in H8; auto. subst. simpl. apply gatherOpen; auto. 
+   inv H. auto. }
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H. apply gatherFill; auto. 
+   apply pdecomposeFST in H4; auto. inv H4. apply UnionEqEmpty in H7. invertHyp. 
+   inv H2. inv H5. eapply gatherEmptyUnique in H6; auto. subst.
+   apply gatherEmptyUnique in H10; auto. subst. simpl. auto. }
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H. apply gatherFill; auto. 
+   apply pdecomposeSND in H4; auto. inv H4. apply UnionEqEmpty in H7. invertHyp. 
+   inv H2. inv H5. eapply gatherEmptyUnique in H6; auto. subst.
+   apply gatherEmptyUnique in H10; auto. subst. simpl. auto. }
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H. apply gatherFill; auto.
+   inv H2. unfoldTac. rewrite Union_commutative. constructor; auto. inv H7. auto. }
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H. apply gatherFill; auto.
+   inv H2. eapply ptrmDecomposeWF in H0; eauto. inv H0. eapply gatherSourceProg in H5; eauto. 
+   subst. unfoldTac. rewrite union_empty_r. auto. }
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H. apply gatherFill; auto.
+   inv H2. unfoldTac. rewrite Union_commutative. constructor; auto. inv H7; auto. }
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H. apply gatherFill; auto.
+   inv H2. eapply ptrmDecomposeWF in H0; eauto. inv H0. eapply gatherSourceProg in H5; eauto. 
+   subst. unfoldTac. rewrite union_empty_r. auto. }
+  {copy H2. apply decomposeSpecJoin in H2; auto. inv H2. eapply gatherDecomp in H; eauto. 
+   invertHyp. apply gatherFill; auto. inv H. inv H6. eapply gatherEmptyUnique in H3; eauto. 
+   subst. simpl. auto. }
+  {copy H2. eapply gatherDecomp in H2; eauto. invertHyp. copy H. apply gatherFill; auto.
+   inv H2. unfoldTac. constructor; auto. constructor. inv H7. auto. inv H9; auto. }
+Qed. 
+ 
+Theorem fillWF : forall t E e e', pdecompose t E e -> ptermWF (pfill E e) -> ptermWF e' ->
+                                  ptermWF (pfill E e'). 
+Proof.
+  intros. generalize dependent e'. induction H; intros; try solve[
+  simpl in *; invertHyp; eauto]; try solve[simpl in *; eauto]. 
+  {simpl in *. destruct (pval_dec (pfill E M')). copy H1. 
+   apply pdecomposeEq in H1. subst. contradiction. invertHyp.
+   destruct (pval_dec (pfill E e')). 
+   {destruct (pval_dec N); eauto. apply pvalSourceProg in p0; auto. split; auto. 
+    apply pvalSourceProg in p; auto. }
+   {destruct (pval_dec N); eauto. }
+  }
+  {simpl in *. destruct (pval_dec M); try contradiction. destruct (pval_dec (pfill E N')). 
+   apply pdecomposeEq in H2. subst. contradiction. invertHyp.
+   destruct (pval_dec(pfill E e')); eauto. apply pvalSourceProg in p0; auto. split; auto. 
+   apply pvalSourceProg in H; auto. }
+Qed. 
+
+Theorem openSourceProg : forall e' n e, psourceProg e -> psourceProg e' ->
+                                        psourceProg (popen n e e'). 
+Proof.
+  induction e'; intros; auto; try solve[simpl in *; try invertHyp; eauto]. 
+  {simpl. destruct (beq_nat n i); auto. }
+Qed. 
+
+Theorem raw_replaceSourceProg : forall x H M, 
+                              raw_heapWF H -> psourceProg M -> raw_heapWF (raw_replace x (pfull M) H).
+Proof.
+  induction H; intros. 
+  {constructor. }
+  {simpl in *. destruct a. destruct (beq_nat x i) eqn:eq. 
+   {simpl. split. auto. destruct p. auto. invertHyp; auto. }
+   {simpl. destruct p. eauto. invertHyp.  split; eauto. }
+  }
+Qed. 
+
+Theorem replaceSourceProg : forall x H M, 
+                              heapWF H -> psourceProg M -> heapWF (replace x (pfull M) H).
+Proof.
+  intros. destruct H. simpl. eapply raw_replaceSourceProg; eauto. 
+Qed. 
+
+Theorem pstepWF : forall H T t H' t', 
+                    PoolWF (pUnion T t) -> pstep H T t (pOK H' T t') -> heapWF H ->
+                    PoolWF (pUnion T t') /\ heapWF H'. 
+Proof.
+  intros. inv H1. 
+  {rewrite poolWFComm in *. invertHyp. split; auto. inv H7. 
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply sourceProgWF.
+    apply pdecomposeApp in H0; auto. invertHyp. apply openSourceProg; auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto.
+    simpl in H0. destruct (pval_dec V1); destruct (pval_dec V2); invertHyp; auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto.
+    simpl in H0. destruct (pval_dec V1); destruct (pval_dec V2); invertHyp; auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto.
+    inv H0. constructor. auto. simpl in H4. auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto.
+    inv H0. simpl in *. auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto.
+    inv H0. simpl in *. auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto.
+    inv H0. simpl in *. auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto.
+    inv H0. simpl in *. auto. }
+   {simpl in *. invertHyp. repeat split; auto. copy H0. eapply fillWF; eauto. 
+    apply pdecomposeEq in H1. subst. auto. apply ptrmDecomposeWF in H0; auto. }
+  }
+  {rewrite poolWFComm in *. simpl in *. invertHyp. repeat split; auto. 
+   copy H7. apply ptrmDecomposeWF in H7; auto. inv H7. eapply fillWF; eauto.
+   apply pdecomposeEq in H1. subst. auto. constructor; auto.  }
+  {rewrite poolWFComm in *. simpl in *. invertHyp. repeat split; auto. 
+   copy H7. apply ptrmDecomposeWF in H7; auto. inv H7. eapply fillWF; eauto.
+   apply pdecomposeEq in H1. subst. auto. constructor; auto.  }
+  {rewrite poolWFComm in *. simpl in *. invertHyp. repeat split; auto. 
+   copy H7. apply ptrmDecomposeWF in H7; auto. inv H7. eapply fillWF; eauto.
+   apply pdecomposeEq in H1. subst. auto. }
+  {rewrite poolWFComm in *. simpl in *. invertHyp. repeat split; auto. 
+   copy H7. apply ptrmDecomposeWF in H7; auto. simpl in *. eapply fillWF; eauto. 
+   apply pdecomposeEq in H1; subst; auto. apply ptrmDecomposeWF in H7; auto. }
+  {rewrite poolWFComm in *. simpl in *. invertHyp. repeat split; auto. 
+   copy H9. apply ptrmDecomposeWF in H9; auto. eapply fillWF; eauto.
+   apply pdecomposeEq in H1. subst. auto. simpl. eapply lookupSourceProg; eauto. }
+  {rewrite poolWFComm in *. simpl in *. invertHyp. repeat split; auto. 
+   copy H5. apply ptrmDecomposeWF in H5; auto. inv H5. eapply fillWF; eauto.
+   apply pdecomposeEq in H3. subst. auto. apply ptrmDecomposeWF in H5; eauto. 
+   simpl in *. invertHyp. apply replaceSourceProg; auto. }
+  {rewrite poolWFComm in *. simpl in *. invertHyp. repeat split; auto. 
+   copy H8. apply ptrmDecomposeWF in H8; auto. inv H8. eapply fillWF; eauto.
+   apply pdecomposeEq in H3. subst. auto. unfold Heap.extend. unfold heapWF. 
+   simpl. unfold raw_extend. destruct H. simpl. auto. }
+Qed. 
+
+Theorem pmultistepWF : forall H T H' T', 
+                         PoolWF T -> heapWF H -> pmultistep H T (Some(H', T')) -> 
+                         PoolWF T' /\ heapWF H'. 
+Proof.
+  intros. remember (Some(H',T')). induction H2. 
+  {inv Heqo. auto. }
+  {subst. apply pstepWF in H2; auto. invertHyp. eapply IHpmultistep; eauto. }
+  {inv Heqo. }
+Qed. 
+
+Inductive stepPlus : sHeap -> pool -> option (sHeap * pool) -> Prop :=
+| plus_step : forall (H H' : sHeap) c (T t t' : pool),
+                 step H T t (OK H' T t') ->
+                 multistep H' (tUnion T t') c -> stepPlus H (tUnion T t) c
+| smulti_error : forall (H : sHeap) (T t : pool),
+                   step H T t Spec.Error -> stepPlus H (tUnion T t) None.
+
 Theorem nonspecImpliesSpec : forall PH PH' PT pt pt' T H,
         pstep PH PT pt (pOK PH' PT pt') -> 
         speculate (pUnion PT pt) T -> PoolWF (pUnion PT pt) -> heapWF PH -> specHeap PH H ->
-        exists T' H', multistep H T (Some(H', T')) /\
+        exists T' H', stepPlus H T (Some(H', T')) /\
                    speculate (pUnion PT pt') T' /\ specHeap PH' H'. 
 Proof.
   intros. inv H0. 
-  {apply specUnionComm in H1. invertHyp. inv H1. inv H7. admit. }
+  {apply specUnionComm in H1. invertHyp. inv H1. inv H7. econstructor. econstructor. 
+   split. unfoldTac. rewrite Union_associative. econstructor. 
+   eapply simBasicStep in H9. eapply BasicStep. eauto. constructor. split; auto. 
+   apply poolWFComm in H2. simpl in H2. invertHyp. eapply basicStepGather in H9; eauto. 
+   unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto. 
+   constructor. constructor. auto. }
   {copy H9. apply specUnionComm in H1. invertHyp. inv H1. inv H8.
    eapply gatherDecomp in H0; eauto. invertHyp. econstructor. econstructor. split. 
-   unfoldTac. rewrite Union_associative. eapply multi_step. 
+   unfoldTac. rewrite Union_associative. econstructor.
    eapply Spec.Spec with(M:=specTerm M)(N:=specTerm N)(E:=specCtxt E). 
    eapply multi_step. eapply PopSpec. rewrite app_nil_l. simpl. auto. constructor. 
    split. unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto.
@@ -588,7 +898,7 @@ Proof.
    eapply gatherDecomp in H0; eauto. invertHyp. inv H0. unfoldTac. 
    repeat rewrite <- Union_associative. rewrite listToSingle. rewrite <- coupleUnion. 
    rewrite couple_swap. repeat rewrite Union_associative. econstructor. econstructor. split.
-   eapply multi_step. eapply SpecJoin with (N0:=specTerm M)
+   econstructor. eapply SpecJoin with (N0:=specTerm M)
                           (M:=specTerm M)(N1:=specTerm N)(E:=specCtxt E); eauto. 
    simpl. constructor. split. unfoldTac. repeat rewrite <- Union_associative. apply specUnionComm'. 
    auto. rewrite (Union_associative thread x0).
@@ -600,7 +910,7 @@ Proof.
    eapply gatherDecomp in H0; eauto. invertHyp. inv H0. unfoldTac. 
    repeat rewrite <- Union_associative. rewrite listToSingle. rewrite <- coupleUnion. 
    repeat rewrite Union_associative. rewrite <- Union_associative. econstructor. econstructor. split.  
-   eapply multi_step. apply decomposeSpec in H9.
+   econstructor. apply decomposeSpec in H9.
    eapply SpecRB with (E:=specTerm N)(E':=specCtxt E)(N0:=specTerm M). eassumption. 
    auto. auto. eapply RBDone. unfold tAdd. unfold Add. unfoldTac. unfold In. 
    apply in_app_iff. right. simpl. left; eauto. eauto.
@@ -612,7 +922,7 @@ Proof.
   {copy H9. apply specUnionComm in H1. invertHyp. inv H1. inv H8. 
    eapply gatherDecomp in H0; eauto. invertHyp. inv H0. copy H9. rewrite poolWFComm in H2. 
    simpl in H2. invertHyp. apply ptrmDecomposeWF in H9; auto. simpl in H9. 
-   unfoldTac. rewrite Union_associative. econstructor. econstructor. split. eapply multi_step. 
+   unfoldTac. rewrite Union_associative. econstructor. econstructor. split. econstructor. 
    eapply Fork with (M:=specTerm M)(E:=specCtxt E). eauto. eapply multi_step. eapply PopFork. 
    rewrite app_nil_l. simpl. auto. auto. constructor. unfoldTac. rewrite <- Union_associative. 
    split. apply specUnionComm'. auto. copy H7. apply gatherSourceProg in H7; auto. rewrite H7. 
@@ -623,7 +933,7 @@ Proof.
   {copy H11. apply specUnionComm in H1. invertHyp. inv H1. inv H8. copy H10. 
    eapply specHeapLookupFull in H10; eauto. invertHyp. 
    eapply gatherDecomp in H0; eauto. invertHyp. 
-   econstructor. econstructor. split. unfoldTac. rewrite Union_associative. eapply multi_step. 
+   econstructor. econstructor. split. unfoldTac. rewrite Union_associative. econstructor. 
    eapply Get with (N:=specTerm M)(E:=specCtxt E). eauto. auto. eapply multi_step. eapply PopRead. 
    rewrite app_nil_l. simpl; auto. rewrite app_nil_r. rewrite app_nil_l. auto. introsInv. 
    erewrite HeapLookupReplace; eauto. auto. rewrite replaceOverwrite. rewrite replaceSame. 
@@ -632,34 +942,54 @@ Proof.
    replace (ret(specTerm M)) with (specTerm(pret M)); auto. rewrite <- specFill. 
    constructor. constructor. rewrite <- union_empty_r. apply gatherFill. auto. constructor.
    gatherTac M. copy H8. apply gatherSourceProg in H8; eauto. subst. auto. Focus 2. auto.
-   eapply lookupSourceProg; eauto. }
+   eapply lookupSourceProg; eauto. } 
   {apply specUnionComm in H1. invertHyp. inv H1. inv H8. copy H7. 
    eapply gatherDecomp in H7; eauto. invertHyp. rewrite poolWFComm in H2. simpl in H2. 
    invertHyp. econstructor. econstructor. split. unfoldTac. rewrite Union_associative. 
-   eapply multi_step. copy H1. apply decomposeSpec in H1. eapply Put with (N:=specTerm M)(E:=specCtxt E).
-   simpl in *. eauto. eapply specHeapLookupEmpty; eauto. auto. eapply multi_step. 
+   econstructor. eapply Put with (N:=specTerm M)(E:=specCtxt E).
+   eapply specHeapLookupEmpty; eauto. auto. eapply multi_step. 
    eapply PopWrite. rewrite app_nil_l. simpl; auto. erewrite HeapLookupReplace; eauto. 
    eapply specHeapLookupEmpty; eauto. auto. rewrite replaceOverwrite. constructor. 
    split. unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto. 
-   inv H6. inv H13. unfoldTac. simpl in *. apply ptrmDecomposeWF in H1; auto. inv H1. 
+   inv H6. inv H13. unfoldTac. simpl in *. copy H1. apply ptrmDecomposeWF in H6; auto. inv H6. 
    eapply gatherSourceProg in H15; eauto. subst. rewrite union_empty_r in *.  
    replace (ret unit) with (specTerm (pret punit)); auto. rewrite <- specFill. constructor. 
    constructor. rewrite <- union_empty_r. apply gatherFill. auto. repeat constructor. 
    apply specHeapReplaceFull; auto. }
-  {
+  {apply specUnionComm in H1. invertHyp. inv H1. inv H7. copy H10. 
+   eapply gatherDecomp in H10; eauto. invertHyp. rewrite poolWFComm in H2. simpl in H2. 
+   invertHyp. econstructor. econstructor. split. unfoldTac. rewrite Union_associative. 
+   econstructor. copy p. eapply specHeapLookupNone in H8; eauto.
+   eapply New with (E:=specCtxt E)(x:=x). auto. eapply multi_step. 
+   eapply PopNewEmpty.  rewrite app_nil_l. simpl; auto. rewrite lookupExtend. auto. 
+   auto. erewrite replaceExtendOverwrite; eauto. constructor. unfoldTac.
+   rewrite <- Union_associative. apply specUnionComm'. auto. 
+   replace (ret(fvar x)) with (specTerm(pret(pfvar x))); auto. rewrite <- specFill. 
+   constructor. constructor. apply gatherFill; auto. constructor. inv H6. constructor. 
+   apply specHeapExtend; auto. }
+  Grab Existential Variables. 
+  {eapply specHeapLookupNone; eauto. }
+  {apply decomposeSpec in H1. auto. }
+  {eapply specHeapLookupNone; eauto. }
+  {apply decomposeSpec in H1; auto. }
+  {apply decomposeSpec in H11. auto. }
+  {apply decomposeSpec in H0. auto. }
+  {apply decomposeSpec in H9; auto. }
+  {apply decomposeSpec in H9; auto. }
+Qed. 
 
-
-Theorem nonspecImpliesSpecStar : forall PH PH' PT PT' T,
+Theorem nonspecImpliesSpecStar : forall PH PH' PT H PT' T,
         pmultistep PH PT (Some(PH', PT')) -> 
-        speculate PT T -> PoolWF PT ->
-        exists T', multistep (specHeap PH) T (Some(specHeap PH', T')) /\
-                   speculate PT' T'. 
+        speculate PT T -> PoolWF PT -> heapWF PH -> specHeap PH H ->
+        exists T' H', multistep H T (Some(H', T')) /\
+                   speculate PT' T' /\ specHeap PH' H'. 
 Proof.
-  intros. remember (Some(PH',PT')). generalize dependent T. induction H. 
+  intros. remember (Some(PH',PT')). genDeps{H; T}. induction H0; intros.  
   {inv Heqo. eauto. }
-  {intros. subst. copy H0. eapply nonspecImpliesSpec in H0; eauto. invertHyp. 
-   eapply IHpmultistep in H6; eauto. invertHyp. econstructor. split. 
-   eapply multi_trans. eassumption. eassumption. auto. eapply pstepWF; eauto. }
+  {intros. subst. copy H0. eapply nonspecImpliesSpec in H0; eauto. invertHyp.
+   copy H7. apply pstepWF in H7; auto. invertHyp. 
+   eapply IHpmultistep in H10; eauto. invertHyp. econstructor. econstructor. split.
+   inv H8. eapply multi_step. eauto. eapply multi_trans; eauto. eauto. }
   {inv Heqo. }
 Qed. 
 

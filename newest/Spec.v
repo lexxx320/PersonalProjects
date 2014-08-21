@@ -320,7 +320,7 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
          step h T (tSingleton (TID, s1, s2, t))
               (OK h' T (tSingleton (TID, aCons (rAct x t E d) s1, s2, fill E(ret N))))
 |Put : forall E x sc N h h' s1 s2 TID T t (d:decompose t E (put (fvar x) N)), 
-         decompose t E (put (fvar x) N) -> heap_lookup x h = Some(sempty sc) ->
+         heap_lookup x h = Some(sempty sc) ->
          h' = replace x (sfull sc nil SPEC TID N) h -> 
          step h T (tSingleton (TID, s1, s2, t)) (OK h' T
               (tSingleton (TID, aCons(wAct x t E N d) s1, s2, fill E(ret unit))))
@@ -336,10 +336,10 @@ Inductive step : sHeap -> pool -> pool -> config -> Prop :=
                 heap_lookup x h = Some(sfull COMMIT ds COMMIT tid' N') ->
                 step h T (tSingleton (tid, unlocked nil, s2, t)) Error
 |New : forall E h h' x tid t s1 s2 T (d:decompose t E new)
-              (p:heap_lookup x h = None),
+              (p:heap_lookup x h = None), 
          h' = Heap.extend x (sempty SPEC) h p -> 
-         step h T (tSingleton (tid, s1, s2, fill E new)) 
-              (OK h' T (tSingleton (tid, aCons (nAct t E d x) s1, s2, fill E(ret(fvar x)))))
+         step h T (tSingleton (tid, s1, s2, t)) 
+              (OK h' T (tSingleton (tid, aCons (nAct t E d x) s1, s2, fill E (ret(fvar x))))) 
 |Spec : forall E M t N tid s1 s2 T h (d:decompose t E (spec M N)), 
           step h T (tSingleton (tid, s1, s2, t)) (OK h T
                (tCouple (tid, aCons (srAct t E M N d)s1, s2,fill E (specRun M N)) 

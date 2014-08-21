@@ -334,7 +334,7 @@ Proof.
     eauto. eauto. constructor. introsInv. }
   }
   {unfoldTac. rewrite coupleUnion in H0. repeat rewrite Union_associative in H0. 
-   apply wfWithoutPure' in H0. copy H10. eapply rollbackWF in H10. Focus 2. 
+   apply wfWithoutPure' in H0. copy H9. eapply rollbackWF in H10. Focus 2. 
    rewrite AddUnion. unfoldTac. rewrite Union_associative. eauto. 
    unfoldTac. rewrite AddUnion in *. repeat rewrite Union_associative in *. 
    apply wfWithoutPure in H10. inv H10. constructor. rewrite unspecUnionComm. 

@@ -1,8 +1,8 @@
-Require Import erasure.
+Require Import erasure. 
 Require Import Coq.Sets.Ensembles. 
 Require Import errorIFF. 
 Require Import SpecImpliesNonSpec.
-Require Import SpecDivergeParDiverge. 
+Require Import Divergence.  
 Require Import nonspeculativeImpliesSpeculative. 
 
 Inductive specFinalState : Type :=
@@ -19,6 +19,8 @@ Fixpoint specFinished H (T:pool) :=
   match T with
       |(_, unlocked nil, _, ret M)::Ts => specFinished H Ts
       |(_, unlocked nil, _, M)::Ts => waitingOnEmpty M H /\ specFinished H Ts
+      |(_, specStack _ _, _, _)::Ts => specFinished H Ts
+      |(_, locked _, _, _)::Ts => specFinished H Ts
       |nil => True
       | _ => False
   end. 
@@ -117,11 +119,11 @@ Proof.
   induction T; intros. 
   {auto. }
   {destruct a. destruct p. destruct p. destruct a. 
-   {simpl in *. contradiction. }
+   {simpl in *. auto. }
    {destruct l0. simpl in H0. destruct t; try solve[invertHyp; 
     eapply waitingOnEmptyEq in H1; simpl in *; split; auto].
     simpl. eauto. simpl in *. contradiction. }
-   {simpl in *. contradiction. }
+   {simpl in *. auto. }
   }
 Qed. 
 
@@ -159,14 +161,61 @@ Proof.
   try solve[simpl in *; invertHyp; apply IHM1 in H0; apply IHM2 in H1; auto].
 Qed. 
 
-
-
 Theorem specEraseTerm : forall M, specTerm (eraseTerm M) = M. 
 Proof.
   induction M; intros; auto; try solve[ 
   simpl; rewrite IHM1; rewrite IHM2; auto];
   simpl; rewrite IHM; auto. 
 Qed.  
+
+Theorem specFinishedComm : forall T1 H T2, specFinished H (tUnion T1 T2) <-> 
+                                           (specFinished H T1 /\ specFinished H T2). 
+Proof.
+  induction T1; intros; split; intros. 
+  {simpl in *. auto. }
+  {simpl in *. invertHyp. auto. }
+  {destruct a. destruct p. destruct p. destruct a. 
+   {simpl in *. eapply IHT1; eauto. }
+   {destruct l0. simpl in *. 
+    destruct t; try solve[invertHyp; eapply IHT1 in H2; invertHyp; eauto].
+    eapply IHT1; eauto. contradiction. }
+   {simpl in *. eapply IHT1; eauto. }
+  }
+  {destruct a. destruct p. destruct p. destruct a. 
+   {simpl in *. eapply IHT1; eauto. }
+   {destruct l0. simpl in *. 
+    destruct t; try solve[invertHyp; split; eauto; eapply IHT1; eauto]. 
+    eapply IHT1; eauto. simpl in *. invertHyp; auto. }
+   {simpl in *. eapply IHT1; eauto. }
+  }
+Qed. 
+
+Theorem gatherFinished : forall t T H, 
+                           gather t T -> specFinished H T. 
+Proof.
+  intros. induction H0; try solve[constructor]; eauto; 
+          try solve[rewrite specFinishedComm; eauto]. 
+  {repeat rewrite specFinishedComm. simpl. eauto. }
+Qed. 
+
+
+Theorem parWaitingOneEmpty : forall H t' H' t, pWaitingOnEmpty t H -> specHeap H H' ->
+                                         t' = specTerm t -> waitingOnEmpty t' H'. 
+Proof.
+  intros. inv H0. apply decomposeSpec in H4. econstructor. simpl in *. eauto. 
+  eapply specHeapLookupEmpty; eauto. 
+Qed. 
+
+Theorem parFinishedSpecFinished : forall H H' T T',
+                                    specHeap H H' -> speculate T T' ->
+                                    parFinished H T -> specFinished H' T'. 
+Proof.
+  induction T; intros. 
+  {inv H2. inv H1. simpl. auto. }
+  {inv H1. rewrite specFinishedComm. split.
+   eapply gatherFinished; eauto. simpl in *.  
+   destruct a; simpl; eauto; invertHyp; split; eauto; eapply parWaitingOneEmpty; eauto. }
+Qed. 
 
 Theorem SpecEqPar : forall M, 
                       sourceProg M -> 
@@ -184,20 +233,40 @@ Proof.
     unfold Heap.empty. erewrite rawHeapsEq. simpl in *. eassumption. auto. proveWF. }
   }
   {inv H0. inv H1. 
-   {existTac N. constructor. constructor. apply eraseSourceProg in H.
-    assert(exists T, gather (eraseTerm M) T). apply gatherTotal. invertHyp.
-    eapply gatherSourceProg in H; eauto. eapply nonspecImpliesSpecStar in H0. 
-    Focus 2. apply specCons with (T := multiset.Empty_set thread).
-    constructor. rewrite <- union_empty_l. constructor. subst. eauto. 
-    repeat constructor.  invertHyp. unfoldTac. repeat rewrite union_empty_l in H0. 
-    simpl in *. rewrite specEraseTerm in H. econstructor. unfold Heap.empty. 
-    erewrite rawHeapsEq. unfoldTac. apply specUnionComm in H0. invertHyp. 
-    inv H0. inv H6. simpl in *. 
-
-
-
-(*TODO: Par implies speculative*) admit. }
+   {existTac N. constructor. constructor. apply eraseSourceProg in H. 
+    gatherTac (eraseTerm M). copy H. eapply gatherSourceProg in H; eauto. copy H0. 
+    eapply nonspecImpliesSpecStar in H0;[idtac|idtac|idtac|constructor|constructor].  
+    Focus 2. constructor. constructor. constructor. eauto. repeat constructor. 
+    Focus 2. simpl. repeat split; auto. invertHyp. simpl in H0. 
+    apply specUnionComm in H. invertHyp. inv H. inv H9. inv H11. apply pmultistepWF in H4.
+    invertHyp. apply poolWFComm in H. simpl in *. invertHyp.
+    eapply gatherSourceProg in H; eauto. subst. simpl in H0. econstructor. 
+    repeat rewrite specEraseTerm in H0. unfold Heap.empty. 
+    erewrite (rawHeapsEq ivar_state). eassumption. auto.
+    eapply parFinishedSpecFinished; eauto. simpl. auto. constructor. }
+   {assert(specTerm (eraseTerm M) = M). rewrite specEraseTerm. auto. 
+    constructor. constructor. constructor. eapply ParErrorSpecErrorStar in H0. 
+    eauto. unfold Heap.empty. erewrite (rawHeapsEq ivar_state); auto. constructor. 
+    constructor. constructor. apply eraseSourceProg in H. constructor. auto. 
+    repeat constructor. constructor. rewrite <- union_empty_l. rewrite <- H1. 
+    replace (bind(specTerm(eraseTerm M)) (lambda(done(bvar 0)))) with 
+    (specTerm(pbind (eraseTerm M) (plambda(pdone (pbvar 0))))); auto. rewrite specEraseTerm. 
+    constructor. constructor. rewrite <- union_empty_l. constructor. apply eraseSourceProg in H. 
+    gatherTac (eraseTerm M). copy H3. eapply gatherSourceProg in H3; eauto. rewrite H3 in H2. 
+    auto. repeat constructor. }
+   {assert(specTerm (eraseTerm M) = M). rewrite specEraseTerm. auto. 
+    constructor. constructor. constructor. eapply ParDivergeSpecDiverge in H0. 
+    eauto. unfold Heap.empty. erewrite (rawHeapsEq ivar_state); auto. constructor. 
+    rewrite <- union_empty_l. rewrite <- H1. 
+    replace (bind(specTerm(eraseTerm M)) (lambda(done(bvar 0)))) with 
+    (specTerm(pbind (eraseTerm M) (plambda(pdone (pbvar 0))))); auto. rewrite specEraseTerm. 
+    constructor. constructor. rewrite <- union_empty_l. constructor. apply eraseSourceProg in H. 
+    gatherTac (eraseTerm M). copy H3. eapply gatherSourceProg in H3; eauto. rewrite H3 in H2. 
+    auto. repeat constructor. constructor. simpl. apply eraseSourceProg in H. auto. }
+  }
+  Grab Existential Variables. constructor. constructor. constructor. 
 Qed. 
+
 
 (*Assumed based on previous work*)
 Axiom ParDet : forall M M' M'', parRunPar M M' -> parRunPar M M'' -> M' = M''. 

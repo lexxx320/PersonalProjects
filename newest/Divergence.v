@@ -1,273 +1,297 @@
-Require Import AST.      
-Require Import NonSpec.  
-Require Import Spec. 
-Require Import Coq.Sets.Ensembles. 
-Require Import Heap. 
-Require Import sets. 
-Require Import erasure. 
-Require Import classifiedStep. 
-Require Import Powerset_facts. 
+Require Import erasure.    
+Require Import progStepImpliesSpec. 
+Require Import progStepWF. 
+Require Import nonspeculativeImpliesSpeculative. 
 
+(*Definitions*)
 CoInductive ParDiverge : pHeap -> pPool -> Prop :=
 |divergeStep : forall T1 T2 T2' H H',
-                 Disjoint ptrm T1 T2 -> pstep H T1 T2 (pOK H' T1 T2') -> 
-                 ParDiverge H' (Union ptrm T1 T2') -> ParDiverge H (Union ptrm T1 T2)
+                 pstep H T1 T2 (pOK H' T1 T2') -> 
+                 ParDiverge H' (pUnion T1 T2') -> ParDiverge H (pUnion T1 T2)
 .
+
+CoInductive ParDiverge' : pHeap -> pPool -> Prop :=
+|divergeStep' : forall H H' T T',
+                 pstepPlus H T H' T' -> ParDiverge' H' T' -> ParDiverge' H T. 
+
+Theorem ParDivergeEq : forall H T, ParDiverge H T <-> ParDiverge' H T. 
+Proof. 
+  intros. split; intros. 
+  {genDeps{T; H}. cofix. intros. inv H0. econstructor. econstructor. eauto. 
+   constructor. eapply ParDivergeEq; eassumption. }
+  {genDeps{T; H}. cofix CH. intros. inv H0. inv H2. inv H4. 
+   {econstructor. eassumption. eapply CH. eauto. }
+   {assert(ParDiverge' H'0 (pUnion T t0)). econstructor. econstructor. 
+    eassumption. eassumption. assumption. econstructor. eassumption. 
+    eapply CH. rewrite <- H2. eauto. }
+  }
+Qed. 
+
+Theorem eActTerm : forall x, exists M, actionTerm x M. 
+Proof.
+  intros. destruct x; repeat econstructor. 
+Qed. 
+
+Ltac actTermTac x := assert(exists M, actionTerm x M) by apply eActTerm; invertHyp. 
+
+Theorem getLastApp : forall (T:Type) a c (b:T),
+                       last(a++[b]) c = b.
+Proof.
+  induction a; intros. 
+  {simpl. auto. }
+  {simpl. destruct (a0++[b]) eqn:eq. 
+   {invertListNeq. }
+   {rewrite <- eq. eauto. }
+  }
+Qed. 
+
+Theorem unspecLastActPool : forall tid s a s2 M' M, 
+                         actionTerm a M' ->
+                         unspecPool(tSingleton(tid,unlocked(s++[a]),s2,M)) = 
+                         tSingleton(tid,unlocked nil,s2,M'). 
+Proof.
+  induction s; intros. 
+  {simpl. inv H; auto. }
+  {simpl. destruct (s++[a0])eqn:eq. 
+   {invertListNeq. }
+   {rewrite <- eq. rewrite getLastApp. inv H; auto. }
+  }
+Qed. 
+
+Theorem actionTrmConsSame'' : forall a M' N s1 s2 tid,
+                             actionTerm a M' -> 
+                             unspecPool(tSingleton(tid,unlocked s1,s2,M')) = 
+                             unspecPool(tSingleton(tid,aCons a (unlocked s1),s2,N)). 
+Proof.
+  induction s1; intros. 
+  {simpl. inv H; auto.  }
+  {simpl. destruct s1. auto. erewrite getLastNonEmpty; eauto. }
+Qed. 
+
+Theorem actionTrmConsSame' : forall a M' N s1 s2 tid,
+                             actionTerm a M' -> 
+                             unspecPool(tSingleton(tid,s1,s2,M')) = 
+                             unspecPool(tSingleton(tid,aCons a s1,s2,N)). 
+Proof.
+  intros. destruct s1; auto. apply actionTrmConsSame''. auto. 
+Qed. 
+
+Theorem unspecEmpty : forall tid s1 s2 M, 
+                unspecPool(tSingleton(tid,locked s1,s2,M)) = (Empty_set thread).
+Proof.
+  intros. simpl. auto. 
+Qed. 
+
+Ltac sswfHelper := eapply spec_multi_trans;[eassumption|econstructor].
+
+Hint Constructors actionTerm spec_multistep. 
+
+Theorem specStepWF : forall H T H' t t',
+                       wellFormed H (tUnion T t) -> spec_step H T t H' T t' ->
+                       wellFormed H' (tUnion T t'). 
+Proof.
+  intros. inv H1. 
+  {inv H0. econstructor. rewrite unspecUnionComm in *. destruct s1. 
+   {simpl in *. sswfHelper; auto. eapply SBasicStep; eauto. }
+   {destructLast l. inv H3. invertHyp. actTermTac x. erewrite unspecLastActPool in *; eauto. 
+    sswfHelper; eauto. eapply SBasicStep; eauto. }
+   {simpl in *. sswfHelper; eauto. eapply SBasicStep; eauto. }
+  }
+  {unfoldTac. inv H0. econstructor. rewrite coupleUnion. repeat rewrite unspecUnionComm in *.
+   destruct b. 
+   {simpl in *. sswfHelper. eapply SFork; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'. rewrite unspecEmpty. unfoldTac. rewrite union_empty_r. 
+    sswfHelper. eapply SFork; eauto. constructor. auto. }
+   {simpl in *.  sswfHelper. eapply SFork; eauto. constructor. }
+  }
+  {inv H0. econstructor. rewrite unspecUnionComm in *. destruct b. 
+   {simpl in *. erewrite unspecHeapRBRead; eauto. sswfHelper. eapply SGet; eauto. constructor. }
+   {erewrite unspecHeapRBRead; eauto. erewrite <- actionTrmConsSame'; auto. sswfHelper. 
+    eapply SGet; eauto. constructor. }
+   {simpl in *. erewrite unspecHeapRBRead; eauto. sswfHelper. eapply SGet; eauto. constructor. }
+  }
+  {inv H0. constructor. rewrite unspecHeapAddWrite; auto. rewrite unspecUnionComm in *.
+   destruct b. 
+   {simpl in *. sswfHelper. eapply SPut; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'; eauto. sswfHelper. eapply SPut; eauto. constructor. }
+   {simpl in *. sswfHelper. eapply SPut; eauto. constructor. }
+  }
+  {inv H0. constructor. rewrite unspecHeapExtend. rewrite unspecUnionComm in *. destruct b. 
+   {sswfHelper. eapply SNew; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'; eauto. sswfHelper. eapply SNew; eauto. constructor. }
+   {sswfHelper. eapply SNew; eauto. constructor. }
+  }
+  {inv H0. constructor. unfoldTac. rewrite coupleUnion. repeat rewrite unspecUnionComm in *. 
+   rewrite unspecEmpty. unfoldTac. rewrite union_empty_r. destruct b. 
+   {sswfHelper. eapply SSpec; eauto. constructor. }
+   {erewrite <- actionTrmConsSame'; eauto. sswfHelper. eapply SSpec; eauto. constructor. }
+   {sswfHelper. eapply SSpec; eauto. constructor. }
+  }
+Qed. 
+
+Theorem specMultiWF : forall H T H' T', wellFormed H T -> spec_multistep H T H' T' ->
+                                        wellFormed H' T'. 
+Proof.
+  intros. induction H1. 
+  {auto. }
+  {eapply specStepWF in H; eauto. }
+Qed. 
+
+Theorem pstepDiffUnused : forall H H' T T' t t',
+                            pstep H T t (pOK H' T t') ->
+                            pstep H T' t (pOK H' T' t'). 
+Proof.
+  intros. Hint Constructors pstep. inv H0; eauto. 
+Qed. 
+
+Theorem pstepSingleton : forall H T1 T2 H' T2', 
+                           pstep H T1 T2 (pOK H' T1 T2') -> exists t, T2 = Single ptrm t. 
+Proof.
+  intros. inv H0; eauto. 
+Qed.
  
 CoInductive SpecDiverge : sHeap -> pool-> Prop :=
-|specDiverge : forall T1 T2 T2' H H' T,
-                 spec_multistep H tEmptySet T H' tEmptySet (tUnion T1 T2) -> Disjoint thread T1 T2 ->
-                 progress_step H T1 T2 (OK H' T1 T2') -> SpecDiverge H' (tUnion T1 T2') ->
-                 SpecDiverge H T.
+|specDiverge : forall T1 T2 T2' H H' H'' T,
+                 spec_multistep H T H' (tUnion T1 T2) -> 
+                 prog_step H' T1 T2 (OK H'' T1 T2') -> 
+                 SpecDiverge H'' (tUnion T1 T2') -> SpecDiverge H T.
 
-Theorem termErasePoolErase : forall tid M M' s2 T,
-                               eraseTerm M T M' -> Included thread (tSingleton (tid, [], s2, M)) T ->
-                               erasePoolAux (tSingleton(tid,nil,s2,M)) T = (pSingleton M'). 
+Theorem SpecDivergeParDiverge' : forall H T,
+                wellFormed H T -> 
+                SpecDiverge H T -> ParDiverge' (eraseHeap H) (erasePool T). 
 Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
-  {inversion H1; subst. inversion H2; subst. cleanup. inversion H6; subst. clear H6. 
-   inversion H4; subst; try invertListNeq. inversion H5; subst. 
-   eapply termErasureDeterminism in H. rewrite <- H. econstructor. assumption. }
-  {inversion H1; subst. clear H1. inversion H; subst; destruct tid; destruct p; try solve[
-   econstructor; [econstructor; auto; econstructor; eauto|auto|auto|econstructor; eauto]]; try solve[ 
-   econstructor;[econstructor; eauto; econstructor; eauto|auto|econstructor; eauto|constructor]]. 
-  }
+  cofix CH. intros. inv H1. copy H3. apply specMultiWF in H3; auto. 
+  eapply spec_multistepErase in H1. invertHyp. rewrite H6. rewrite H2.
+  rewrite eraseUnionComm in *. copy H4. apply prog_specImpliesNonSpec in H4; auto. 
+  invertHyp.  apply prog_stepWF in H1; auto. rewrite eraseUnionComm in *. 
+  econstructor. eassumption. eapply CH. eauto. eauto. 
 Qed. 
 
-Theorem inErase : forall T T1 t, 
-                    erasePoolAux T T = Union ptrm T1 (pSingleton t) ->
-                    exists t', tIn T t' /\ eraseThread t' T (pSingleton t). 
+Theorem SpecDivergeParDiverge : forall H T,
+              wellFormed H T -> 
+              SpecDiverge H T -> ParDiverge (eraseHeap H) (erasePool T). 
 Proof.
-  intros. apply eqImpliesSameSet in H. unfold Same_set in H. unfold Included in H. 
-  inversion H; clear H. assert(Ensembles.In ptrm (Union ptrm T1 (pSingleton t)) t). 
-  apply Union_intror. constructor. apply H1 in H. inversion H; subst. inversion H2; subst. 
-  cleanup. inversion H4; subst; inversion H5; subst; econstructor; eauto.  
+  intros. apply SpecDivergeParDiverge' in H1. rewrite ParDivergeEq. auto. auto. 
 Qed. 
 
-Theorem pullOutDisjoint : forall X T t, Disjoint X (Subtract X T t) (Singleton X t). 
+Theorem ParDivergeSpecDiverge : forall H T H' T',
+                                  ParDiverge H T -> specHeap H H' -> speculate T T' ->
+                                  heapWF H -> PoolWF T -> SpecDiverge H' T'. 
 Proof.
-  intros. constructor. intros. intros c. inversion c. inversion H0; subst. inversion H; subst. 
-  apply H2. constructor. Qed. 
-
-
-(*terms that when erased to require the erased thread to be commit*)
-Inductive commitTrm : ptrm -> Prop :=
-|commitApp : forall E ef ea t, pdecompose t E (papp (plambda ef) ea)-> commitTrm t
-|commitProjL : forall t E V1 V2, pdecompose t E (pfst (ppair V1 V2)) -> commitTrm t
-|commitProjR : forall t E V1 V2, pdecompose t E (psnd (ppair V1 V2)) -> commitTrm t
-|commitHandleRet : forall t E N M, pdecompose t E (phandle (pret M) N) -> commitTrm t
-|commitHandleRaise : forall t E N M, pdecompose t E (phandle (praise M) N) -> commitTrm t
-|commitRet : forall M, commitTrm (pret M). 
-
-Theorem eraseDecompose' : forall E e E' e' T, eraseTerm e T e' -> eraseContext E T E' ->
-                                              eraseTerm (fill E e) T (pfill E' e'). 
-Proof.
-  intros. generalize dependent e. generalize dependent e'. induction H0; intros;
-                                                           try solve[simpl; econstructor; eauto]. 
-  {simpl. auto. }
+  cofix CH. intros. inv H0. inversion H6; subst. 
+  {apply specUnionComm in H2. invertHyp. inv H0. inv H8. unfoldTac. rewrite Union_associative. 
+   econstructor. constructor. eapply CBasicStep. eapply simBasicStep. eauto. eapply CH; eauto. 
+   apply poolWFComm in H4. simpl in H4. invertHyp. eapply basicStepGather in H11; eauto. 
+   unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto.  
+   constructor. constructor. auto. eapply pstepWF in H6; eauto. invertHyp. auto. }
+  {copy H10. apply specUnionComm in H2. invertHyp. inv H2. inv H9.
+   eapply gatherDecomp in H; eauto. invertHyp. unfoldTac. rewrite Union_associative.
+   econstructor. eapply smulti_step. eapply SSpec with(M:=specTerm M)(N:=specTerm N)(E:=specCtxt E). 
+   constructor. eapply CPopSpec. rewrite app_nil_l. simpl. auto. eapply CH; eauto.  
+   unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto.
+   rewrite couple_swap. rewrite coupleUnion. repeat rewrite Union_associative. 
+   replace (specRun(specTerm M)(specTerm N)) with (specTerm(pspecRun M N)); auto.  
+   rewrite <- specFill. constructor. constructor. rewrite <- Union_associative. 
+   apply gatherFill; auto. inv H. constructor; auto. eapply pstepWF in H6; auto.
+   invertHyp. auto. }
+  {copy H10. apply specUnionComm in H2. invertHyp. inv H2. inv H9. 
+   eapply gatherDecomp in H; eauto. invertHyp. inv H. unfoldTac. 
+   repeat rewrite <- Union_associative. rewrite listToSingle. rewrite <- coupleUnion. 
+   rewrite couple_swap. repeat rewrite Union_associative. econstructor. constructor. 
+   eapply CSpecJoin with (N0:=specTerm M)
+                          (M:=specTerm M)(N1:=specTerm N)(E:=specCtxt E); eauto. 
+   simpl. eapply CH; eauto. unfoldTac. repeat rewrite <- Union_associative. apply specUnionComm'. 
+   auto. rewrite (Union_associative thread x0).
+   rewrite (Union_associative thread (Union thread x0 T0)). 
+   replace (specJoin(ret(specTerm N)) (specTerm M)) with (specTerm (pspecJoin (pret N) M)); auto. 
+   rewrite <- specFill. constructor. constructor. rewrite <- Union_associative. 
+   apply gatherFill. auto. constructor; auto. eapply pstepWF in H6; eauto. invertHyp. auto. }
+  {copy H10. apply specUnionComm in H2. invertHyp. inv H2. inv H9. 
+   eapply gatherDecomp in H; eauto. invertHyp. inv H. unfoldTac. 
+   repeat rewrite <- Union_associative. rewrite listToSingle. rewrite <- coupleUnion. 
+   repeat rewrite Union_associative. rewrite <- Union_associative. econstructor. constructor.
+   apply decomposeSpec in H10.
+   eapply CSpecRB with (E:=specTerm N)(E':=specCtxt E)(N0:=specTerm M). eassumption. 
+   auto. auto. eapply RBDone. unfold tAdd. unfold Add. unfoldTac. unfold In. 
+   apply in_app_iff. right. simpl. left; eauto. eauto. eapply CH; eauto. 
+   unfoldTac. repeat rewrite <- Union_associative. apply specUnionComm'. 
+   auto. replace (raise (specTerm N)) with (specTerm (praise N)); auto. rewrite <- specFill.
+   apply gatherSourceProg in H13. Focus 2. apply poolWFComm in H4. simpl in H4. invertHyp.
+   apply ptrmDecomposeWF in H10; auto. inv H10. auto. subst. unfold Add. simpl. 
+   rewrite Union_associative. constructor. constructor. apply gatherFill; auto. 
+   eapply pstepWF in H6; auto. invertHyp. auto. }
+  {copy H10. apply specUnionComm in H2. invertHyp. inv H2. inv H9. 
+   eapply gatherDecomp in H; eauto. invertHyp. inv H. copy H10. rewrite poolWFComm in H4. 
+   simpl in H4. invertHyp. apply ptrmDecomposeWF in H10; auto. simpl in H10. 
+   unfoldTac. rewrite Union_associative. econstructor. eapply smulti_step. 
+   eapply SFork with (M:=specTerm M)(E:=specCtxt E). eauto. constructor. eapply CPopFork. 
+   rewrite app_nil_l. simpl. auto. auto. eapply CH; eauto. unfoldTac. rewrite <- Union_associative. 
+   apply specUnionComm'. auto. copy H8. apply gatherSourceProg in H8; auto. rewrite H8. 
+   rewrite union_empty_r. rewrite coupleUnion. unfold pCouple. unfold Couple. simpl. 
+   replace (ret unit) with (specTerm (pret punit)); auto. rewrite <- specFill. constructor. 
+   rewrite <- union_empty_l. constructor. constructor. subst. eauto. 
+   rewrite <- union_empty_r. apply gatherFill. auto. repeat constructor. 
+   eapply pstepWF in H6; auto. invertHyp. auto. rewrite poolWFComm. simpl. split; auto. }
+  {copy H12. apply specUnionComm in H2. invertHyp. inv H2. inv H9. copy H11. 
+   eapply specHeapLookupFull in H11; eauto. invertHyp. 
+   eapply gatherDecomp in H; eauto. invertHyp. unfoldTac. rewrite Union_associative. 
+   econstructor. eapply smulti_step.
+   eapply SGet with (N:=specTerm M)(E:=specCtxt E). eauto. auto. constructor. eapply CPopRead. 
+   rewrite app_nil_l. simpl; auto. rewrite app_nil_r. rewrite app_nil_l. auto. introsInv. 
+   erewrite HeapLookupReplace; eauto. auto. rewrite replaceOverwrite. rewrite replaceSame. 
+   eapply CH; eauto. unfoldTac. rewrite Union_associative. repeat rewrite <- Union_associative. 
+   apply specUnionComm'. auto. inv H. inv H10. simpl. 
+   replace (ret(specTerm M)) with (specTerm(pret M)); auto. rewrite <- specFill. 
+   constructor. constructor. rewrite <- union_empty_r. apply gatherFill. auto. constructor.
+   gatherTac M. copy H9. apply gatherSourceProg in H9; eauto. subst. auto.
+   eapply lookupSourceProg; eauto. eapply pstepWF in H6; auto. invertHyp. auto. auto. }
+  {apply specUnionComm in H2. invertHyp. inv H2. inv H10. copy H8. 
+   eapply gatherDecomp in H8; eauto. invertHyp. rewrite poolWFComm in H4. simpl in H4. 
+   invertHyp. unfoldTac. rewrite Union_associative. econstructor. eapply smulti_step.
+   eapply SPut with (N:=specTerm M)(E:=specCtxt E).
+   eapply specHeapLookupEmpty; eauto. auto. constructor.  
+   eapply CPopWrite. rewrite app_nil_l. simpl; auto. erewrite HeapLookupReplace; eauto. 
+   eapply specHeapLookupEmpty; eauto. auto. rewrite replaceOverwrite. eapply CH; eauto. 
+   Focus 2. unfoldTac. rewrite <- Union_associative. apply specUnionComm'. auto. 
+   inv H8. inv H15. unfoldTac. simpl in *. copy H2. apply ptrmDecomposeWF in H8; auto. inv H8. 
+   eapply gatherSourceProg in H17; eauto. subst. rewrite union_empty_r in *.  
+   replace (ret unit) with (specTerm (pret punit)); auto. rewrite <- specFill. constructor. 
+   constructor. rewrite <- union_empty_r. apply gatherFill. auto. repeat constructor. 
+   apply specHeapReplaceFull; auto. apply pstepWF in H6; auto. invertHyp; auto. 
+   rewrite poolWFComm. simpl. auto. apply pstepWF in H6; auto. invertHyp. auto. 
+   rewrite poolWFComm. simpl. auto. }
+  {apply specUnionComm in H2. invertHyp. inv H2. inv H9. copy H11. unfoldTac. rewrite Union_associative. 
+   eapply gatherDecomp in H11; eauto. invertHyp. rewrite poolWFComm in H4. simpl in H4. 
+   invertHyp. econstructor. eapply smulti_step. copy p. eapply specHeapLookupNone in H10; eauto.
+   eapply SNew with (E:=specCtxt E)(x:=x). auto. constructor. 
+   eapply CPopNewEmpty.  rewrite app_nil_l. simpl; auto. rewrite lookupExtend. auto. 
+   auto. erewrite replaceExtendOverwrite; eauto. eapply CH; eauto. Focus 2.  unfoldTac.
+   rewrite <- Union_associative. apply specUnionComm'. auto. 
+   replace (ret(fvar x)) with (specTerm(pret(pfvar x))); auto. rewrite <- specFill. 
+   constructor. constructor. apply gatherFill; auto. constructor. inv H8. constructor. 
+   apply specHeapExtend; auto. eapply pstepWF in H6; auto. invertHyp. auto. 
+   rewrite poolWFComm. simpl. auto. eapply pstepWF in H6; auto. invertHyp. auto. 
+   rewrite poolWFComm. simpl. auto. }
+  Grab Existential Variables. 
+  {eapply specHeapLookupNone; eauto. }
+  {apply decomposeSpec in H2. auto. }
+  {eapply specHeapLookupNone; eauto. }
+  {apply decomposeSpec in H2. auto. }
+  {apply decomposeSpec in H12. auto. }
+  {apply decomposeSpec in H. auto. }
+  {apply decomposeSpec in H10; auto. }
+  {apply decomposeSpec in H10; auto. }
 Qed. 
 
-Theorem eraseValEq : forall e T e', eraseTerm e T e' -> (val e <-> pval e'). 
-Proof.
-  intros. split; intros; try solve[ 
-  inversion H0; subst; inversion H; subst; constructor]. Qed. 
-
-Ltac eq x := assert(x=x) by auto. 
-
-Theorem eraseDecompose'' : forall E e E' e' T, decompose (fill E e) E e -> pdecompose (pfill E' e') E' e' ->
-                                               eraseTerm (fill E e) T (pfill E' e') ->
-                                               eraseTerm e T e' /\ eraseContext E T E'. 
-Proof.
-  intros. generalize dependent E'. generalize dependent e'. remember (fill E e). induction H; intros.
-  {simpl in Heqt. inversion Heqt; subst. destruct E'; inversion H2; subst. 
-   {eq (fill E M'). eapply IHdecompose in H3. inversion H3. split. eassumption. constructor; eauto. 
-    simpl in *. inversion H1; subst. assumption. assumption. }
-   {simpl in *. subst. inversion H1; subst. apply eraseValEq in H5. apply H5 in H4. contradiction. }
-  }
-  {simpl in Heqt. inversion H1; subst. rewrite <- H4 in H0. inversion H0; subst. 
-   {apply eraseValEq in H6. apply H6 in H. contradiction. }
-   {simpl in *. auto. }
-  }
-  {simpl in Heqt. inversion Heqt; subst. destruct E'; inversion H2; subst. 
-   {eq (fill E M'). eapply IHdecompose in H3. inversion H3. split. eassumption. econstructor; eauto. 
-    simpl in *. inversion H1; subst. assumption. assumption. }
-   {simpl in *. subst. inversion H1; subst. apply eraseValEq in H5. apply H5 in H4. contradiction. }
-  }
-  {simpl in Heqt. inversion H1; subst. rewrite <- H4 in H0. inversion H0; subst. 
-   {apply eraseValEq in H5. apply H5 in H. contradiction. }
-   {simpl in *. auto. }
-  }
-  {simpl in Heqt. inversion Heqt; subst. destruct E'; inversion H2; subst. 
-   {eq (fill E M'). eapply IHdecompose in H3. inversion H3. split. eassumption. constructor; eauto. 
-    simpl in *. inversion H1; subst. assumption. assumption. }
-   {simpl in *. subst. inversion H1; subst. apply eraseValEq in H5. apply H5 in H4. contradiction. }
-  }
-  {simpl in Heqt. inversion H1; subst. rewrite <- H4 in H0. inversion H0; subst. 
-   {apply eraseValEq in H6. apply H6 in H. contradiction. }
-   {simpl in *. auto. }
-  }
-  {simpl in Heqt. inversion Heqt; subst. destruct E'; inversion H2; subst. 
-   {eq (fill E M'). eapply IHdecompose in H3. inversion H3. split. eassumption. constructor; eauto. 
-    simpl in *. inversion H1; subst. assumption. assumption. }
-   {simpl in *. subst. inversion H1; subst. apply eraseValEq in H5. apply H5 in H4. contradiction. }
-  }
-  {simpl in Heqt. inversion H1; subst. rewrite <- H4 in H0. inversion H0; subst. 
-   {apply eraseValEq in H6. apply H6 in H. contradiction. }
-   {simpl in *. auto. }
-  }
-  {simpl in Heqt. inversion Heqt; subst. destruct E'; inversion H2; subst. 
-   {eq (fill E M'). eapply IHdecompose in H3. inversion H3. split. eassumption. constructor; eauto. 
-    simpl in *. inversion H1; subst. assumption. assumption. }
-   {simpl in *. subst. inversion H1; subst. apply eraseValEq in H4. apply H4 in H5. contradiction. }
-  }
-  {simpl in Heqt. inversion H1; subst. rewrite <- H3 in H0. inversion H0; subst. 
-   {apply eraseValEq in H5. apply H5 in H. contradiction. }
-   {simpl in *. auto. }
-  }
-  {simpl in Heqt. inversion Heqt; subst. destruct E'; inversion H2; subst. 
-   {eq (fill E M'). eapply IHdecompose in H3. inversion H3. split. eassumption. constructor; eauto. 
-    simpl in *. inversion H1; subst. assumption. assumption. }
-   {simpl in *. subst. inversion H1; subst. apply eraseValEq in H4. apply H4 in H5. contradiction. }
-  }
-  {simpl in Heqt. inversion H1; subst. rewrite <- H3 in H0. inversion H0; subst. 
-   {apply eraseValEq in H5. apply H5 in H. contradiction. }
-   {simpl in *. auto. }
-  }
-  {simpl in *. inversion H1; subst. rewrite <- H in H0. inversion H0; subst. auto. }
-  {simpl in *. inversion H1; subst. rewrite <- H2 in H0. inversion H0; subst. auto. }
-  {simpl in *. inversion H1; subst. rewrite <- H3 in H0. inversion H0; subst. auto. }
-  {simpl in *. inversion H1; subst. rewrite <- H2 in H0. inversion H0; subst. auto. }
-Qed. 
-
-Theorem eraseThreadCommitTrm : forall x T t, commitTrm t -> eraseThread x T (pSingleton t) ->
-                                       exists tid s2 M, x = (tid,nil,s2,M) /\ eraseTerm M T t.
-Proof.
-  intros. inversion H0; subst. 
-  {exists tid. exists s2. exists M. split; auto. apply SingletonEq in H1. subst. auto. }
-  {apply SingletonEq in H1; subst. inversion H; subst; try solve[ 
-   match goal with
-       |H:decompose ?M ?E ?e, H':pdecompose ?M' ?E' ?e' |- _ => 
-        copy H; apply decomposeEq in H; copy H'; apply pdecomposeEq in H'; subst
-   end; apply eraseDecompose'' in H3; auto; inversion H3; inversion H1]. 
-   inversion H3; subst. inversion H6. }
-  {apply SingletonEq in H1; subst. inversion H; subst; try solve[ 
-   match goal with
-       |H:decompose ?M ?E ?e, H':pdecompose ?M' ?E' ?e' |- _ => 
-        copy H; apply decomposeEq in H; copy H'; apply pdecomposeEq in H'; subst
-   end; apply eraseDecompose'' in H3; auto; inversion H3; inversion H1]. 
-   inversion H3; subst. inversion H6. }
-  {apply SingletonEq in H1; subst. inversion H; subst; try solve[ 
-   match goal with
-       |H:decompose ?M ?E ?e, H':pdecompose ?M' ?E' ?e' |- _ => 
-        copy H; apply decomposeEq in H; copy H'; apply pdecomposeEq in H'; subst
-   end; apply eraseDecompose'' in H3; auto; inversion H3; inversion H1]. 
-   inversion H3; subst. inversion H6. }
-  {apply eqImpliesSameSet in H1. unfold Same_set in H1. unfold Included in H1. 
-   inversion H1; clear H1. assert(Ensembles.In ptrm (pSingleton t) t). constructor. 
-   apply H3 in H1. inversion H1. }
-  {apply SingletonEq in H1; subst. inversion H; subst; try solve[ 
-   match goal with
-       |H:decompose ?M ?E ?e, H':pdecompose ?M' ?E' ?e' |- _ => 
-        copy H; apply decomposeEq in H; copy H'; apply pdecomposeEq in H'; subst
-   end; apply eraseDecompose'' in H3; auto; inversion H3; inversion H1]. 
-   inversion H3; subst. inversion H6. }
-  {apply SingletonEq in H1; subst. inversion H; subst; try solve[ 
-   match goal with
-       |H:decompose ?M ?E ?e, H':pdecompose ?M' ?E' ?e' |- _ => 
-        copy H; apply decomposeEq in H; copy H'; apply pdecomposeEq in H'; subst
-   end; apply eraseDecompose'' in H3; auto; inversion H3; inversion H1]. 
-   inversion H3; subst. inversion H6. }
-  {apply eqImpliesSameSet in H1. unfold Same_set in H1. unfold Included in H1. 
-   inversion H1; clear H1. assert(Ensembles.In ptrm (pSingleton t) t). constructor. 
-   apply H3 in H1. inversion H1. }
-Qed. 
-
-Ltac existsErase e T := try (assert(exists e', eraseTerm e' T e) by apply eTerm);
-                        try (assert(exists E', eraseContext E' T e) by apply eCtxt);
-                        invertHyp.
-Ltac valEq :=
-  match goal with
-      |H:eraseTerm ?e ?T ?e', H':pval ?e' |- val ?e => apply eraseValEq in H; apply H in H'
-      |H:eraseTerm ?e ?T ?e', H':~pval ?e' |- ~val ?e =>
-       intros c; apply eraseValEq in H; apply H in c; contradiction
-  end. 
-
-Ltac invertDecomp :=
-  match goal with
-      |H:pdecompose ?M ?E ?e |- _ => inversion H; subst
-      |H:decompose ?M ?E ?e |- _ => inversion H; subst
-  end. 
-
-(*TODO: move this to NonSpec.v*)
-Theorem uniquePCtxtDecomp : forall t E e E' e',
-                             pdecompose t E e -> pdecompose t E' e' ->
-                             E = E' /\ e = e'. 
-Proof.
-  induction t; intros; try solve[inversion H; inversion H0; subst; auto]; try solve[
-  inversion H; inversion H0; subst; simpl in *; try contradiction; auto; 
-   eapply IHt1 in H6; eauto; inversion H6; subst; auto]. 
-  {inversion H; inversion H0; subst; auto; try contradiction. eapply IHt in H3; eauto. 
-   inversion H3; subst; auto. }
-  {inversion H; inversion H0; subst; auto; try contradiction. eapply IHt in H3; eauto. 
-   inversion H3; subst; auto. }
-Qed. 
-
-Theorem eraseWF : forall E e E' e' T, pctxtWF e' E' -> eraseContext E T E' -> 
-                                      eraseTerm e T e' -> ctxtWF e E. 
-Admitted. 
-
-
-Theorem eraseCommitTrm : forall t t' E' e' T, eraseTerm t T t' -> pdecompose t' E' e' ->
-                                                  exists E e, eraseTerm e T e' /\
-                                                              decompose t E e. 
-Proof.
-  intros. generalize dependent E'. generalize dependent e'. induction H; intros;
-      try solve[invertDecomp]; try solve[invertDecomp; repeat econstructor; eauto]. 
-  {inversion H1; subst. apply IHeraseTerm1 in H7. invertHyp. 
-   exists (appCtxt x e2). repeat econstructor; eauto. valEq. 
-   exists (holeCtxt). repeat econstructor; eauto. valEq; auto. }
-  {inversion H1; subst. apply IHeraseTerm1 in H7. invertHyp. 
-   exists (bindCtxt x e2). repeat econstructor; eauto. valEq.  
-   exists (holeCtxt). repeat econstructor; eauto. valEq; auto. }
-  {inversion H1; subst. apply IHeraseTerm1 in H7. invertHyp. 
-   exists (handleCtxt x e2). repeat econstructor; eauto. valEq.  
-   exists (holeCtxt). repeat econstructor; eauto. valEq; auto. }
-  {inversion H0; subst. apply IHeraseTerm in H3. invertHyp. 
-   exists (fstCtxt x). repeat econstructor; eauto. valEq.  
-   exists (holeCtxt). repeat econstructor; eauto. valEq; auto. }
-  {inversion H0; subst. apply IHeraseTerm in H3. invertHyp. 
-   exists (sndCtxt x). repeat econstructor; eauto. valEq.  
-   exists (holeCtxt). repeat econstructor; eauto. valEq; auto. }
-  {inversion H1; subst. apply IHeraseTerm1 in H7. invertHyp. 
-   Admitted. 
 
 
 
-Theorem erasePoolUnion : forall T T' t t', 
-          eraseThread t (Union thread T (tSingleton t)) t' ->
-          erasePoolAux(Union thread T (Singleton thread t)) (Union thread T (Singleton thread t)) = 
-          Union ptrm T' t' -> erasePoolAux T (Union thread T (tSingleton t)) = T'. 
-Proof.
-  intros. apply Extensionality_Ensembles. unfold Same_set. unfold Included. split; intros. 
-  {Admitted. 
 
-Theorem ParDivergeSpecDiverge : forall H H' T T', eraseHeap H H' -> erasePool T T' ->
-                                                  ParDiverge H' T' -> SpecDiverge H T. 
-Proof.
-  cofix. intros. inversion H2; subst. inversion H5; subst.  
-  {inversion H1; subst. copy H8. apply inErase in H8. invertHyp. apply pullOut in H8. 
-   rewrite H8 in H3. rewrite H8. apply erasePoolUnion in H3; auto. Focus 2. rewrite H8 in H9. 
-   assumption. apply eraseThreadCommitTrm in H9. invertHyp.  
-   apply eraseCommitTrm with(E':=E)(e':=(papp (plambda e) arg))in H11. invertHyp.   
-   inversion H7. inversion H16. subst x. subst x4. subst e1. econstructor. 
-   apply smulti_refl. apply pullOutDisjoint. apply CBetaRed. eassumption. 
-   eapply ParDivergeSpecDiverge. eassumption. econstructor. 
-   assert((erasePoolAux
-        (tUnion (Subtract thread T (x0, [], x1, x2))
-           (tSingleton (x0, [], x1, fill x3 (open 0 e2 e0))))
-        (tUnion (Subtract thread T (x0, [], x1, x2))
-           (tSingleton (x0, [], x1, fill x3 (open 0 e2 e0))))) = (Union ptrm T1 (pSingleton (pfill E (popen 0 arg e))))). admit. rewrite H9. assumption. assumption. copy H10. apply pdecomposeEq in H10. rewrite H10. 
-   econstructor. rewrite H10 in H7. eassumption. }
+
+
+
+
+
 
 
 
