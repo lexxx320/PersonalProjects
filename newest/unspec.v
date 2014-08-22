@@ -112,16 +112,6 @@ Proof.
   }
 Qed. 
 
-(*
-Theorem LookupSame :
-  forall P P', unspecPool P P' ->
-               forall tid T, thread_lookup P' tid T ->
-                             exists T', thread_lookup P tid T' /\ unspecThread T' (tSingleton T).
-Proof.
-  intros. inversion H; subst. inv H0. inv H1. inv H0. inv H4. inv H2; try solve[inv H3; eauto]. 
-Qed. 
-*)
-
 Theorem raw_unspecHeapRBNew : forall H x,
                             raw_heap_lookup x H = Some(sempty SPEC) ->
                             raw_unspecHeap H = raw_unspecHeap (raw_remove H x). 
@@ -352,7 +342,6 @@ Proof.
   intros. destruct As; simpl; auto. 
 Qed. 
 
-
 Theorem getLastNonEmpty : forall (T:Type) b (a:T) c d, 
                             last(a::b) c = last(a::b) d. 
 Proof.
@@ -515,14 +504,98 @@ Proof.
   rewrite (Union_commutative T T1') in H. apply UnionEqR in H. auto. 
 Qed. 
 
+Theorem UnionSingletonEq : forall T T' a b, 
+                 tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
+                 tIn T' a -> T = tUnion (Subtract thread T' a) (tSingleton b).
+Proof.
+  intros. unfoldTac. apply pullOut in H0. rewrite H0 in H. 
+  rewrite <- Union_associative in H.
+  rewrite (Union_commutative thread (tSingleton a)) in H. rewrite Union_associative in H. 
+  apply UnionEqL in H. auto. 
+Qed. 
+
+Fixpoint specActions (T:pool):= 
+  match T with
+      |(_,s1,s2,M)::ts => (stackList s1)::specActions ts
+      |nil => nil
+  end. 
+
+Fixpoint commitActions (T:pool):= 
+  match T with
+      |(_,s1,s2,M)::ts => s2::specActions ts
+      |nil => nil
+  end. 
+
+Theorem UnionEqTID : forall T T' tid s1 s2 M s1' s2' M',
+                       tUnion T (tSingleton(tid,s1,s2,M)) = tUnion T' (tSingleton(tid,s1',s2',M')) ->
+                       T = T' /\ s1 = s1' /\ s2 = s2' /\ M = M'. 
+Proof. 
+  intros.
+  assert(thread_lookup (tUnion T' (tSingleton(tid,s1',s2',M'))) tid (tid,s1,s2,M)). 
+  econstructor. rewrite <- H. unfoldTac; invUnion. right. simpl; auto. 
+  auto. assert(thread_lookup (tUnion T' (tSingleton(tid,s1',s2',M'))) tid (tid,s1',s2',M')). 
+  econstructor; auto. unfoldTac; invUnion. right; simpl; auto. 
+  eapply uniqueThreadPool in H0; eauto. inv H0. apply UnionEqL in H. subst; auto. 
+Qed. 
+
+Theorem UnionNeqTID : forall T T' tid tid' s1 s2 s1' s2' M M',
+       tUnion T (tSingleton (tid, s1, s2, M)) =
+       tUnion T' (tSingleton (tid', s1', s2', M')) -> tid <> tid' ->
+       T = tUnion (Subtract thread T' (tid,s1,s2,M)) (tSingleton(tid',s1',s2',M')) /\
+       T' = tUnion (Subtract thread T (tid',s1',s2',M')) (tSingleton(tid,s1,s2,M)).
+Proof.
+  intros. assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) (tid',s1',s2',M')). 
+  rewrite H. unfoldTac; invUnion. right; simpl; auto. 
+  assert(tIn (tUnion T' (tSingleton(tid',s1',s2',M'))) (tid,s1,s2,M)). 
+  rewrite <- H. unfoldTac. repeat invUnion. right. simpl; auto. unfoldTac. 
+  repeat invUnion. inv H1; inv H2. 
+  {split. apply UnionSingletonEq in H; auto. symmetry in H. 
+   apply UnionSingletonEq in H; auto. }
+  {inv H1. invThreadEq. exfalso. apply H0. auto. inv H2. }
+  {inv H3; try contradiction. invThreadEq. exfalso. apply H0; auto. }
+  {inv H1; try contradiction. invThreadEq. exfalso. apply H0; auto. }
+Qed. 
+
+Theorem smulti_throwaway_pure : forall  H H' tid s1 s2 M T' T M',
+                  spec_multistep H (tUnion T (tSingleton (tid, s1, s2, M))) 
+                                 H' (tUnion T' (tSingleton (tid, s1, s2, M'))) -> 
+                  spec_multistep H T H' T'. 
+Proof.
+  intros. dependent induction H0. 
+  {apply UnionEqTID in x. invertHyp. constructor. }
+  {copy H. apply specStepSingleton in H1. invertHyp. destruct x0. destruct p. 
+   destruct p. exMid tid t0. 
+   {apply UnionEqTID in x. invertHyp. inv H. 
+    {eapply IHspec_multistep; eauto. }
+    {eapply monotonicActions in H0. Focus 2. solveSet. Focus 2. solveSet. 
+      destruct s1; simpl in *; omega. }
+    {eapply monotonicActions in H0. Focus 2. solveSet. Focus 2. solveSet. 
+      destruct s1; simpl in *; omega. }
+    {eapply monotonicActions in H0. Focus 2. solveSet. Focus 2. solveSet. 
+      destruct s1; simpl in *; omega. }
+    {eapply monotonicActions in H0. Focus 2. solveSet. Focus 2. solveSet. 
+      destruct s1; simpl in *; omega. }
+    {eapply monotonicActions in H0. Focus 2. solveSet. Focus 2. solveSet. 
+      destruct s1; simpl in *; omega. }
+   }
+   {apply UnionNeqTID in x; auto. invertHyp. rewrite H3. econstructor. 
+    eapply specStepChangeUnused. eauto. eapply IHspec_multistep; eauto. 
+    rewrite H1. unfoldTac. rewrite UnionSubtract. rewrite UnionSwap. eauto. }
+  }
+Qed.  
+
+Theorem consSingle : forall a (b:a) c, b::c = [b] ++ c. auto. Qed. 
+
 Theorem spec_multi_unused : forall H T1 T2 T1' H', 
                               spec_multistep H (tUnion T1 T2) H' (tUnion T1' T2) <->
                               spec_multistep H T1 H' T1'.
 Proof.
   intros. split; intros. 
-  {dependent induction H0. 
-   {apply UnionEqL in x. subst. constructor. }
-   {admit. }
+  {genDeps{H'; T1'; T1; H; T2}. induction T2; intros. 
+   {unfoldTac. repeat rewrite union_empty_r in H0. auto. }
+   {rewrite consSingle in H0. rewrite (Union_commutative thread [a]) in H0. 
+    unfoldTac. repeat rewrite Union_associative in H0. destruct a. destruct p. 
+    destruct p. eapply smulti_throwaway_pure in H0. eauto. }
   }
   {induction H0. constructor. unfoldTac. rewrite <- Union_associative. 
    rewrite (Union_commutative thread t).  rewrite Union_associative. 

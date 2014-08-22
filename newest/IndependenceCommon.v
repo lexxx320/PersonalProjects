@@ -1,26 +1,6 @@
 Require Import erasure. 
 
-Theorem UnionEqTID : forall T T' tid s1 s2 M s1' s2' M',
-                       tUnion T (tSingleton(tid,s1,s2,M)) = tUnion T' (tSingleton(tid,s1',s2',M')) ->
-                       T = T' /\ s1 = s1' /\ s2 = s2' /\ M = M'. 
-Proof. 
-  intros.
-  assert(thread_lookup (tUnion T' (tSingleton(tid,s1',s2',M'))) tid (tid,s1,s2,M)). 
-  econstructor. rewrite <- H. unfoldTac; invUnion. right. simpl; auto. 
-  auto. assert(thread_lookup (tUnion T' (tSingleton(tid,s1',s2',M'))) tid (tid,s1',s2',M')). 
-  econstructor; auto. unfoldTac; invUnion. right; simpl; auto. 
-  eapply uniqueThreadPool in H0; eauto. inv H0. apply UnionEqL in H. subst; auto. 
-Qed. 
 
-Theorem UnionSingletonEq : forall T T' a b, 
-                 tUnion T (tSingleton a) = tUnion T' (tSingleton b) -> 
-                 tIn T' a -> T = tUnion (Subtract thread T' a) (tSingleton b).
-Proof.
-  intros. unfoldTac. apply pullOut in H0. rewrite H0 in H. 
-  rewrite <- Union_associative in H.
-  rewrite (Union_commutative thread (tSingleton a)) in H. rewrite Union_associative in H. 
-  apply UnionEqL in H. auto. 
-Qed. 
 
 Ltac proveUnionEq H := apply UnionSingletonEq in H;[rewrite H; unfoldTac; rewrite UnionSwap; auto|idtac]; auto.
 Theorem neqSym : forall (T:Type) (x y : T), x <> y <-> y <> x. 
@@ -182,23 +162,6 @@ Ltac nonEmptyStackTac H :=
   eapply nonEmptyStack in H;unfoldTac; [idtac|solveSet|solveSet|rewrite app_nil_l; simpl;auto|
                                         simpl;auto].
 
-Theorem UnionNeqTID : forall T T' tid tid' s1 s2 s1' s2' M M',
-       tUnion T (tSingleton (tid, s1, s2, M)) =
-       tUnion T' (tSingleton (tid', s1', s2', M')) -> tid <> tid' ->
-       T = tUnion (Subtract thread T' (tid,s1,s2,M)) (tSingleton(tid',s1',s2',M')) /\
-       T' = tUnion (Subtract thread T (tid',s1',s2',M')) (tSingleton(tid,s1,s2,M)).
-Proof.
-  intros. assert(tIn (tUnion T (tSingleton(tid,s1,s2,M))) (tid',s1',s2',M')). 
-  rewrite H. unfoldTac; invUnion. right; simpl; auto. 
-  assert(tIn (tUnion T' (tSingleton(tid',s1',s2',M'))) (tid,s1,s2,M)). 
-  rewrite <- H. unfoldTac. repeat invUnion. right. simpl; auto. unfoldTac. 
-  repeat invUnion. inv H1; inv H2. 
-  {split. apply UnionSingletonEq in H; auto. symmetry in H. 
-   apply UnionSingletonEq in H; auto. }
-  {inv H1. invThreadEq. exfalso. apply H0. auto. inv H2. }
-  {inv H3; try contradiction. invThreadEq. exfalso. apply H0; auto. }
-  {inv H1; try contradiction. invThreadEq. exfalso. apply H0; auto. }
-Qed. 
 
 Theorem stackNonNil : forall s1 a s1' s2 x M M' tid H H' T T' z,
         eraseTrm (s1'++[x]) z M' ->

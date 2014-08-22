@@ -185,7 +185,7 @@ Proof.
     }
    }
   }
-Qed. 
+Qed.  
 
 Theorem pureStepsDiffHeap : forall H H' tid s1 s2 M M',
                               spec_multistep H (tSingleton(tid,s1,s2,M)) H (tSingleton(tid,s1,s2,M')) ->
