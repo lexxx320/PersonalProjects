@@ -1,0 +1,9 @@
+%!TEX root = paper.tex
+%
+\begin{abstract}
+
+Purely functional programming languages have proven to be an attractive option for implementing parallel applications.  The lack of mutable state eliminates the possibility for race conditions, yielding determinism by construction.  This relieves programmers of reasoning about the exponential interleavings of threads and nondeterministic behavior.  Unfortunately, there are applications that can achieve constant factor speedups if they can make use of shared state compared to their purely functional counterparts.  
+
+IVars have been proposed as a possible solution, allowing threads to share information via write-once references, while preserving a deterministic semantics.  However, in the presence of speculative parallelism, this determinism guarantee is lost.  In this work we show how to go about combining these two concepts by proposing a dynamic rollback mechanism for enforcing determinism, describe its implementation in the context of the Manticore compiler, prove its correctness, and provide some preliminary evaluation of its performance.
+
+\end{abstract}

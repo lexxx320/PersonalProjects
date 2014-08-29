@@ -1,0 +1,136 @@
+\documentclass[nocopyrightspace]{../common/sigplanconf}
+
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{proof}
+\usepackage{stmaryrd}
+\usepackage{verbatim}
+\usepackage[inference]{semantic}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{color}
+\usepackage{amsthm}
+
+
+\definecolor{Red}{rgb}{0.9,0.0,0.0}  % fixme
+\definecolor{Green}{rgb}{0.0,0.4,0.0}
+\definecolor{Blue}{rgb}{0.0,0.0,0.9}
+\definecolor{DarkBlue}{rgb}{0.0,0.0,0.75}
+\definecolor{Midnight}{rgb}{0.0,0.0,0.5}
+\definecolor{Purple}{rgb}{0.5,0.0,0.4}
+\definecolor{Black}{rgb}{0.0,0.0,0.0}
+\definecolor{Yellow}{rgb}{1.0,1.0, 0.25}
+\definecolor{Cyan}{rgb}{0.25,1.0, 1.0}
+
+\newcommand{\cdColor}{Black}
+\newcommand{\kwColor}{DarkBlue}
+\newcommand{\comColor}{Red}
+
+\newcommand{\erase}[1]{\mathcal{E}\llbracket #1 \rrbracket}
+\newcommand{\eraseThreads}[1]{\mathcal{E}\llbracket #1\rrbracket}
+\newcommand{\eraseHeap}[1]{\mathcal{E}\llbracket #1 \rrbracket}
+\newcommand{\eraseB}[1]{\mathcal{E}_b \llbracket #1 \rrbracket}
+\newcommand{\unSpec}[1]{\mathcal{US} \llbracket #1 \rrbracket}
+\newcommand{\unSpecHeap}[1]{\mathcal{US} \llbracket #1 \rrbracket}
+\newcommand{\unSpecThreads}[1]{\mathcal{US} \llbracket #1 \rrbracket}
+\newcommand{\commit}[0]{\text{\bf C}}
+\newcommand{\spec}[0]{\text{\bf S}}
+\newcommand{\eval}[1]{E[#1]}
+\newcommand{\return}[0]{\text{\bf return}}
+\newcommand{\runPar}[0]{\text{\bf runPar}}
+\newcommand{\fork}[0]{\text{\bf fork}}
+\newcommand{\new}[0]{\text{\bf new}}
+\newcommand{\putKW}[0]{\text{\bf put}}
+\newcommand{\getKW}[0]{\text{\bf get}}
+\newcommand{\doneKW}[0]{\text{\bf done}}
+\newcommand{\specKW}[0]{\text{\bf spec}}
+\newcommand{\specRunKW}[0]{\text{\bf specRun}}
+\newcommand{\specJoinKW}[0]{\text{\bf specJoin}}
+\newcommand{\raiseKW}[0]{\text{\bf raise}}
+\newcommand{\handleKW}[0]{\text{\bf handle}}
+\newcommand{\rollback}[0]{\text{rollback}}
+\newcommand{\finished}[0]{\text{Finished}}
+\newcommand{\specStep}[0]{\rightarrow_s}
+\newcommand{\parStep}[0]{\rightarrow_p}
+\newcommand{\pFinished}[0]{\text{Finished}_{\text{p}}}
+\newcommand{\error}[0]{\text{\bf Error}}
+\newcommand{\wellFormed}[0]{\text{WF}}
+
+\newtheorem{theorem}{Theorem}
+
+\newtheoremstyle{break}
+  {\topsep}{\topsep}%
+  {\itshape}{}%
+  {\bfseries}{}%
+  {\newline}{}%
+\theoremstyle{break}
+
+\newtheorem{lemma}{Lemma}
+
+\usepackage{listings}
+\input{../common/lstlang-sml}
+\input{../common/lstlang-manticore}
+\lstset{
+  basicstyle=\ttfamily\scriptsize\color{\cdColor},
+  keywordstyle=\color{\kwColor}\bfseries,
+  commentstyle=\color{\comColor}\itshape,
+  morekeywords={fork}, 
+  language=Manticore
+}
+
+\input{../common/common-defs}
+\usepackage{../common/code}
+
+\input{./ft-defs}
+\input{./ft-rules}
+
+\title{Combining Shared State with Speculative Parallelism in a Functional Language}
+
+\authorinfo{Matthew Le }{Rochester Institute of Technology}{ml9951@cs.rit.edu} 
+\authorinfo{Matthew Fluet}{Rochester Institute of Technology}{mtf@cs.rit.edu}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\sloppy
+
+\input{abstract}
+\input{intro}
+\input{preserveringDeterminism}
+\input{formalSemantics}
+\input{implementation}
+\input{evaluation}
+\input{relatedWork}
+\input{conclusion.tex}
+
+
+\bibliographystyle{../common/alpha}
+\bibliography{../common/strings-short,../common/manticore,ifl_bib}
+
+\acks
+Thanks to Vitor Rodriquez and Zack Fitzimmons for their many useful comments that helped to improve this work.  This research is supported by the National Science Foundation under Grants CCF-0811389 and CCF-101056
+
+\input{Appendix}
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

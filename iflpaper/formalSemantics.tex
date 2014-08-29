@@ -1,0 +1,337 @@
+%!TEX root = paper.tex
+
+\section{Formal Semantics}
+In this section we provide a formal semantics describing a method for performing the rollback informally described in the previous section.  The semantics presented in this paper are an extension of the Par Monad semantics as presented in \cite{par-monad}, which helps facilitate our proof of determinism described in the next section. Figure \ref{fig:syntax} gives the syntax of the language.  Relative to \cite{par-monad}, We have added syntax for speculative computations, where $\specRunKW$ and $\specJoinKW$ are intermediate forms that arise throughout the execution of a program, and are not terms available in the surface language, as is $\doneKW$.  
+
+\begin{figure}
+\begingroup
+\begin{displaymath}
+\begin{array}{rcll}
+
+x &\in& Var \\
+
+\text{Values} \;\;\;\; V & ::= & x \; | \; i \; | \; \backslash x. M  \; | \; \return \; M \; | \; M >>= N \\
+ &|& \; \runPar \; M \; | \; \fork \; M \; | \; \new \; | \; \putKW \; i \; M \\
+& | & \getKW \; i \; | \;  \doneKW \; M \; | \; \specKW \; M \; N \\
+ &|& \; \specRunKW(M, N) \; | \; \specJoinKW(M, N) \\
+  &|& \; \raiseKW \; M \; | \; \handleKW \; M \; N  \\
+
+\text{Terms} \;\;\; M, N &::=&  V \;| \;M \; N \; | \; \cdots\\
+
+\text{Heap} \;\;\; H &::=& H, x \mapsto iv \; | \; \cdot \\
+
+\text{Speculative State} \;\;\; s &::=& \spec \; | \; \commit \\
+
+\text{IVar State} \;\;\; iv &::=& \langle s \rangle \; | \; \langle s_1, ds, s_2, \Theta, M\rangle \\
+
+\text{Thread ID} \;\;\; \Theta &::=& \cdot \; | \; \Theta : n \;\;\;\;\;\; n \in \mathbb{N}\\
+
+\text{Thread Pool} \;\;\;\; T &::=& \cdot \; | \; (T_1 \; | \; T_2) \; | \; \Theta[S_1, S_2, M] \\
+
+\text{Action} \;\;\;\; A &::=& (R, x, M) \; | \; (W, x, M) \; | \; (S, M) \\
+&|& (A, x, M) \; | \; (F, \Theta, M) \; | \; CSpec \\
+
+\text{Action Queue} \;\;\;\; S &::=& \cdot \; | \; S : A\; \\
+
+\text{Evaluation Context} \;\;\;\; E &::=& [\cdot] \; | \; E >>= M \; | \; \specRunKW(E, M) \\
+&|&  \handleKW \; E \; N \; | \; \specJoinKW(N, E) \\
+
+\text{Configuration} \;\;\;\; \sigma &::=& H; T \; | \; Error \\
+\end{array}
+\end{displaymath}
+\endgroup
+
+\caption{Speculative Par Monad Syntax}
+\label{fig:syntax}
+\end{figure}
+
+\begin{figure*}
+
+\[%\runPar
+\inference[\text{RunPar}]{\cdot; 1[\cdot, \cdot, M >>= \backslash x. \doneKW \; x] \specStep^* H'; T \; | \; \cdot:1[\cdot, S_2, \doneKW \; N] , \;\;\; N \Downarrow_s V, \;\;\; \finished(T)}{\runPar \; M \Downarrow_sV}
+\]
+
+\[
+\inference[\text{RunParError}]{\cdot; 1[\cdot, \cdot, M >>= \backslash x. \doneKW \; x] \specStep^* \error}{\runPar \; M \Downarrow_s\error} \;\;\;
+\inference[\text{RunParDiverge}]{\cdot; 1[\cdot, \cdot, M >>= \backslash x. \doneKW \; x] \specStep^{\infty} }{\runPar \; M \Downarrow_s^{\infty}}
+\]
+
+
+
+$\boxed{H; T \specStep \sigma} $
+
+\[%Eval and Bind
+\inference[\text{Eval}]{M \neq V \;\;\; M \Downarrow_sV}{H; \Theta[S_1, S_2, \eval{M}] \; | \; T  \specStep H; \Theta[S_1, S_2, \eval{V}] \; | \; T} \;\;\;
+\inference[\text{Bind}]{}{H; \Theta[S_1, S_2,  \eval{\return \; N >>= M}] \; | \; T \specStep  H; \Theta[S_1, S_2, \eval{M \; N}] \; | \; T}
+\]
+
+\[%Raise
+\inference[\text{BindRaise}]{}{H; \Theta[S_1, S_2, \eval{\raiseKW \; M >>= N}] \; | \; T \specStep H; \Theta[S_1, S_2, \eval{\raiseKW \; M}] \; | \; T}
+\]
+
+\[%Handle
+\inference[\text{Handle}]{}{H; \Theta[S_1, S_2, \eval{\handleKW (\raiseKW \; M) N}] \; | \; T \specStep H; \Theta[S_1, S_2, \eval{N \; M}] \; | \; T}
+\]
+
+\[%Handle Return
+\inference[\text{HandleReturn}]{}{H; \Theta[S_1, S_2, \eval{\handleKW (\return \; M) N}] \; | \; T \specStep H; \Theta[S_1, S_2, \eval{\return \; M}] \; | \; T}
+\]
+
+\[%Fork
+\inference[\text{Fork}]{n = numSpawns(s1, s2)}{H; \Theta[S_1, S_2, \eval{\fork \; M}] \; | \; T \specStep H; \Theta[(F, \Theta:n, \eval{\fork \; M}): S_1, S_2 , \eval{\return()}] \; | \; \Theta : n[CSpec, \cdot, M] \; | \; T}
+\]
+
+\[%Create ivar
+\inference[\text{New}]{H' = H[x \mapsto \langle \spec \rangle] \;\;\; x \notin Domain(H)}{H; \Theta[S_1, S_2, \eval{\new}] \; | \; T \specStep H';  \Theta[(A, x, \eval{\new}) : S_1, S_2, \eval{\return \; x}] \; | \; T}
+\]
+
+\[%Read form IVar
+\inference[\text{Get}]{H(x) = \langle s_1, ds, s_2, \Theta', M\rangle, \;\;\; H' = H[x \mapsto \langle s_1, \Theta \uplus ds, s_2, \Theta', M\rangle]}{H; \Theta[S_1, S_2, \eval{\getKW \; x}] \; | \; T \specStep H'; \Theta[(R, x, \eval{\getKW \; x}) : S_1, S_2, \eval{\return \; M}] \; | \; T}
+\]
+
+\[%Put
+\inference[\text{Put}]{H(x) = \langle s \rangle, \;\;\; H' = H[x \mapsto \langle s, \emptyset, \spec, \Theta, M\rangle]}{H; \Theta[S_1, S_2, \eval{\putKW \; x \; M}] \; | \; T \specStep H'; \Theta[(W, x, \eval{\putKW \; x \; M}) : S_1, S_2, \eval{\return()}] \; | \; T}
+\]
+
+\[%Overwrite
+\inference[\text{Overwrite}]{H(x) = \langle s_1, ds, \spec, \Theta', N\rangle, \;\;\; \Theta'[S_1 : (W, x, N) : S_1', S_2', N'] \in T \\
+ \rollback(\Theta', S_1', H, T) \leadsto (H', T'), \;\;\; H'' = H'[x\mapsto\langle \emptyset, \cdot, \Theta, M\rangle]}{H; \Theta[\cdot, S_2, \eval{\putKW \; x \; M}] \; | \; T \specStep H''; \Theta[\cdot, S_2, \eval{\return ()}] \; | \; T'} \;\;\;
+\inference[\text{ErrorWrite}]{H(x) = \langle \commit, ds, \commit, \Theta', N\rangle}{H; \Theta[\cdot, S_2, \eval{\putKW \; x \; M}] \; | \; T \specStep Error}
+\]
+
+\[%Spec
+\inference[\text{Spec}]{n = numSpawns(s1, s2)}{H; \Theta[S_1, S_2, \eval{\specKW \; M \; N}] \; | \; T \specStep H; \Theta[(F, \Theta:n, \eval{\specKW \; M \; N}) : S_1, S_2, \eval{\specRunKW(M, N}] \; | \; \Theta:n[(S, N) : CSpec, \cdot, N] \; | \; T'}
+\]
+
+\[%Spec Rollback
+\inference[\text{SpecRB}]{\rollback(\Theta:n, \cdot, H,\Theta:n[S_1' : (S, N_0), S_2', N] \; | \; T) \leadsto (H', \Theta:n[\cdot, S_2', N'] \; | \; T')}{H; \Theta[\cdot, S_2, \eval{\specRunKW(\raiseKW \; M, N_0}] \; | \; \Theta:n[S_1':(S, N_0), S_2', N] \; | \; T \specStep H'; \Theta[\cdot, S_2, \eval{\raiseKW \; M}] \; | \; T'}
+\]
+
+\[%Pop Spec
+\inference[\text{SpecJoin}]{\Theta:n[S_1' : (S, N_0), S_2', N] \in T}{H; \Theta[\cdot, S_2, \eval{\specRunKW(\return \; M_1, N_0)}] \; | \; T \specStep H; \Theta:n[adopt(S_1', E, \return \; M_1), S_2', \eval{\specJoinKW(\return \; N_1, N)}] \; | \; T}
+\]
+
+\[%Spec Join
+\inference[\text{SpecDone}]{}{H; \Theta[\cdot, S_2, \eval{\specJoinKW(\return \; N_1, \return \; N_2)}] \; | \; T \specStep H; T \; | \; \Theta[\cdot, S_2, \eval{\return(N_1, N_2)}]}
+\]
+
+\[%Spec Raise
+\inference[\text{SpecRaise}]{}{H; \Theta[\cdot, S_2, \eval{\specJoinKW(\return \; N_1, \raiseKW \; E)}] \; | \;  T \specStep H; \Theta[\cdot, S_2, \eval{\raiseKW \; M}] \; | \; T} 
+\]
+
+\[%Pop a read and a write action from the deque
+\inference[\text{PopRead}]{H(x) = \langle \Theta, \commit, \uplus ds, \commit, \Theta', M\rangle}{H; \Theta[S_1 : (R, x, N'), S_2, N] \; | \; T \specStep H; \Theta[S_1, (R, x, N'): S_2, N] \; | \; T}
+\]
+
+\[%Pop Write
+\inference[\text{PopWrite}]{H(x) = \langle \commit, ds, \spec, \Theta, M\rangle, \;\;\; H' = H[x \mapsto \langle \commit, ds, \commit, \Theta, M\rangle]}{H; \Theta[S_1: (N')_w^x, S_2, N] \; | \; T \specStep H'; \Theta[S_1, (N')_w^x : S_2, N] \; | \; T)}
+\]
+
+\[%Pop new Full
+\inference[\text{PopNewFull}]{H(x) = \langle \spec, ds, \spec, \Theta', M \rangle, \;\;\; H' = H[x \mapsto \langle \commit, ds, \spec, \Theta', M\rangle]}{H; \Theta[S_1 : (A, x, M''), S_2, M'] \; | \; T \specStep H';  \Theta[S_1, (A, x, M'') : S_2, M'] \; | \; T}
+\]
+
+\[%Pop new Empty
+\inference[\text{PopNewEmpty}]{H(x) = \langle \spec \rangle, \;\;\; H' = H[x \mapsto \langle \commit \rangle]}{H; \Theta[S_1 : (A, x, M'), S_2, M] \; | \; T \specStep H';  \Theta[S_1, (A, x, M') : S_2, M] \; | \; T}
+\]
+
+\[%Popfork
+\inference[\text{PopFork}]{}{H; \Theta[S_1 : (F, \Theta', M'), S_2, M] \; | \; \Theta'[S_1' : CSpec, S_2', N] \; | \; T \specStep H; \Theta[S_1, (F, \Theta', M'): S_2, M] \; | \; \Theta:1[S_1', CSpec : S_2', N] \; | \; T}
+\]
+\caption{operational Semantics}
+\label{fig:semantics}
+\end{figure*}
+
+A heap is a finite map from IVar names to IVar states where an IVar state can be empty or full.  If it is empty, we also indicate whether or not is was allocated speculatively.  If an IVar is full we record if it was allocated speculatively, the thread IDs of those who have read the IVar, whether or not it was written speculatively, the ID of the writer, and the term written to the IVar.  A thread pool is a multiset of threads, where each thread has a thread ID, a list (queue) of speculative actions it has performed, a list of actions it has committed, and a term that it is evaluating.  Action queues are a list of actions, where an action can be a read, write, spec, allocation, fork, or an action indicating it was created speculatively.  Lastly, a configuration is a heap paired with a thread pool, or the error state.
+
+
+The overall semantics of the language is described by a big step relation, which is used to represent the ``usual'' Haskell semantics.  In this presentation and in \cite{par-monad}, we only give the big-step rule for $\runPar$ as the rest is entirely conventional.  The RunPar rule then depends on a small step relation for the Speculative Par Monad presented in Figure \ref{fig:semantics}.  The small step semantics relates a heap $H$ and a thread pool $T$ to either a new Heap and new thread pool, or the error state if multiple writes occurred to a single IVar. Rules Bind, BindRaise, Handle, and HandleReturn are standard monadic bind and exception handling rules.  The Eval rule dispatches back to the big step semantics for reducing non-monadic terms (such as beta reduction, tuples, projecting tuples, etc...).
+
+The Fork rule spawns a new thread, and records a fork action on the thread performing the fork along with the thread ID of the forked thread.  we uniquely name threads by adding a number onto the forking thread's ID that is equal to the number of threads they have already been created by this thread.  The forked thread is then created with an action on its stack indicating it was created speculatively, and not allowing it to commit any actions.  When the forking thread has a fork action at the head of its action queue, it can commit this action, moving the fork action over to its commit list, and moving the $CSpec$ action over to the forked thread's commit list.  The New rule allocates a new IVar, marking it as having been allocated speculatively, when the allocation action makes its way to the head of the action queue, it can then change the state of the IVar from speculative to commit using the PopNewFull or PopNewEmpty rule.  The Get rule is used to read from an IVar, if the IVar is full, then we add a read action to the threads speculative action queue, and record the thread's ID in the IVar indicating that if this IVar is rolled back, this thread is a dependent reader.  The PopRead rule can then be used to commit this read action assuming the IVar is now in commit mode.  The Put rule is used to write to an IVar, assuming it is empty, we fill the contents of the IVar and add a write action to the thread's action list.  This action can then be committed using the PopWrite rule, which sets the status of the IVar to commit written. 
+
+The Overwrite rule applies when a thread has no speculative actions (i.e. it is in commit mode) and is attempting to write to an IVar that is speculatively full.  When looking up the IVar in the heap we see that it previously was written by thread $\Theta'$, which we then lookup in the pool and split its speculative action queue into those actions that happened after the write, and those that happened before the write to this IVar.  We then perform a rollback with respect to thread $\Theta'$, which is described later.  For now it suffices to know that it undoes all actions performed by $\Theta'$, up to $S_1'$, which correspond to the actions performed before the write to $x$. We then update IVar $x$ to contain the value being written by thread $\Theta$.  The ErrorWrite rule is similar to Overwrite, except the IVar being written is commit full, which corresponds to an error.  
+
+The Spec rule begins a speculative computation, which behaves similarly to the Fork rule with a few differences.  First, notice that we add two actions to the created thread's speculative action list, The first is an action indicating it was created speculatively as is done in the Fork rule, but we also include the $(S, N)$ action indicating that it is the right branch of a speculative computation with initial term $N$.  When the fork action makes its way to the front of $\Theta$'s action list, we remove the $CSpec$ action, but the $(S, N)$ action remains on the speculative list, disallowing this thread from committing anything until it joins with its corresponding commit thread in the SpecJoin rule.  
+
+The SpecRB rule corresponds to canceling a speculative thread, where we rollback the canceled thread's actions similarly to what is done in the Overwrite rule.  The SpecJoin rule is used for joining a speculative computation.  When the thread executing the left branch of a speculative computation is finished, we adopt the term being evaluated by the speculative thread, and all of its speculative actions and transition to the $\specJoinKW$ intermediate form.  The SpecDone and SpecRaise rules are used to finish a speculative computation when the right branch evaluates to a  returned value or raised exception respectively. 
+
+\begin{figure}
+$\boxed{\rollback(\Theta, S, H, T) \leadsto (H' ,T')}$
+
+\[%Rollback Finish
+\mbox{\small
+\inference[\text{RBDone}]{}{\rollback(\Theta, S, H, \Theta[S, S_2, M] \; | \; T) \leadsto (H, \Theta[S, S_2, M] \; | \; T)}
+}
+\]
+
+\[%Rollback Read
+\mbox{\small
+\inference[\text{RBRead}]{H(x) = \langle s_1, \Theta' \uplus ds, \spec, t, M\rangle, \\ H' = H[x \mapsto \langle s_1, ds, \spec, t, M\rangle] \\ \rollback(\Theta, S, H', \Theta'[S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}{\rollback(\Theta, S, H, \Theta'[(R, x, M') : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}
+}
+\]
+
+\[%Rollback \fork
+\mbox{\small
+\inference[\text{RBFork}]{T = \Theta''[CSpec, S_2', M''] \; | \; T' \\ \rollback(\Theta, S, H, \Theta'[S_1, S_2, M'] \; | \; T') \leadsto (H', T'')}{\rollback(\Theta, S, H, \Theta'[(F, \Theta'', M') : S_1, S_2, M] \; | \; T) \leadsto (H', T'')}
+}
+\]
+
+\[%Rollback Write
+\mbox{\small
+\inference[\text{RBWrite}]{H(x) = \langle s, \emptyset, \spec, \Theta', M\rangle, \;\;\;  H' = H[x \mapsto \langle s \rangle] \\ \rollback(\Theta, S, H', \Theta'[S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}{\rollback(\Theta, S, H, \Theta'[(W, x, M') : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}
+}
+\]
+
+\[%Rollback Created Ivar
+\mbox{\small
+\inference[\text{RBNew}]{H(x) = \langle \spec \rangle, \;\;\; H' = H \backslash x \\ \rollback(\Theta, S, H', \Theta'[S_1, S_2, M'] \; | \; T) \leadsto (H'', T')}{\rollback(\Theta, S, H, \Theta'[(A, x, M') : S_1, S_2, M] \; | \; T) \leadsto (H'', T')}
+}
+\]
+
+\caption{Rollback}
+\label{fig:rollback}
+\end{figure}
+
+Figure \ref{fig:rollback} provides the semantics for performing a rollback.  The rollback function takes a thread ID, $\Theta$, to rollback with respect to, a list of actions, $S$, such that the rollback stops when thread $\Theta$ has this list of actions $S$, a heap, and a thread pool.  The result of a rollback is then a new heap and a new thread pool.  
+
+The RBDone rule indicates that the rollback is complete when thread $\Theta$ has as its action list $S$. The RBRead rule is used to undo a read action.  It must be the case that the thread's ID is present in the set of dependent readers on the IVar when looked up in the heap, so we remove the ID from the set, and continue with the rollback, resetting the thread to the term associated with the read action.  RBFork is applicable when the thread associative with a fork action has nothing but the created speculative action in its speculative list, we then proceed with the rollback by throwing away the forked thread, and reset the forking thread to the term associated with the action.  RBWrite undoes a write action when the IVar written to has no recorded dependent readers, we then proceed by resetting the IVar to empty and resetting the writing thread to the term associative with the write action.  RBNew undoes an allocation action when the IVar being rolled back was speculatively created, we remove it from the heap and continue after resetting the thread back to the term associated with the allocation action.  
+
+\section{Proof of Determinism} 
+\label{sec:proof}
+The overall proof strategy is to first prove an equivalence to the original Par Monad, which is known to be deterministic \cite{par-monad, cnc}, and then deducing determinism for our speculative extension from this equivalence.  For the reader's convenience, we have restated the semantics of the original Par Monad in the Appendix.  Those familiar with \cite{par-monad} will notice some slight differences between the two presentations.  First, we have used an explicit heap for IVars, where as the original semantics mixes threads with IVars in the style of the $\pi$-calculus.  Second, we have added syntax for speculative computations in Par, however, it is evaluated sequentially and essentially equivalent to a special case of the bind construct.  More concretely, $\specKW \; M \; N$ can be de-sugared to $M >>= \backslash i. (N >>= \backslash j. \return(i, j))$ where $i$ does not occur free in $N$. Lastly, in the original semantics, threads were allowed to terminate in the middle of a computation when they complete, where as in our presentation, we keep them around to the end of a $\runPar$. 
+
+\begin{figure}[]
+\begin{displaymath}
+\begin{array}{rcll}
+\erase{H; T} &=& \eraseHeap{H}; \eraseThreads{T} \\
+\eraseThreads{T_1 \; | \; T_2} &=& \eraseThreads{T_1} \; | \; \eraseThreads{T_2} \\
+\eraseThreads{\Theta[S_1 : (R, x, M'), S_2, M]} &=& M' \\
+\eraseThreads{\Theta[S_1 : (W, x, M'), S_2, M]} &=& M' \\
+\eraseThreads{\Theta[S_1 : (A, x, M'), S_2, M]} &=& M' \\
+\eraseThreads{\Theta[S_1 : (F, \Theta', M'), S_2, M]} &=& M' \\
+\eraseThreads{\Theta[S_1 : (S, M'), S_2, M]}&=& \cdot \\
+\eraseThreads{\Theta[S_1 : CSpec, S_2, M]} &=& \cdot \\
+\eraseThreads{\Theta[\cdot, S_2, M]} &=& M \\
+\eraseHeap{H, x \mapsto \langle \spec \rangle} &=& \eraseHeap{H} \\
+\eraseHeap{H, x \mapsto \langle \commit \rangle} &=& \eraseHeap{H}, x\mapsto \langle\rangle \\
+\eraseHeap{H, x \mapsto \langle \spec, ds, s, \Theta, M\rangle} &=& \eraseHeap{H} \\
+\eraseHeap{H, x\mapsto \langle \commit, ds, \spec, \Theta, M\rangle} &=& \eraseHeap{H}, x \mapsto \langle\rangle \\
+\eraseHeap{H, x \mapsto \langle \commit, ds, \commit, \Theta, M\rangle} &=& \eraseHeap{H}, x \mapsto \langle M\rangle \\
+\end{array}
+\end{displaymath}
+\caption{Erasure}
+\label{fig:erasure}
+\end{figure}
+
+Before stating our equivalence theorem, we first introduce an erasure in Figure \ref{fig:erasure} that relates speculative program states to non speculative (Par Monad) program states.  Intuitively, the erasure recursively goes through the program state, and ``throws away'' speculative work.  If a thread has speculative actions, we reset them to the term associated with the oldest action in their list for read, write, allocation, and fork actions.  If the oldest action indicates that it was created speculatively, or it is a thread executing the right branch of a $\specKW$, then we simply throw away the thread as these threads would not yet have been created in the non speculative semantics.  When erasing the heap, we throw out any IVars that were speculatively created.  If an IVar was commit created, but was speculatively written, then the erasure simply resets it to empty.  
+
+We can now relate the behaviors in one language to the behaviors in the other, where behaviors are defined as:
+
+\begin{displaymath}
+\begin{array}{rcll}
+\beta_s[M] &=& \{V \; | \; \runPar \; M \Downarrow_s V\} \cup \{\infty \; | \; \runPar \; M \Downarrow_s^{\infty}\} \\
+\beta_p[M] &=& \{V \; | \; \runPar \; M \Downarrow_p V\} \cup \{\infty \; | \; \runPar \; M \Downarrow_p^{\infty}\} 
+\end{array}
+\end{displaymath}
+
+Here the $s$ subscript is used to denote a large step in the speculative semantics and a $p$ subscript is used to denote a large step in the non speculative (Par) semantics.  
+
+There is an interesting point to be made about proving an equivalence between diverging programs.  In the speculative language it is possible to have divergent programs that can converge in the nonspecualtive language if care is not taken.  As an example consider the program:
+
+\[
+\runPar \; (\specKW \; (\raiseKW \; M) \; N)
+\]
+
+Where $N$ is a divergent computation.  In the speculative language, there is nothing that forces us to make progress on the commit portion of a speculative computation, therefore this program could infinitely take steps on N, despite the fact that if the left branch of the $\specKW$ ever got a chance to run it would cancel the divergent computation.  In the non speculative language this is not an issue as progress cannot be made on the right branch of a $\specKW$ until the left branch has been evaluated to a raised exception or returned value.  Typically one would define divergence as:
+
+\[
+\inference[]{H; T \specStep H'; T' \;\;\; H'; T' \specStep^{\infty}}{H; T \specStep^{\infty} }
+\]
+
+However for our purposes we must state a more restrictive version of divergence:
+
+\[
+\inference[]{H; T \rightarrow_{\text{spec}}^* H'; T' \;\;\; H'; T' \rightarrow_{\text{commit}} H''; T'' \;\;\; H''; T'' \specStep^{\infty}}{H; T \specStep^{\infty}}
+\]
+
+Where the $\rightarrow_{\text{commit}}$ relation is the same as the step relation presented in Figure \ref{fig:semantics} except that we restrict that the thread taking the step does not have any uncommitted actions and the $\rightarrow_{\text{spec}}$ relation is the complement of $\rightarrow_{\text{commit}}$.  Essentially we are enforcing a fairness policy requiring that progress must be made on a commit thread in order for a program state to be divergent.  
+
+At this point we are able to state our equivalence theorem 
+
+\begin{theorem}[Equivalence]
+$\forall M, \beta_s[M] = \beta_p[M]$
+\end{theorem}
+
+\begin{proof}[Proof Sketch]
+We show $\forall b \in \beta_s[M] \Rightarrow b \in \beta_p[M]$ and \\ $\forall b \in \beta_p[M] \Rightarrow b \in \beta_s[M]$.  The most interesting case is in showing $V \in \beta_s[M] \Rightarrow V \in \beta_p[M]$ where V is the result of a successfully converging program in the speculative language (i.e. not an error or divergent program), which follows from Lemma \ref{specImpliesNonSpec}
+\end{proof}
+
+\begin{lemma}[Speculative Implies Nonspeculative]
+\label{specImpliesNonSpec} 
+If 
+$\cdot; 1[\cdot,\cdot,M >>= \backslash x. \doneKW\; x] \specStep^* H_s; T_s \; | \; 1[\cdot,S_2,\doneKW \; N]$ and 
+$\finished(T_s)$ then \\
+$\exists H_p \; T_p, \cdot; M >>= \backslash x. \doneKW \; x \parStep^* H; T_p \; | \; \doneKW \; N$ and 
+$\erase{H_s; T_s} = H_p; T_p $ and $ \finished(T_p)$
+\end{lemma}
+
+\begin{figure}
+\begin{displaymath}
+\begin{array}{rcll}
+\unSpec{H; T} &=& \unSpecHeap{H}; \unSpecThreads{T} \\
+\unSpecThreads{T_1 \; | \; T_2} &=& \unSpecThreads{T_1} \; | \; \unSpecThreads{T_2} \\
+\unSpecThreads{\Theta[S_1 : (R, x, M'), S_2, M]} &=& \Theta[\cdot, S_2,M'] \\
+\unSpecThreads{\Theta[S_1 : (W, x, M'), S_2,M]} &=& \Theta[\cdot, S_2,M'] \\
+\unSpecThreads{\Theta[S_1 : (A, x, M'), S_2,M]} &=& \Theta[\cdot, S_2,M'] \\
+\unSpecThreads{\Theta[S_1 : (F, \Theta', M'), S_2,M]} &=& \Theta[\cdot, S_2,M'] \\
+\unSpecThreads{\Theta[S_1 : (S, M'), S_2,M]} &=& \Theta[\cdot : (S, M'), S_2, M'] \\
+\unSpecThreads{\Theta[S_1 : CSpec, S_2,M]} &=& \cdot \\
+\unSpecThreads{\Theta[\cdot, S_2, M]} &=& \Theta[\cdot, S_2, M]\\
+\unSpecHeap{H, x \mapsto \langle \spec \rangle} &=& \unSpecHeap{H} \\
+\unSpecHeap{H, x \mapsto \langle \commit \rangle} &=& \unSpecHeap{H}, x\mapsto \langle \commit \rangle \\
+\unSpecHeap{H, x \mapsto \langle \spec, ds, s, \Theta, M\rangle} &=& \unSpecHeap{H} \\
+\unSpecHeap{H, x\mapsto \langle \commit, ds, \spec, \Theta, M\rangle} &=& \unSpecHeap{H}, x \mapsto \langle \commit \rangle \\
+\unSpecHeap{H, x \mapsto \langle \commit, ds, \commit, \Theta, M\rangle} &=& \unSpecHeap{H}, x \mapsto \langle \commit, \emptyset, \commit, \Theta, M\rangle \\
+\end{array}
+\end{displaymath}
+\caption{Unspeculate}
+\label{fig:unspec}
+\end{figure}
+
+This is proven with a good amount of infrastructure behind it.  First we define a metafunction in Figure \ref{fig:unspec} similar to erasure that relates a program state to its ``commit frontier'' which essential abandons any speculative work that has been done.  This unspeculate function is then used to state a well-formedness property on speculative program states:
+
+\[
+\inference[]{\unSpec{H; T} \specStep^* H; T}{\wellFormed(H; T)}
+\]
+Lemma \ref{specImpliesNonSpec} then follows from a more general restatement.
+
+\begin{lemma}[Speculative Implies Nonspeculative WF]
+If $\wellFormed(H_s; T_s)$ and $H_s; T_s \specStep^* H_s'; T_s'$ then \\
+$\exists H_p' \; T_p', \erase{H_s; T_s} \parStep^* H_p'; T_p'$ and $\erase{H_s'; T_s'} = H_p'; T_p'$
+\end{lemma}
+
+\begin{proof}[Proof Sketch]
+By induction on the derivation of $H_s; T_s \specStep^* H_s'; T_s'$ and case analysis on the first step taken in the derivation.  If the first step is a speculative step (i.e. the thread taking the step has uncommitted actions), then take zero steps in the non speculative semantics as $\erase{H_s; T_s} = \erase{H_s'; T_s'}$.  If the first step corresponds to Eval, Bind, BindRaise, Handle, HandleReturn, Fork, New. Get, Put, Overwrite, ErrorWrite, Spec, SpecRB, SpecJoin, SpecDone, or SpecRaise, and the thread taking the step does not have any uncommitted actions, then we take the one corresponding step in the non speculative semantics.  If the first step corresponds to PopRead, PopWrite, PopNewFull, PopNewEmpty, or PopFork, then the speculative program must ``catch up'' by performing the action being committed and all of the pure steps between the action being committed and the next uncommitted action if any.  Fortunately, the sequence of steps necessary to catch up is given to us by the well-formedness derivation.  
+\end{proof}
+Note that many cases and supporting lemmas are left out for brevity and that the proof sketches provided are only meant to give the reader a high level intuition as to how the details of the proof fit together.  Full details about the proof can be found in the Coq formalization at \url{http://people.rit.edu/ml9951/research.html}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
