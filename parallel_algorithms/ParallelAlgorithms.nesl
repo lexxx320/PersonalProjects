@@ -19,22 +19,15 @@ test = myPack2(arr);
 ---------------------------------------------------------------
 1B)
 
-function scan A = 
-    if #A == 1
-    then isChar(A[0])
-    else 
-        let S = scan({isChar(A[2 * i] : i in [0 : #A / 2]})
-            R = {if i mod 2 = 0 then S[i/2]
+function isSpace c = if c == space  then T else F;
+ex = "aaa11 11";
+function parse A = 
+  let spaces = {if isSpace(A[i]) then T else F : i in [0 : #A]};
+      splits = split(A, spaces);
+  in splits;
 
-function isNumOrSpace c = 
-  let (_, ans) = parse_int([c])
-  in ans;
+parse ex;
 
-function merge
-
-function my_scan A = 
-    if (#A) == 1 then [isNum (A[0])]
-    else [F];
 
 
 ------------------------------------------------------------------
