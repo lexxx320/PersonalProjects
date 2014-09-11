@@ -22,9 +22,13 @@ test = myPack2(arr);
 function isSpace c = if c == space  then T else F;
 ex = "aaa11 11";
 function parse A = 
-  let spaces = {if isSpace(A[i]) then T else F : i in [0 : #A]};
-      splits = split(A, spaces);
-  in splits;
+  let numSpaces = count({isSpace(A[i]) : i in [0:#A]}) ;
+      inds = dist(0, numSpaces + 2);
+      spaces = {i : i in [0 : #A] | isSpace(A[i])};
+      v = zip([1:#spaces + 1], spaces);
+      x = write(inds, v);
+      x = rep(inds, numSpaces + 1, #A);
+  in x;
 
 parse ex;
 
