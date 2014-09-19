@@ -37,8 +37,8 @@
 \text{Transactional Context } \;\;\; \actxt &::=& [\cdot] \; | \; \actxt \; e \; | \; v \; \actxt \; | \; ! \actxt \; | \; \actxt := e \; | \; v := \actxt \; | \; \alloc{\actxt} \; | \; \atomic{\actxt} \\
 \text{Heap } \;\;\; H &::=& \cdot \; | \; H, \loc \mapsto v \\
 \text{Thread Pool} \;\;\; T &::=& \cdot \; | \; \Theta[H; L; e] \; | \; T \cup T \\
-\text{Transactional Log } \;\;\; L &::=& \cdot \; | \; L, (\loc, v, \actxt)_{op} \\
-\text{Operations } \;\;\; &::=& R \; | \; W \; | \; A \\
+\text{Transactional Log } \;\;\; L &::=& \cdot \; | \; L, (\loc, v, e)_{op} \\
+\text{Operations } \;\;\; op &::=& R \; | \; W \; | \; A \\
 \end{array}
 \end{displaymath}
 
@@ -84,19 +84,19 @@ $\boxed{H; T \rightarrow H' ;T'}$
 \boxed{H; \Theta[H_l; L; e] \leadsto H', \Theta[H_l'; L'; e']; (\abort | \commit)}
 
 \[
-\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H', \loc \mapsto v'; \Theta[H_l, \loc \mapsto v'; L, (\loc, v, e');e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) = v \;\;\; op = R \lor op = W}
+\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_R; e] \leadsto H', \loc \mapsto v'; \Theta[H_l, \loc \mapsto v'; L, (\loc, v, e')_R;e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) = v}
 \]
 
 \[
-\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H; \Theta[H_l; L; e']; \abort}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) \not= v \;\;\; op = R \lor op = W} 
+\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_R; e] \leadsto H; \Theta[H_l; L; e']; \abort}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) \not= v} 
 \]
 
 \[
-\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_A; e] \leadsto H', \loc \mapsto v'; L, (\loc,v,e')_A; e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit}
+\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H', \loc \mapsto v'; L, (\loc,v,e')_{op}; e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; op = W \lor op = A}
 \]
 
 \[
-\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H'; \Theta[H_l'; L'; e']; \abort}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l'; L'; e']; \abort} 
+\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H; \Theta[H_l'; L'; e']; \abort}{H; \Theta[H_l; L; e] \leadsto H; \Theta[H_l'; L'; e']; \abort} 
 \]
 
 \end{document}
