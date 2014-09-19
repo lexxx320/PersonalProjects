@@ -1,6 +1,0 @@
-
-
-java -cp ".:jmatio.jar" Main $@
-
-
- 
