@@ -1,9 +1,0 @@
-#!/bin/bash
-
-coqc AST.v
-coqc Heap.v
-coqc Spec.v
-coqc NonSpec.v
-
-
-
