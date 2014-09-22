@@ -1,11 +1,11 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <cilk/cilk.h>
 #include <cilk/cilk_api.h>
 #include <time.h>
 #include <sys/time.h>
+
+#define INTENTIONAL_RACE
 
 void printArr(float * arr, int n){
 	for(int i = 0; i < n; i++){
@@ -73,13 +73,14 @@ float * qsort(float * arr, int n){
 bool chk(float * arr, int n){
 	bool res = true;
 	for(int i = 1; i < n; i++){
-		res = res && (arr[i] > arr[i-1]);
+		if(arr[i] < arr[i-1]){
+			printf("Result is incorrect at position %d\n", i);
+			printArr(arr, n);
+			res = false; 
+			return res;
+		}	
 	}	
-	if(res){
-		printf("Result is correct\n");
-	}else{
-		printf("Result is incorrect\n");
-	}
+	printf("Result is correct\n");
 	return res;
 }
 
@@ -94,24 +95,23 @@ float * genArray(int n){
 
 int main(int argc, char *argv[])
 {
-    // number of elements to be sorted
+    //default number of elements to be sorted
     int n = 40;
 
-    // If we've got a parameter, assume it's the number of workers to be used
-    if (argc > 1)
-    {
-        // Values less than 1, or parameters that aren't numbers aren't allowed
-        if (atoi(argv[1]) < 1)
-        {
+    if (argc > 1){
+        if (atoi(argv[1]) < 1){
             printf("Usage: fib [problem size]\n");
-            return 1;
+            exit(1);
         }
-
         n = atoi(argv[1]);
+        if(argc > 2){
+			__cilkrts_set_param("nworkers", argv[2]);
+        }
     }
 
     // Time how long it takes to calculate the nth Fibonacci number
     float * arr = genArray(n);
+
     unsigned long long start = cilk_getticks();
     qsort(arr, n);
     unsigned long long end = cilk_getticks();
