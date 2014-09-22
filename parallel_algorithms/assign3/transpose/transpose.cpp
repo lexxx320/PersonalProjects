@@ -51,7 +51,6 @@ float * transpose(float * mat){
 			IND2(res, j, i, n) = IND(mat, i, j);
 		}
 	}
-	
 	return res;
 }	
 
