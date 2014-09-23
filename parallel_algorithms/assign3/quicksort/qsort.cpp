@@ -26,24 +26,14 @@ static inline double cilk_ticks_to_seconds(unsigned long long ticks)
      return ticks * 1.0e-6;
 }
 
-int fib(int n)
-{
-    if (n < 2)
-        return n;
-    int x = cilk_spawn fib(n-1);
-    int y = fib(n-2);
-    cilk_sync;
-    return x + y;
-}
-
 int partition(float * arr, int n){
 	int ind = n/2;
 	float pivot = arr[ind]; 
 	int count = 0;
-	float temp = arr[ind];
+	float temp = pivot;
 	arr[ind] = arr[n-1];
 	arr[n-1] = temp;
-	
+
 	for(int i = 0; i < n-1; i++){
 		if(arr[i] < pivot){
 			temp = arr[i];
@@ -52,7 +42,6 @@ int partition(float * arr, int n){
 			count++;
 		}	
 	}
-
 	temp = arr[count];
 	arr[count] = arr[n-1];
 	arr[n-1] = temp;
@@ -64,8 +53,8 @@ float * qsort(float * arr, int n){
 	if(n > 1){
 		int pivot = partition(arr, n);
 		cilk_spawn qsort(arr, pivot);
-		qsort(arr + pivot, n - pivot);
-		cilk_sync;
+		qsort(arr + pivot+1, n - pivot-1);
+		cilk_sync; 
 	}
 	return arr;
 }
@@ -85,7 +74,7 @@ bool chk(float * arr, int n){
 }
 
 float * genArray(int n){
-	srand(time(NULL));
+	srand(time(NULL)); 
 	float * arr = (float*)malloc(sizeof(float) * n);
 	for(int i = 0; i < n; i++){
 		arr[i] = (float)rand() / (float)RAND_MAX;
