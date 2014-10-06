@@ -23,7 +23,8 @@ Inductive ntDecompose : term -> nonTCtxt -> term -> Prop :=
 |ntDecompAlloc : forall e E e', ntDecompose e E e' -> ~valOrAtomic e ->
                                 ntDecompose (alloc e) (ntAlloc E) e'
 |ntDecompAllocRedex : forall v, value v -> ntDecompose (alloc v) ntHole (alloc v)
-|ntDecompAtomicRedex : forall v, value v -> ntDecompose (atomic v) ntHole (atomic v). 
+|ntDecompAtomicRedex : forall v, value v -> ntDecompose (atomic v) ntHole (atomic v)
+|ntDecompFork : forall e, ntDecompose (fork e) ntHole (fork e). 
  
 
 Inductive tDecompose : term -> TCtxt -> term -> Prop :=
@@ -46,6 +47,7 @@ Inductive tDecompose : term -> TCtxt -> term -> Prop :=
 |tDecompAtomic : forall e E e', tDecompose e E e' -> ~ value e -> 
                                 tDecompose (atomic e) (tAtomic E) e'
 |tDecompAtomicRedex : forall v, value v -> tDecompose (atomic v) tHole (atomic v)
+|tDecompFork : forall e, tDecompose (fork e) tHole (fork e)
 . 
 
 Fixpoint ntFill E e :=
@@ -111,6 +113,8 @@ Inductive step (n:nat) : heap -> pool -> nat -> heap -> pool -> Prop :=
                 step n H (Single (Hl, L, e)) n' H' (Single(Hl', L', e')) ->
                 ntDecompose t E e ->
                 step n H (Single (Hl,L,t)) n' H' (Single(Hl',L',ntFill E e'))
+|forkStep : forall H Hl L e,
+              step n H (Single (Hl, L, fork e)) n H (Par (Single(Hl,L,unit)) (Single(nil,nil,e)))
 |nonTGet : forall H Hl L l v, 
              lookup H l = Some v -> step n H (Single(Hl, L, get (loc l))) n H (Single(Hl,L,v))
 |tGetAbsent : forall H Hl L A t l v,

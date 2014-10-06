@@ -13,6 +13,7 @@ Inductive term : Type :=
 |get : term -> term
 |put : term -> term -> term
 |alloc : term -> term
+|fork : term -> term
 |atomic : term -> term. 
 
 Inductive value : term -> Prop :=
