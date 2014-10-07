@@ -83,38 +83,25 @@ Fixpoint lookup (H:heap) x :=
 
 Inductive commitRes : Type := success | abort. 
 
-Definition getList l :=
-  match l with
-      |partial_log l' => l'
-      |full_log l' e => l'
-  end. 
-
-Definition logCons hd tl :=
-  match tl with
-      |partial_log l => partial_log (hd::l)
-      |full_log l e => full_log (hd::l) e
-  end. 
-
 Inductive commit : heap -> thread -> heap -> thread -> commitRes -> Prop := 
-|commitNil : forall H e L, getList L = nil -> commit H (nil,L,e) H (nil,L,e) success
+|commitNil : forall H e, commit H (nil,nil,e) H (nil,nil,e) success
 |commitRead : forall H H' Hl L e e' l v,
                 commit H (Hl,L,e) H' (Hl,L,e) success -> lookup H l = Some v ->
-                commit H ((l,v)::Hl, logCons (readItem l v e') L, e) H' 
-                       ((l,v)::Hl, logCons(readItem l v e') L, e) success
+                commit H ((l,v)::Hl, readItem l v e'::L, e) H' ((l,v)::Hl, readItem l v e'::L, e) success
 |abortRead : forall H H' Hl L e e' l v v',
                 commit H (Hl,L,e) H' (Hl,L,e) success -> lookup H l = Some v' -> v <> v' ->
-                commit H ((l,v)::Hl, logCons(readItem l v e') L, e) H (Hl, L, e') abort
+                commit H ((l,v)::Hl, readItem l v e'::L, e) H (Hl, L, e') abort
 |commitWrite : forall H H' Hl L e e' l v,
                 commit H (Hl,L,e) H' (Hl,L,e) success -> 
-                commit H ((l,v)::Hl, logCons(writeItem l v e') L, e) 
-                       ((l,v)::H') ((l,v)::Hl, logCons(writeItem l v e') L, e) success
+                commit H ((l,v)::Hl, writeItem l v e'::L, e) 
+                       ((l,v)::H') ((l,v)::Hl, writeItem l v e'::L, e) success
 |commitAlloc : forall H H' Hl L e e' l v,
                 commit H (Hl,L,e) H' (Hl,L,e) success -> 
-                commit H ((l,v)::Hl, logCons(allocItem l v e') L, e) 
-                       ((l,v)::H') ((l,v)::Hl, logCons(allocItem l v e') L, e) success
+                commit H ((l,v)::Hl, allocItem l v e'::L, e) 
+                       ((l,v)::H') ((l,v)::Hl, allocItem l v e'::L, e) success
 |propogateAbort : forall H Hl L e act l v H' Hl' L' e',
                 commit H (Hl,L,e) H' (Hl',L',e') abort -> 
-                commit H ((l,v)::Hl, logCons act L, e) H' (Hl',L',e') abort.            
+                commit H ((l,v)::Hl, act::L, e) H' (Hl',L',e') abort.            
 
 Theorem abortUnchangedHeap : forall H t H' t', 
                                commit H t H' t' abort ->
@@ -137,13 +124,12 @@ Inductive step (n:nat) : heap -> pool -> nat -> heap -> pool -> Prop :=
                 ntDecompose t E e ->
                 step n H (Single (Hl,L,t)) n' H' (Single(Hl',L',ntFill E e'))
 |forkStep : forall H Hl L e,
-              step n H (Single (Hl, L, fork e)) n H 
-                   (Par (Single(Hl,L,unit)) (Single(nil,partial_log nil,e)))
+              step n H (Single (Hl, L, fork e)) n H (Par (Single(Hl,L,unit)) (Single(nil,nil,e)))
 |nonTGet : forall H Hl L l v, 
              lookup H l = Some v -> step n H (Single(Hl, L, get (loc l))) n H (Single(Hl,L,v))
 |tGetAbsent : forall H Hl L A t l v,
                 lookup Hl l = None -> lookup H l = Some v -> tDecompose t A (get (loc l)) ->
-                step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, logCons (readItem l v t) L, tFill A v))
+                step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, (readItem l v t)::L, tFill A v))
 |tGetPresent : forall H Hl L A t l v,
                  lookup Hl l = Some v -> tDecompose t A (get (loc l)) ->
                 step n H (Single(Hl,L,t)) n H (Single(Hl, L, tFill A v))
@@ -152,19 +138,19 @@ Inductive step (n:nat) : heap -> pool -> nat -> heap -> pool -> Prop :=
              step n H (Single(Hl,L,put (loc l) v)) n ((l,v)::H) (Single(Hl,L,unit))
 |tPutAbsent : forall H Hl L A t l v v',
                 lookup Hl l = None -> lookup H l = Some v' -> tDecompose t A (put (loc l) v) ->
-                step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, logCons(writeItem l v t) L, tFill A unit))
+                step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, (writeItem l v t)::L, tFill A unit))
 |tPutPresent : forall H Hl L A t l v v',
                  lookup Hl l = Some v' -> tDecompose t A (put (loc l) v) ->
-                 step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, logCons(writeItem l v t) L, tFill A unit))
+                 step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, writeItem l v t::L, tFill A unit))
 |nonTAlloc : forall H Hl L v, 
                lookup H n = None -> 
                step n H (Single(Hl,L,alloc v)) (S n) ((n,v)::H) (Single(Hl,L,loc n))
 |tAlloc : forall H Hl L v t A,
             lookup H n = None -> lookup Hl n = None -> tDecompose t A (alloc v) ->
-            step n H (Single(Hl,L,t)) (S n) H (Single((n,v)::Hl, logCons(allocItem n v t) L, tFill A (loc n)))
+            step n H (Single(Hl,L,t)) (S n) H (Single((n,v)::Hl, allocItem n v t::L, tFill A (loc n)))
 |commitTransaction : forall H H' L v Hl,
                        commit H (Hl,L,atomic v) H' (Hl,L,atomic v) success -> value v ->
-                       step n H (Single(Hl,L,atomic v)) n H' (Single(nil,partial_log nil,v))
+                       step n H (Single(Hl,L,atomic v)) n H' (Single(nil,nil,v))
 |abortTransaction : forall H L v Hl Hl' L' e,
                        commit H (Hl,L,atomic v) H (Hl',L',e) abort ->
                        step n H (Single(Hl,L,atomic v)) n H (Single(Hl',L',e))
@@ -178,72 +164,7 @@ Inductive multistep (n:nat) : heap -> pool -> nat -> heap -> pool -> Prop :=
                 step n H T n' H' T' -> multistep n' H' T' n'' H'' T'' ->
                 multistep n H T n'' H'' T''. 
 
-Inductive commit_f (H0:heap) : heap -> thread -> heap -> thread -> commitRes -> Prop := 
-|commit_fNil : forall H e L, getList L = nil -> commit_f H0 H (nil,L,e) H (nil,L,e) success
-|commit_fRead : forall H H' Hl L e e' l v,
-                commit_f H0 H (Hl,L,e) H' (Hl,L,e) success -> lookup H l = Some v ->
-                commit_f H0 H ((l,v)::Hl, logCons (readItem l v e') L, e) H' 
-                       ((l,v)::Hl, logCons(readItem l v e') L, e) success
-|abortRead_f : forall H H' Hl L e e' l v v' e0,
-                commit_f H0 H (Hl,full_log L e0,e) H' (Hl,full_log L e0,e) success -> 
-                lookup H l = Some v' -> v <> v' ->
-                commit_f H0 H ((l,v)::Hl, full_log(readItem l v e'::L) e0, e) 
-                         H0 (nil, full_log nil e0, e0) abort
-|commit_fWrite : forall H H' Hl L e e' l v,
-                commit_f H0 H (Hl,L,e) H' (Hl,L,e) success -> 
-                commit_f H0 H ((l,v)::Hl, logCons(writeItem l v e') L, e) 
-                       ((l,v)::H') ((l,v)::Hl, logCons(writeItem l v e') L, e) success
-|commit_fAlloc : forall H H' Hl L e e' l v,
-                commit_f H0 H (Hl,L,e) H' (Hl,L,e) success -> 
-                commit_f H0 H ((l,v)::Hl, logCons(allocItem l v e') L, e) 
-                       ((l,v)::H') ((l,v)::Hl, logCons(allocItem l v e') L, e) success
-|propogateAbort_f : forall H Hl L e act l v L' e',
-                commit_f H0 H (Hl,L,e) H0 (nil,L',e') abort -> 
-                commit_f H0 H ((l,v)::Hl, logCons act L, e) H0 (nil,L',e') abort.   
 
-Inductive f_step (n:nat) : heap -> pool -> nat -> heap -> pool -> Prop := 
-|ParL_f : forall H H' T1 T1' n' T2, 
-          f_step n H T1 n' H' T1' -> f_step n H (Par T1 T2) n' H' (Par T1' T2)
-|ParR_f : forall H H' T1 T2 T2' n', 
-          f_step n H T2 n' H' T2' -> f_step n H (Par T1 T2) n' H' (Par T1 T2')
-|decompStep_f : forall H H' E e e' L L' Hl Hl' t n', 
-                f_step n H (Single (Hl, L, e)) n' H' (Single(Hl', L', e')) ->
-                ntDecompose t E e ->
-                f_step n H (Single (Hl,L,t)) n' H' (Single(Hl',L',ntFill E e'))
-|forkStep_f : forall H Hl L e,
-              f_step n H (Single (Hl, L, fork e)) n H 
-                   (Par (Single(Hl,L,unit)) (Single(nil,partial_log nil,e)))
-|nonTGet_f : forall H Hl L l v, 
-             lookup H l = Some v -> f_step n H (Single(Hl, L, get (loc l))) n H (Single(Hl,L,v))
-|tGetAbsent_f : forall H Hl L A t l v,
-                lookup Hl l = None -> lookup H l = Some v -> tDecompose t A (get (loc l)) ->
-                f_step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, logCons (readItem l v t) L, tFill A v))
-|tGetPresent_f : forall H Hl L A t l v,
-                 lookup Hl l = Some v -> tDecompose t A (get (loc l)) ->
-                f_step n H (Single(Hl,L,t)) n H (Single(Hl, L, tFill A v))
-|nonTPut_f : forall H Hl L l v v',
-             lookup H l = Some v' ->
-             f_step n H (Single(Hl,L,put (loc l) v)) n ((l,v)::H) (Single(Hl,L,unit))
-|tPutAbsent_f: forall H Hl L A t l v v',
-                lookup Hl l = None -> lookup H l = Some v' -> tDecompose t A (put (loc l) v) ->
-                f_step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, logCons(writeItem l v t) L, tFill A unit))
-|tPutPresent_f : forall H Hl L A t l v v',
-                 lookup Hl l = Some v' -> tDecompose t A (put (loc l) v) ->
-                 f_step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, logCons(writeItem l v t) L, tFill A unit))
-|nonTAlloc_f : forall H Hl L v, 
-               lookup H n = None -> 
-               f_step n H (Single(Hl,L,alloc v)) (S n) ((n,v)::H) (Single(Hl,L,loc n))
-|tAlloc_f : forall H Hl L v t A,
-            lookup H n = None -> lookup Hl n = None -> tDecompose t A (alloc v) ->
-            f_step n H (Single(Hl,L,t)) (S n) H (Single((n,v)::Hl, logCons(allocItem n v t) L, tFill A (loc n)))
-|commitTransaction_f : forall H H' L v Hl,
-                       commit_f H H (Hl,L,atomic v) H' (Hl,L,atomic v) success -> value v ->
-                       f_step n H (Single(Hl,L,atomic v)) n H' (Single(nil,partial_log nil,v))
-|abortTransaction_f : forall H L v Hl Hl' L' e,
-                       commit_f H H (Hl,L,atomic v) H (Hl',L',e) abort ->
-                       f_step n H (Single(Hl,L,atomic v)) n H (Single(Hl',L',e))
-|nestedTransaction_f : forall H Hl L A v t,
-                       tDecompose t A v -> value v ->
-                       f_step n H (Single(Hl,L,t)) n H (Single(Hl,L,tFill A v)).
+
 
 

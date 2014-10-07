@@ -47,7 +47,10 @@ Inductive logItem : Type :=
 |writeItem : nat -> term -> term -> logItem
 |allocItem : nat -> term -> term -> logItem. 
 
-Definition log := list logItem. 
+Inductive log := 
+|partial_log : list logItem -> log
+|full_log : list logItem -> term -> log. 
+ 
 Definition thread := heap * log * term. 
 
 Inductive pool : Type := 
