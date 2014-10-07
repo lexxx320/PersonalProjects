@@ -26,14 +26,18 @@
 \newcommand{\alloc}[1]{\text{ref} \; #1}
 \newcommand{\commit}[0]{\text{commit}}
 \newcommand{\abort}[0]{\text{abort}}
+\newcommand{\fork}[1]{\text{fork } #1}
 
 \begin{document}
+\begingroup\makeatletter\def\f@size{9}\check@mathfonts
+
+
 \begin{displaymath}
 \begin{array}{rcll}
 \text{Variables } \;\;\; x &\in& Var \\
 \text{Values } \;\;\; v &::=& \lambda x. e \; | \; \loc \; | \; () \\
-\text{Expressions } \;\;\; e &::=& v \; | \; x \; | \; e \; e \; | \; !e \; | \; e := e \; | \; \alloc{e} \; | \; \atomic{e}\\
-\text{Non-Transactional Context } \;\;\; \ctxt &::=& [\cdot] \; | \; \ctxt \; e \; | \; v \; \ctxt \; | \; ! \ctxt \; | \; \ctxt := e \; | \; v := \ctxt \; | \; \alloc{\ctxt}\\
+\text{Expressions } \;\;\; e &::=& v \; | \; x \; | \; e \; e \; | \; !e \; | \; e := e \; | \; \alloc{e} \; | \; \fork{e} \; | \; \atomic{e}\\
+\text{Non-Transactional Context } \;\;\; \ctxt &::=& [\cdot] \; | \; \ctxt \; e \; | \; v \; \ctxt \; | \; ! \ctxt \; | \; \ctxt := e \; | \; v := \ctxt \; | \; \alloc{\ctxt} \\
 \text{Transactional Context } \;\;\; \actxt &::=& [\cdot] \; | \; \actxt \; e \; | \; v \; \actxt \; | \; ! \actxt \; | \; \actxt := e \; | \; v := \actxt \; | \; \alloc{\actxt} \; | \; \atomic{\actxt} \\
 \text{Heap } \;\;\; H &::=& \cdot \; | \; H, \loc \mapsto v \\
 \text{Thread Pool} \;\;\; T &::=& \cdot \; | \; \Theta[H; L; e] \; | \; T \cup T \\
@@ -42,62 +46,66 @@
 \end{array}
 \end{displaymath}
 
-%Note that when a new location is allocated, it needs to be ``globally'' fresh, meaning it is fresh with respect to the heap that everyone has access to as well as all of the local heaps that are private to each thread.  This could be done by maintaining a counter in the program state that gives the next fresh location.
-
 $\boxed{H; T \rightarrow H' ;T'}$
-\[
+\[%Parallel composition and non-transactional eval ctxt
 \infer[]{H; T_1 \cup T_2 \rightarrow H'; T_1' \cup T_2}{H; T_1 \rightarrow H'; T_1'} \;\;\;
 \infer[]{H; T_1 \cup T_2 \rightarrow H'; T_1 \cup T_2'}{H; T_2 \rightarrow H'; T_2'} \;\;\; 
-\infer[]{H; \Theta[H_l; L; \eval{e}] \rightarrow H'; \Theta[H_l'; L'; \eval{e'}]}{H; \Theta[H_l; L; e] \rightarrow H'; \Theta[H_l'; L'; e']}
 \]
 
-\[
-\infer[]{H; \Theta[H; L; !\loc] \rightarrow H; \Theta[H; L; v]}{H(\loc) = v} \;\;\;
-\infer[]{H; \Theta[H_l; L; \aeval{!\loc}] \rightarrow H; \Theta[H_l, \loc \mapsto v; L, (\loc, v, \aeval{!\loc})_R; \aeval{v}]}{x \notin Domain(H_l) \;\;\; H(\loc) = v } 
+\[%Eval context and fork
+\infer[]{H; \Theta[H_l; L; \eval{e}] \rightarrow H'; \Theta[H_l'; L'; \eval{e'}] \cup T}{H; \Theta[H_l; L; e] \rightarrow H'; \Theta[H_l'; L'; e'] \cup T} \;\;\;
+\infer[]{H; \Theta[H_l, L, \fork{e}] \rightarrow H; \Theta[H_l, L, ()] \cup \Theta'[\cdot, \cdot, e]}{}
 \]
 
-\[
+\[%Non-transactional read and transactional read not in local domain
+\infer[]{H; \Theta[H_l; L; !\loc] \rightarrow H; \Theta[H_l; L; v]}{H(\loc) = v} \;\;\;
+\infer[]{H; \Theta[H_l; L; \aeval{!\loc}] \rightarrow H; \Theta[H_l, \loc \mapsto v; L, (\loc, v, \aeval{!\loc})_R; \aeval{v}]}{\loc \notin Domain(H_l) \;\;\; H(\loc) = v } 
+\]
+
+\[%transactional read in local domain and non-transactional write
 \infer[]{H; \Theta[H_l; L; \aeval{!\loc}] \rightarrow H; \Theta[H_l; L; \aeval{v}]}{H_l(\loc) = v } \;\;\;
 \infer[]{H; \Theta[H_l; L; \loc := v] \rightarrow H, \loc \mapsto v; \Theta[H_l; L; ()]}{}
 \]
 
-\[
-\infer[]{H; \Theta[H_l; L; \aeval{\loc := v}] \rightarrow H; \Theta[H_l, x\mapsto v; L, (\loc, v, \aeval{\loc := v})_W; \aeval{()}]}{\loc \notin Domain(H_l) \;\;\; H(\loc) = v'} \;\;\;
-\infer[]{H; \Theta[H_l; L; \aeval{\loc := v}] \rightarrow H; \Theta[H_l[x\mapsto v]; L; \aeval{()}]}{H_l(\loc) = v'} 
+\[%transactional write not in local domain 
+\infer[]{H; \Theta[H_l; L; \aeval{\loc := v}] \rightarrow H; \Theta[H_l, \loc \mapsto v; L, (\loc, v, \aeval{\loc := v})_W; \aeval{()}]}{\loc \notin Domain(H_l) \;\;\; H(\loc) = v'} 
 \]
 
-\[
+\[%transactional write in local domain
+\infer[]{H; \Theta[H_l; L; \aeval{\loc := v}] \rightarrow H; \Theta[H_l, \loc \mapsto v; L, (\loc,v,\aeval{\loc := v})_W; \aeval{()}]}{H_l(\loc) = v'} 
+\]
+
+\[%non-transactional and transactional allocation
 \infer[]{H; \Theta[H_l; L; \alloc{v}] \rightarrow H, \loc \mapsto v; \Theta[H_l; L; \loc]}{\loc \text{ is fresh}} \;\;\;
 \infer[]{H; \Theta[H_l; L; \aeval{\alloc{v}}] \rightarrow H; \Theta[H_l, \loc \mapsto v; L, (\loc, v, \aeval{\alloc{v}})_A;  \aeval{()}]}{\loc \text{ is fresh}}
 \]
 
-\[
+\[%commit and abort transaction
 \infer[]{H; \Theta[H_l; L; \atomic{v}] \rightarrow H'; \Theta[\cdot;\cdot; v]}{H; \Theta[H_l; L; \atomic{v}] \leadsto H'; \Theta[H_l; L; \atomic{v}]; \commit} \;\;\;
 \infer[]{H; \Theta[H_l; L; \atomic{v}] \rightarrow H; \Theta[H_l'; L'; e]}{H; \Theta[H_l; L; \atomic{v}] \leadsto H; \Theta[H_l'; L'; e]; \abort} \;\;\;
 \]
 
-\[
+\[%nested transaction (idempotent)
 \infer[]{H; \Theta[H_l; L; \aeval{\atomic{v}}] \rightarrow H; \Theta[H_l; L; \aeval{v}]}{}
 \]
 
 %----------------------------------------------------Commit Semantics----------------------------------------------------
 \boxed{H; \Theta[H_l; L; e] \leadsto H', \Theta[H_l'; L'; e']; (\abort | \commit)}
 
-\[
-\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_R; e] \leadsto H', \loc \mapsto v'; \Theta[H_l, \loc \mapsto v'; L, (\loc, v, e')_R;e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) = v}
+\[%commit read/write
+\infer[]{H; \Theta[H_l, \loc \mapsto v; L, (\loc,v,e')_{op}; e] \leadsto H'; \Theta[H_l, \loc \mapsto v; L, (\loc, v, e')_{op};e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) = v \;\;\; op = R|W}
 \]
 
-\[
-\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_R; e] \leadsto H; \Theta[H_l; L; e']; \abort}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) \not= v} 
+\[%abort read
+\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H; \Theta[H_l; L; e']; \abort}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; H(\loc) \not= v \;\;\; op=R|W} 
 \]
 
-\[
-\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H', \loc \mapsto v'; L, (\loc,v,e')_{op}; e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit \;\;\; op = W \lor op = A}
-\]
-
-\[
+\[%commit write/allocation and propogate 
+\infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_A; e] \leadsto H', \loc \mapsto v'; L, (\loc,v,e')_A; e]; \commit}{H; \Theta[H_l; L; e] \leadsto H'; \Theta[H_l; L; e]; \commit} \;\;\;
 \infer[]{H; \Theta[H_l, \loc \mapsto v'; L, (\loc,v,e')_{op}; e] \leadsto H; \Theta[H_l'; L'; e']; \abort}{H; \Theta[H_l; L; e] \leadsto H; \Theta[H_l'; L'; e']; \abort} 
 \]
+
+\endgroup
 
 \end{document}
 
