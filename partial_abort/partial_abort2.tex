@@ -41,12 +41,11 @@
 \text{Non-Transactional Context } \;\;\; \ctxt &::=& [\cdot] \; | \; \ctxt \; e \; | \; v \; \ctxt \; | \; ! \ctxt \; | \; \ctxt := e \; | \; v := \ctxt \; | \; \alloc{\ctxt} \\
 \text{Transactional Context } \;\;\; \actxt &::=& [\cdot] \; | \; \actxt \; e \; | \; v \; \actxt \; | \; ! \actxt \; | \; \actxt := e \; | \; v := \actxt \; | \; \alloc{\actxt} \; | \; \atomic{\actxt} \\
 \text{Heap } \;\;\; H &::=& \cdot \; | \; H, \loc \mapsto (v, C) \\
-\text{Thread Pool} \;\;\; T &::=& \cdot \; | \; \Theta[H; L; e] \; | \; T \cup T \\
-\text{Transactional Log } \;\;\; L &::=& \cdot \; | \; L, \sigma \\
-\text{Operations } \;\;\; \sigma &::=& (\loc, C, \actxt)_R \; | \; (\loc, v)_W \\
+\text{Thread Pool} \;\;\; T &::=& \cdot \; | \; \Theta[L; e] \; | \; T \cup T \\
+\text{Transactional Log } \;\;\; L &::=& \cdot \; | \; L, \loc \mapsto (v, C, \actxt)_{op}  \\
+\text{Operations } \;\;\; op &::=& R \; | \; W \\
 \end{array}
 \end{displaymath}
-
 
 $\boxed{C; H; T \rightarrow C; H' ;T'}$
 \[%Parallel composition and non-transactional eval ctxt
@@ -55,8 +54,8 @@ $\boxed{C; H; T \rightarrow C; H' ;T'}$
 \]
 
 \[%Eval context and fork
-\infer[]{C; H; \Theta[H_l; L; \eval{e}] \rightarrow C'; H'; \Theta[H_l'; L'; \eval{e'}] \cup T}{C; H; \Theta[H_l; L; e] \rightarrow C'; H'; \Theta[H_l'; L'; e'] \cup T} \;\;\;
-\infer[]{C; H; \Theta[\cdot; \cdot; \fork{e}] \rightarrow C'; H; \Theta[\cdot; \cdot; ()] \cup \Theta'[\cdot, \cdot, e]}{\text{fresh } \Theta'}
+\infer[]{C; H; \Theta[L; \eval{e}] \rightarrow C'; H'; \Theta[L'; \eval{e'}] \cup T}{C; H; \Theta[L; e] \rightarrow C'; H'; \Theta[L'; e'] \cup T} \;\;\;
+\infer[]{C; H; \Theta[\cdot; \fork{e}] \rightarrow C'; H; \Theta[\cdot; ()] \cup \Theta'[\cdot, e]}{\text{fresh } \Theta'}
 \]
 
 \[%Non-transactional read and transactional read not in local domain
