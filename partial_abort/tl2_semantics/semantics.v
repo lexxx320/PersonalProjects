@@ -101,7 +101,7 @@ Inductive commit : stamp -> globalHeap -> thread -> globalHeap -> thread -> comm
                 commit C H (L,e) H' (L',e') abort -> 
                 commit C H (act::L, e) H' (L',e') abort.            
 
-Inductive step (C:nat) : globalHeap -> pool -> nat -> globalHeap -> pool -> Prop := 
+Inductive step (C:stamp) : globalHeap -> pool -> nat -> globalHeap -> pool -> Prop := 
 |ParL : forall H H' T1 T1' T2 C', 
           step C H T1 C' H' T1' -> step C H (Par T1 T2) C' H' (Par T1' T2)
 |ParR : forall H H' T1 T2 T2' C', 
@@ -123,37 +123,50 @@ Inductive step (C:nat) : globalHeap -> pool -> nat -> globalHeap -> pool -> Prop
                  lookup L l = Some (v, C', A', op) -> tDecompose t A (get (loc l)) ->
                  lookup H l = Some (v', C'') -> C' > C'' ->
                  step C H (Single(L,t)) C H (Single(L, tFill A v))
-|nonTPut : forall H Hl L l v v',
+|nonTPut : forall H L l v v',
              lookup H l = Some v' ->
-             step n H (Single(Hl,L,put (loc l) v)) n ((l,v)::H) (Single(Hl,L,unit))
-|tPutAbsent : forall H Hl L A t l v v',
-                lookup Hl l = None -> lookup H l = Some v' -> tDecompose t A (put (loc l) v) ->
-                step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, writeItem l v t::L, tFill A unit))
-|tPutPresent : forall H Hl L A t l v v',
-                 lookup Hl l = Some v' -> tDecompose t A (put (loc l) v) ->
-                 step n H (Single(Hl,L,t)) n H (Single((l,v)::Hl, writeItem l v t::L, tFill A unit))
-|nonTAlloc : forall H Hl L v, 
-               lookup H n = None -> 
-               step n H (Single(Hl,L,alloc v)) (S n) ((n,v)::H) (Single(Hl,L,loc n))
-|tAlloc : forall H Hl L v t A,
-            lookup H n = None -> lookup Hl n = None -> tDecompose t A (alloc v) ->
-            step n H (Single(Hl,L,t)) (S n) H (Single((n,v)::Hl, allocItem n v t::L, tFill A (loc n)))
-|commitTransaction : forall H H' L v Hl e0,
-                       commit H (Hl,L,atomic v e0) H' (Hl,L,atomic v e0) success -> value v ->
-                       step n H (Single(Hl,L,atomic v e0)) n H' (Single(nil,nil,v))
-|abortTransaction : forall H L v Hl Hl' L' e e0,
-                       commit H (Hl,L,atomic v e0) H (Hl',L',e) abort ->
-                       step n H (Single(Hl,L,atomic v e0)) n H (Single(Hl',L',e))
-|nestedTransaction : forall H Hl L A v t,
+             step C H (Single(L,put (loc l) v)) (S C) ((l,(v, C))::H) (Single(L,unit))
+|tPutAbsent : forall H L A t l v v' C',
+                lookup L l = None -> lookup H l = Some (v', C') ->
+                tDecompose t A (put (loc l) v) ->
+                step C H (Single(L,t)) (S C) H 
+                     (Single((l, (v, C, A, W))::L, tFill A unit))
+|tPutPresent : forall H L A A' t l v v' C' op,
+                 lookup L l = Some (v',C',A',op) -> tDecompose t A (put (loc l) v) ->
+                 step C H (Single(L,t)) C H 
+                      (Single((l,(v,C',A',W))::L, tFill A unit))
+|nonTAlloc : forall H v l, 
+               lookup H l = None -> 
+               step C H (Single(nil,alloc v)) (S C) 
+                    ((l,(v, C))::H) (Single(nil,loc l))
+|tAlloc : forall H L v t l A,
+            lookup H l = None -> tDecompose t A (alloc v) ->
+            step C H (Single(L,t)) (S C) ((l, (v, C))::H) 
+                 (Single(L, tFill A (loc l)))
+|commitTransaction : forall H H' L v e0,
+                       commit C H (L,atomic v e0) H' (L,atomic v e0) success -> 
+                       value v ->
+                       step C H (Single(L,atomic v e0)) (S C) H' (Single(nil,v))
+|abortTransaction : forall H L v L' e e0,
+                       commit C H (L,atomic v e0) H (L',e) abort ->
+                       step C H (Single(L,atomic v e0)) (S C) H (Single(L',e))
+|nestedTransaction : forall H L A v t,
                        tDecompose t A v -> value v ->
-                       step n H (Single(Hl,L,t)) n H (Single(Hl,L,tFill A v)).
+                       step C H (Single(L,t)) C H (Single(L,tFill A v)).
 
-Inductive multistep (n:nat) : heap -> pool -> nat -> heap -> pool -> Prop :=
+Inductive multistep (n:nat) : globalHeap -> pool -> nat -> globalHeap -> pool -> Prop :=
 |multi_refl : forall H T, multistep n H T n H T
 |multi_step : forall H T n' H' T' n'' H'' T'', 
                 step n H T n' H' T' -> multistep n' H' T' n'' H'' T'' ->
                 multistep n H T n'' H'' T''. 
 
+
+
+
+
+
+
+(*
 Inductive commit_f (H0:heap) (e0:term) : heap -> thread -> heap -> thread -> commitRes -> Prop := 
 |commit_fNil : forall H e, commit_f H0 e0 H (nil,nil,e) H (nil,nil,e) success
 |commit_fRead : forall H H' Hl L e e' l v,
@@ -221,5 +234,5 @@ Inductive f_step (n:nat) : heap -> pool -> nat -> heap -> pool -> Prop :=
 |nestedTransaction_f : forall H Hl L A v t,
                        tDecompose t A v -> value v ->
                        f_step n H (Single(Hl,L,t)) n H (Single(Hl,L,tFill A v)).
-
+*)
 
