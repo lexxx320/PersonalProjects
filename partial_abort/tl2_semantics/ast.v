@@ -14,34 +14,25 @@ Inductive term : Type :=
 |put : term -> term -> term
 |alloc : term -> term
 |fork : term -> term
-|atomic : term -> term -> term. (*second term is a copy of the initial*)
+|atomic : term -> term 
+|inatomic : term -> term. 
 
 Inductive value : term -> Prop :=
 |v_lam : forall e n, value (lambda n e)
 |v_loc : forall n, value (loc n)
-|v_unit : value unit. 
+|v_unit : value unit.
 
-Inductive nonTCtxt : Type :=
-|ntHole : nonTCtxt
-|ntApp : term -> nonTCtxt -> nonTCtxt
-|ntAppVal : term -> nonTCtxt -> nonTCtxt
-|ntGet : nonTCtxt -> nonTCtxt
-|ntPut : term -> nonTCtxt -> nonTCtxt 
-|ntPutVal : term -> nonTCtxt -> nonTCtxt
-|ntAlloc : nonTCtxt -> nonTCtxt. 
-
-Inductive TCtxt : Type :=
-|tHole : TCtxt
-|tApp : term -> TCtxt -> TCtxt
-|tAppVal : term -> TCtxt -> TCtxt
-|tGet : TCtxt -> TCtxt
-|tPut : term -> TCtxt -> TCtxt 
-|tPutVal : term -> TCtxt -> TCtxt
-|tAlloc : TCtxt -> TCtxt
-|tAtomic : TCtxt -> term -> TCtxt. 
+Inductive ctxt : Type := 
+|holeCtxt : ctxt
+|appCtxt : term -> ctxt -> ctxt
+|appValCtxt : term -> ctxt -> ctxt
+|getCtxt : ctxt -> ctxt
+|putCtxt : term -> ctxt -> ctxt 
+|putValCtxt : term -> ctxt -> ctxt
+|allocCtxt : ctxt -> ctxt
+|inAtomicCtxt : ctxt -> ctxt. 
 
 Definition location := nat. 
-
 Definition stamp := nat. 
 
 Definition heap (A:Type) := list (nat * A). 
@@ -50,9 +41,9 @@ Definition globalHeap := heap (term * stamp).
 
 Inductive opType := R | W. 
 
-Definition log := heap (term * stamp * TCtxt * opType). 
-
-Definition thread := log * term. 
+Definition log := heap (term * stamp * ctxt * opType). 
+Definition tid := nat. 
+Definition thread := option tid * log * term. 
 
 Inductive pool : Type := 
 |Single : thread -> pool
