@@ -36,11 +36,11 @@
 
 \begin{displaymath}
 \begin{array}{rcll}
-\text{Variables } \;\;\; x &\in& Var \\
+\text{Variables } \;\;\; x &\in& \mathbb{N} \\
 \text{Values } \;\;\; v &::=& \lambda x. e \; | \; \loc \; | \; () \\
 \text{Expressions } \;\;\; e &::=& v \; | \; x \; | \; e \; e \; | \; !e \; | \; e := e \; | \; \alloc{e} \; | \; \fork{e} \; | \; \atomic{e} \; | \; \inatomic{e}\\
 \text{Evaluation Context } \;\;\; \ctxt &::=& [\cdot] \; | \; \ctxt \; e \; | \; v \; \ctxt \; | \; ! \ctxt \; | \; \ctxt := e \; | \; v := \ctxt \; | \; \alloc{\ctxt} \; | \; \inatomic{\ctxt}\\
-\text{Heap } \;\;\; H &::=& \cdot \; | \; H, \loc \mapsto (v, S) \\
+\text{Heap } \;\;\; H &::=& \cdot \; | \; H, \loc \mapsto (v, \Theta) \\
 \text{Thread Pool} \;\;\; T &::=& \cdot \; | \; \Theta[L; e] \; | \; T \cup T \\
 \text{Transaction ID} \;\;\; \Theta &::=& \mathbb{N} \; | \; \bot \\
 \text{Log } \;\;\; L &::=& \cdot \; | \; L, \loc \mapsto_w v \; | \; L, \loc \mapsto_r \ctxt \\
