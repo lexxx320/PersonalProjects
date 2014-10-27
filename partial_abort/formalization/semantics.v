@@ -320,10 +320,31 @@ Proof.
    {eapply threadWFInvalid; eauto. }
   }
   {constructor. intros. inv H0. inv H2. copy H1. eapply abortLogPostfix in H1.
-   
-
-
-
+   admit. }
+  {constructor. intros. inv H0. inv H3. InTac. inv INHYP. 
+   {exfalso. apply H2. reflexivity. }
+   {econstructor. eapply validateWrite; eauto. copy H8. 
+    apply commitLogUnchanged in H0. subst. eassumption. eapply p_multi_trans. 
+    eassumption. econstructor. eapply p_writeStep; eauto. constructor. }
+   {eapply threadWFInvalid. eapply validateFailCons. eauto. assumption. }
+  }
+  {constructor. intros. inv H0. inv H3. InTac. inv INHYP. admit. admit. }
+  {constructor. intros. inv H3. constructor. }
+  {constructor. intros. inv H2. econstructor. constructor. admit. }
+  {constructor. intros. inv H3. inv H0. InTac. inv INHYP.
+   {econstructor. }
+   {eapply threadWFValid. eassumption. eapply p_multi_trans. eassumption. 
+    econstructor. eapply p_atomicIdemStemp; eauto. constructor. }
+   {eapply threadWFInvalid. eassumption. auto. }
+  }
+  {constructor. intros. inv H2. inv H0. InTac. inv INHYP. 
+   {constructor. }
+   {econstructor. eassumption. eapply p_multi_trans. eassumption. econstructor. 
+    eapply p_betaStep; eauto. constructor. }
+   {eapply threadWFInvalid; eauto. }
+  }
+  Grab Existential Variables. constructor. 
+Qed. 
 
 Theorem p_thread_wf_anyHeap : forall C H C' H' t, 
                          p_threadWF C H t ->
