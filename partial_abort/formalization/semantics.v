@@ -1,6 +1,20 @@
 Require Export ast.     
 Require Export Coq.Arith.Peano_dec. 
+Require Export Omega. 
 
+(*General Purpose tactics*)
+Ltac inv H := inversion H; subst; clear H. 
+Ltac copy H :=
+  match type of H with
+      |?x => assert(x) by auto
+  end. 
+Ltac invertHyp :=
+  match goal with
+      |H:exists x, ?P |- _ => inv H; try invertHyp
+      |H: ?P /\ ?Q |- _ => inv H; try invertHyp
+  end. 
+
+(*evaluation context decomposition*)
 Inductive decompose : term -> ctxt -> term -> Prop :=
 |decompApp : forall e1 e2 E e, decompose e1 E e ->
                                decompose (app e1 e2) (appCtxt e2 E) e
@@ -24,6 +38,7 @@ Inductive decompose : term -> ctxt -> term -> Prop :=
                             decompose (inatomic e) (inatomicCtxt E) e'
 |decompInAtomicHole : forall v, value v -> decompose (inatomic v) hole (inatomic v). 
 
+(*fill an evaluation contenxt*)
 Fixpoint fill (E:ctxt) (e:term) := 
   match E with
       |appCtxt e' E => app (fill E e) e'
@@ -48,17 +63,21 @@ Fixpoint lookup (H:heap) (l:location) :=
       |nil => None
   end. 
 
-Inductive validate : stamp -> log -> heap -> stamp -> heap -> log -> validateRes -> Prop :=
+(*Transactional log validation*)
+Inductive validate : stamp -> log -> heap -> stamp -> heap -> 
+                     log -> validateRes -> Prop :=
 |validateNil : forall S S' H, validate S nil H S' H nil commit
 |validateCommitRead : forall S S' S'' l v E H H' L,
-                        lookup H l = Some(v, S') -> S > S' -> validate S L H S'' H' L commit ->
+                        lookup H l = Some(v, S') -> S > S' -> 
+                        validate S L H S'' H' L commit ->
                         validate S (readItem l E::L) H S'' H' (readItem l E::L) commit
-|validateAbortPropogate : forall S S' L H x L' E, 
-                            validate S L H S' H L' (abort E) ->
-                            validate S (x::L) H S' H L' (abort E)
+|validateAbortPropogate : forall S S' L H x L' e, 
+                            validate S L H S' H L' (abort e) ->
+                            validate S (x::L) H S' H L' (abort e)
 |validateAbortRead : forall S S' S'' H L E H' l v,
-                       validate S L H S'' H' L commit -> lookup H l = Some(v, S') ->
-                       S' > S -> validate S (readItem l E::L) H S'' H L (abort (fill E(get(loc l))))
+              validate S L H S'' H' L commit -> lookup H l = Some(v, S') ->
+              S' >= S -> validate S (readItem l E::L) H S'' H L 
+                                (abort (fill E(get(loc l))))
 |validateWrite : forall S S' L H H' l v,
                    validate S L H S' H' L commit ->
                    validate S (writeItem l v::L) H S' ((l, v, S')::H) (writeItem l v::L) commit. 
@@ -180,6 +199,233 @@ Inductive f_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |f_multi_step : forall C H T C' H' T' C'' H'' T'', 
                 f_step C H T C' H' T' -> f_multistep C' H' T' C'' H'' T'' ->
                 f_multistep C H T C'' H'' T''. 
+Inductive tIn : pool -> thread -> Prop :=
+|in_single : forall t, tIn (Single t) t
+|in_left : forall T1 T2 t, tIn T1 t -> tIn (Par T1 T2) t
+|in_right : forall T1 T2 t, tIn T2 t -> tIn (Par T1 T2) t. 
+
+Inductive p_threadWF : nat -> heap -> thread -> Prop :=
+|noTSValid : forall n H e, p_threadWF n H (None, nil, e)
+|threadWFValid : forall S S' C L H H' L' e0 e, 
+                   validate S L H S' H' L' commit ->
+                   p_multistep C H (Single(Some(S,e0), nil, e0))
+                               C H (Single(Some(S,e0), L, e)) ->
+                   p_threadWF C H (Some(S, e0), L, e)
+|threadWFInvalid : forall S S' C L H H' L' e e0 e',
+                     validate S L H S' H' L' (abort e) ->
+                     p_multistep C H (Single(Some(S,e0), nil, e0))
+                                 C H (Single(Some(S,e0), L', e)) ->
+                     p_threadWF C H (Some(S,e0), L, e'). 
+                     
+Inductive p_poolWF : nat -> heap -> pool -> Prop :=
+|p_poolWF_ : forall C H T, (forall t, tIn T t -> p_threadWF C H t) -> p_poolWF C H T. 
+
+Theorem p_wfPar_l : forall T1 T2 C H, 
+                      p_poolWF C H (Par T1 T2) -> 
+                      p_poolWF C H T1. 
+Proof.
+  intros. inv H0. constructor. intros. assert(tIn (Par T1 T2) t). 
+  constructor. assumption. apply H2 in H1. assumption. 
+Qed. 
+
+Theorem p_wfPar_r : forall T1 T2 C H, 
+                      p_poolWF C H (Par T1 T2) -> 
+                      p_poolWF C H T2. 
+Proof.
+  intros. inv H0. constructor. intros. assert(tIn (Par T1 T2) t). 
+  apply in_right. assumption. apply H2 in H1. assumption. 
+Qed. 
+
+Theorem p_wfParConj : forall C H T1 T2, 
+                        p_poolWF C H T1 -> p_poolWF C H T2 ->
+                        p_poolWF C H (Par T1 T2). 
+Proof.
+  intros. constructor. intros. inv H0. inv H1. 
+  inv H2. apply H4 in H6. assumption. apply H3 in H6. assumption. 
+Qed. 
+Theorem commitLogUnchanged : forall S L H S' H' L', 
+                               validate S L H S' H' L' commit ->
+                               L = L'. 
+Proof.
+  intros. remember commit. induction H0; auto; inv Heqv. 
+Qed. 
+
+Theorem abortHeapUnchanged : forall S L H S' H' L' t, 
+                               validate S L H S' H' L' (abort t) ->
+                               H = H'. 
+Proof.
+  intros. remember (abort t). induction H0; auto. inv Heqv. 
+Qed. 
+
+Ltac InTac :=
+  match goal with
+    |H:forall t, tIn (Single ?T) t -> ?x |- _ => 
+     assert(INHYP:tIn (Single T) T) by constructor; 
+       apply H in INHYP
+  end. 
+
+Theorem p_multi_trans : forall C H T C' H' T' C'' H'' T'',
+                          p_multistep C H T C' H' T' ->
+                          p_multistep C' H' T' C'' H'' T'' ->
+                          p_multistep C H T C'' H'' T''. 
+Proof.
+  intros. induction H0; auto. econstructor. eassumption. eauto. 
+Qed. 
+
+Theorem validateFailCons : forall S L H S' H' L' e item, 
+                             validate S L H S' H' L' (abort e) ->
+                             validate S (item::L) H S' H' L' (abort e). 
+Proof.
+  intros. remember (abort e). generalize dependent item. 
+  induction H0; try solve[inv Heqv]; intros. 
+  {eapply validateAbortPropogate. apply IHvalidate. assumption. }
+  {eapply validateAbortPropogate. eapply validateAbortRead; eauto. }
+Qed. 
+
+Theorem validateFailApp : forall L'' S L H S' H' L' e, 
+                             validate S (L'' ++ L) H S' H' L' (abort e) ->
+                             validate S L' H S' H' L' commit.
+Proof.
+  Admitted. 
+
+Theorem abortLogPostfix : forall S L H S' H' L' e, 
+                            validate S L H S' H' L' (abort e) ->
+                            exists L'', L = L'' ++ L'. 
+Proof.
+  intros. induction H0; try solve[exists nil; eauto].   
+  {invertHyp. exists (x::x0). auto. }
+  {inversion IHvalidate. exists ([readItem l E]). auto. }
+Qed. 
+
+Theorem stepWF : forall C H T C' H' T', 
+                   p_poolWF C H T ->
+                   p_step C H T C' H' T' -> 
+                   p_poolWF C' H' T'. 
+Proof.
+  intros. induction H1.
+  {copy H0. apply p_wfPar_l in H0. apply IHp_step in H0. 
+   apply p_wfPar_r in H2. apply p_wfParConj. assumption. 
+   admit. }
+  {admit. }
+  {constructor. intros. inv H2. inv H6. constructor. inv H6. constructor. }
+  {constructor. intros. inv H0. inv H5. InTac. inv INHYP. 
+   {econstructor. eapply validateCommitRead; eauto. copy H10. 
+    apply commitLogUnchanged in H0. subst. eassumption. eapply p_multi_trans. 
+    eassumption. econstructor. eapply p_readStep; eauto. constructor. }
+   {eapply threadWFInvalid. eapply validateFailCons. eauto. assumption. }
+  }
+  {constructor. intros. inv H0. inv H5. InTac. inv INHYP. 
+   {econstructor. eassumption. eapply p_multi_trans. eassumption. econstructor. 
+    eapply p_readInDomainStep; eauto. constructor. }
+   {eapply threadWFInvalid; eauto. }
+  }
+  {constructor. intros. inv H0. inv H2. copy H1. eapply abortLogPostfix in H1.
+   
+
+
+
+
+Theorem p_thread_wf_anyHeap : forall C H C' H' t, 
+                         p_threadWF C H t ->
+                         p_threadWF C' H' t. 
+Proof.
+  intros. inv H0. 
+  {constructor. }
+  {eapply threadWFValid. 
+
+Theorem validateHeapMonotonic : forall S H C H' L res,
+                                    validate S L H C H' L res  ->
+                                    exists H'', H' = H'' ++ H .
+Proof.
+  intros. induction H0; eauto; try solve[exists nil; eauto].  
+  {exists [(l,v,S')]. simpl. reflexivity. }
+Qed. 
+
+Theorem heapMonotonic : forall C H T C' H' T', 
+                         p_step C H T C' H' T' ->
+                         exists H'', H' = H'' ++ H. 
+Proof.
+  intros. induction H0; eauto; try solve[exists nil; auto].  
+  {exists [(l,v,S)]. simpl. reflexivity. }
+  {apply validateHeapMonotonic in H0. invertHyp. exists x. auto. }
+Qed. 
+
+Theorem lookupExtension : forall Hnew H l v S, 
+                            lookup H l  = Some(v, S) ->
+                            exists v' S', lookup (Hnew++H) l = Some(v', S'). 
+Proof.
+  induction Hnew; intros. 
+  {simpl. exists v. exists S. assumption. }
+  {simpl. destruct a. destruct p. destruct (eq_nat_dec l l0). 
+   {subst. exists t. exists s. reflexivity. }
+   {eapply IHHnew in H0. invertHyp. exists x. exists x0. assumption. }
+  }
+Qed.
+
+Theorem gt_dec : forall n n', {n > n'} + {n' >= n}. 
+Proof. 
+  induction n; intros.  
+  {destruct n'. right. omega. right. omega. }
+  {destruct n'. left. omega. specialize(IHn n'). inv IHn. 
+   left. omega. right. omega. }
+Qed. 
+
+Theorem appPostfix : forall (A:Type) (b a : list A), a++b = b -> a = nil. 
+Proof.
+  induction b; intros. 
+  {destruct a. auto. simpl in H. inv H. }
+  {apply IHb. destruct a0. simpl. auto. simpl in H. inversion H. 
+   
+
+
+ 
+Theorem validateHeapExtension : forall S L H S' H' L' res H'' new, 
+                      validate S L H S' H' L' res ->
+                      H'' = new ++ H ->
+                      exists Hnew Lnew res', validate S L H'' S' Hnew Lnew res' /\ 
+                                        exists prefix, L' = prefix ++ Lnew.
+Proof.
+  intros. generalize dependent new. generalize dependent H''. induction H0; intros. 
+  {do 4 econstructor. constructor. exists nil. auto. }
+  {copy H0. eapply lookupExtension with (Hnew := new) in H0. invertHyp.  
+   destruct (gt_dec S x0). 
+   {assert(new++H=new++H). auto. apply IHvalidate in H3. invertHyp. 
+    destruct x3. 
+    {copy H3. apply commitLogUnchanged in H3. 
+
+ subst. econstructor. econstructor. 
+     econstructor. eapply validateCommitRead; eauto. }
+    {econstructor. econstructor. econstructor. eapply validateAbortPropogate.
+     copy H5. apply abortHeapUnchanged in H3. subst. eassumption. }
+   }
+   {assert(new++H=new++H). auto. apply IHvalidate in H3. invertHyp. destruct x3. 
+    {copy H5. apply commitLogUnchanged in H3. subst. econstructor. econstructor. 
+     econstructor. eapply validateAbortRead; eauto. }
+    {econstructor. econstructor. econstructor. eapply validateAbortPropogate.
+     copy H5. apply abortHeapUnchanged in H3. subst. eassumption. }
+   }
+  }
+  {assert(new++H=new++H). auto. apply IHvalidate in H2. invertHyp. econstructor. 
+   econstructor. econstructor. eapply validateAbortPropogate.
+   copy H2. apply abortHeapUnchanged in H1. subst. eauto. 
+   
+
+
+
+Theorem p_wf_anyHeap : forall C H C' H' T, 
+                         p_poolWF C H T ->
+                         p_poolWF C' H' T. 
+Proof.
+  intros. inv H0. constructor. intros. apply H2 in H0. 
+
+
+
+
+
+
+
+
+
 
 
 
