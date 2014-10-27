@@ -35,10 +35,6 @@ Inductive ctxt : Type :=
 Definition location := nat.
 Definition stamp := nat. 
 
-(*maps locations to terms and time stamps*)
-Definition heap := list (location * term * stamp). 
-
-
 Inductive logItem : Type := 
 |readItem : location -> ctxt -> logItem
 |writeItem : location -> term -> logItem
