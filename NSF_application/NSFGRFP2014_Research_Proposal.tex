@@ -1,0 +1,70 @@
+\documentclass[12pt]{article}
+
+\usepackage[margin=1in]{geometry}
+
+\begin{document}
+\begin{center}
+{\bf Research Proposal} \\{\bf Matthew Le} \\
+\end{center}
+
+
+Clock speeds in microprocessors are no longer increasing at the rate that they did years ago due to power consumption constraints and heat dissipation. In order to increase the speed of computation, multicore computing must be exploited. The problem with this is that programming multithreaded systems can be very difficult and error prone due to race conditions, which can lead to subtle bugs that are both hard to detect and difficult to reproduce.
+
+Software transactional memory (STM) is a promising solution to the difficulty of concurrent programming, where programmers are allowed to wrap sections of code in atomic blocks called transactions. The runtime system then guarantees that the transaction gets executed atomically with respect to other concurrently running transactions.  Software transactional memory has been shown to provide competitive performance on certain applications, meanwhile substantially easing the intellectual burden placed on the programmer, allowing he or she to be more productive.
+
+Unfortunately, these successes have also been met with a number of challenges.  One large open problem in the area of software transactional memory is the issue of fairness.  Traditionally, an STM implementation records the locations of memory that were accessed and modified within a transaction, and then at the end checks to see if any other threads interfered with it.  If so, it aborts the transaction and re-executes from the beginning.  If no violations were detected, then the transaction is committed and other threads are able to observe the effects of the transaction.  The problem with fairness arises when threads attempt to execute long running transactions and other threads execute short lived transactions that modify the same memory locations.  Since the short lived transactions get the opportunity to commit first, they can cause the long running transaction to continually abort.
+
+My research is currently focused on addressing this issue of fairness for transactional memory in the context of a functional programming language.  When compiling functional programs, it is common to implement a continuation passing style (CPS) transformation, making the program more amenable to later optimizations.  Essentially, the CPS transformation rewrites the program such that functions never return.  Instead, each function takes an additional parameter called the return continuation that represents ``the rest'' of the program.  When a function completes, instead of returning to some previous context, it passes its result off to the return continuation, which evaluates the remainder of the program.
+
+After having CPS converted a program, it becomes possible to capture various control flow operations that would otherwise be difficult and inefficient to implement.  One example of this is reifying a previous point in a program's execution.  Given that every function in a CPS converted program contains a return continuation representing the remainder of the program, it is possible to store this continuation in memory, and invoke it at a later point in the execution.  When invoked, the program state will be exactly at the point in which the continuation was captured.  This sort of reification is only possible in an imperative language such as C or Java if the entire stack is copied at the point where control is to be restored.  To return to that point in the program, one would then need to overwrite the current stack with the one that was saved.  This has both linear time and space complexity, where as capturing a continuation in a functional language that has been CPS converted takes only constant time and space complexity.
+
+I believe that we can use these ideas to create a more efficient and fair implementation of software transactional memory.  As mentioned earlier, if a thread attempts to commit a transaction, but detects that another thread interfered with its execution, it restarts the transaction from the beginning.  My proposal is to capture a continuation each time a memory location is initially read from in a transaction and store it in the transactional log.  When committing a transaction, as long as we validate logged operations in the order in which they happened, if a violation is detected, we can simply use the continuation stored in the log to restore execution to the exact point in the transaction that the violation occurred, avoiding any redundant work that came before that point.  By avoiding redundant work when aborting a transaction, long running transactions can reach their commit point faster, increasing their likelihood of committing, thus leading to a fairer implementation. 
+
+For the past year, I have been collaborating with researchers from RIT and the University of Chicago on the Manticore project, which extends Standard ML, a popular functional language, with parallel and concurrent features.  I plan on extending the Manticore compiler and runtime system with my proposed STM implementation.  We have already implemented the continuation passing style transformation in the compiler, so all that remains to be done is the STM implementation itself.  In addition to the implementation, I am also interested in proving the correctness of the algorithm.  There has been increasing interest in the formal semantics of STM, since implementations can become complicated quickly and contain subtle and unusual behavior if not considered carefully.  Similar STM implementations that perform full aborts have been given a formal operational semantics and have been proven to be linearizable, meaning committed transactions do not modify overlapping memory locations during their lifetimes.  I plan on proving linearizability for my algorithm by proving that it yields equivalent results to an STM implementation that performs full aborts.  I believe that this theorem will follow naturally from the fact that all reads that come before the point an aborted transaction is rolled back to are checked for consistency before restoring execution to the point of the violation.
+
+Improving the state of the art in software transactional memory will have broader impacts in a number of areas.  Software transactional memory has not yet made its way into mainstream languages primarily for its insufficient performance and unfair throughput.  By being able to improve the performance and fairness of STM may make this a more practical alternative to lower level locking approaches to concurrent programming. Having an easy to use set of tools for developing concurrent programs will allow other researchers to quickly and productively implement high performance applications necessary to carry out their research.  Locally, I hope to include either a master's or undergraduate student on this project in an effort to increase exposure to the exciting world of programming language research.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}
