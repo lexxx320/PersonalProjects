@@ -1,7 +1,11 @@
 #!/bin/bash
 
-files=(ast.v
+files=(hetList.v
+       ast.v
+       heap.v
        semantics.v
+       f_stepWF.v
+       partialImpliesFull.v
        )
 
 
