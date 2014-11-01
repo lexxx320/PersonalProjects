@@ -119,6 +119,105 @@ Proof.
   {exists H'. assumption. }
 Qed. 
 
+Theorem getAbortedAct : forall S L S' H L' e,
+                         validate S L H S' H L' (abort e) ->
+                         exists l E L'', L = L'' ++ [readItem l E] ++ L' /\ 
+                                            e = fill E (get (loc l)).
+Proof.
+  intros. remember (abort e). induction H0; try solve[inv Heqv]. 
+  {apply IHvalidate in Heqv. invertHyp. exists x0. exists x1. exists (x::x2). split; auto. }
+  {inv Heqv. exists l. exists E. exists nil. split; auto. }
+Qed. 
+
+(*left recursive trans_multistep*)
+Inductive trans_multistepL : heap -> thread -> thread -> Prop :=
+|l_trans_refl : forall H t, trans_multistepL H t t
+|l_multi_step : forall H t t' t'', 
+                  trans_multistepL H t t' -> trans_step H t' t'' ->
+                  trans_multistepL H t t''. 
+
+Theorem trans_multistepLTrans : forall H t t' t'',
+                                  trans_multistepL H t t' ->
+                                  trans_multistepL H t' t'' ->
+                                  trans_multistepL H t t''.
+Proof.
+  intros. induction H1. auto. econstructor. Focus 2. eauto. apply IHtrans_multistepL. 
+  auto. 
+Qed. 
+
+Theorem transMultiLIff : forall H t t', 
+                           trans_multistep H t t' <-> trans_multistepL H t t'. 
+Proof.
+  intros. split; intros. 
+  {induction H0. constructor. eapply trans_multistepLTrans. Focus 2. eauto. 
+   econstructor. Focus 2. eauto. constructor. }
+  {induction H0. constructor. eapply trans_multistep_trans. eassumption. 
+   econstructor. eauto. constructor. }
+Qed. 
+
+Theorem decomposeEq : forall E t e, decompose t E e -> t = fill E e. 
+Proof.
+  induction E; intros; try solve[inv H; simpl;erewrite <- IHE; eauto]. 
+  {inv H; auto. }
+Qed. 
+
+Theorem trans_multiShort : forall H S e e0 l E L' L'', 
+             trans_multistepL H (Some (S, e0), [], e0)
+                             (Some (S, e0), L' ++ [readItem l E] ++ L'', e) ->
+             trans_multistepL H (Some(S,e0), [], e0) 
+                              (Some(S,e0),L'', fill E (get (loc l))). 
+Proof.
+  intros. dependent induction H0. 
+  {apply lengthsEq in x. repeat rewrite app_length in x. simpl in x. omega. }
+  {inv H1; eauto. 
+   {destruct L'. 
+    {inv H4. apply decomposeEq in H7. subst. auto. }
+    {inv H4. eapply IHtrans_multistepL. auto. auto. }
+   }
+   {destruct L'. inv H3. eapply IHtrans_multistepL. auto. inv H3. auto. }
+  }
+Qed.  
+
+Theorem abortLT : forall S L S' H L' e, 
+                    validate S L H S' H L' (abort e) ->
+                    length L' < length L. 
+Proof.
+  intros. remember (abort e). induction H0; try solve[inv Heqv].  
+  {apply IHvalidate in Heqv. simpl. omega. }
+  {simpl. omega. }
+Qed. 
+
+Theorem abortSameTerm : forall S L H S' S'' S''' H' L' e e', 
+                          validate S L H S' H L' (abort e) ->
+                          validate S'' L H' S''' H' L' (abort e') ->
+                          e = e'.
+Proof.
+  intros. remember (abort e). induction H0; try solve[inv Heqv]. 
+  {inv Heqv. inv H1. auto. apply abortLT in H2. omega. }
+  {inv Heqv. inv H1. apply abortLT in H13. omega. auto. }
+Qed. 
+
+Theorem destructEnd : forall (A:Type) (x:list A),
+                      x = nil \/ exists x' e, x = x' ++ [e]. 
+Proof.
+  induction x; intros. 
+  {auto. }
+  {inv IHx. right. exists nil. simpl. exists a. auto. invertHyp. right. 
+   exists (a::x0). exists x1. auto. }
+Qed. 
+
+Ltac destrEnd x := assert(x=nil \/ exists x' e, x = x' ++ [e]) by apply destructEnd. 
+
+Theorem appMidEq : forall (A:Type) a (b:A) c d e, a++[b]++c = d++[e]++c ->
+                                         a = d /\ b = e. 
+Proof.
+  induction a; intros. 
+  {destruct d. inv H. auto. apply lengthsEq in H. simpl in *. inv H. 
+   rewrite app_length in H1. simpl in *. omega. }
+  {destruct d. inversion H. apply lengthsEq in H2. rewrite app_length in H2. 
+   simpl in *. omega. inv H. simpl in *. apply IHa in H2. invertHyp. auto. }
+Qed. 
+
 Theorem thread_wf_Extension : forall H H' t C, 
                  threadWF H t -> optLT (getThreadStamp t) C ->
                  Forall (fun x0 : location * term * stamp => getStamp x0 = C) H' ->
@@ -128,17 +227,30 @@ Proof.
   {constructor. } 
   {simpl in H1. eapply validateHeapExtensionC in H3; eauto. inv H3. 
    {invertHyp. econstructor. eauto. eapply trans_multiHeapExt; eauto. }
-   {invertHyp. copy H3. eapply validateValidate in H0. 
-    copy H3. apply abortLogPostfix in H6. invertHyp. 
-    assert(trans_multistep H (Some (S, e0), [], e0) (Some (S, e0), x, x0)).
-    admit. eapply threadWFInvalid. eauto. eapply trans_multiHeapExt; eauto. }
+   {invertHyp. eapply threadWFInvalid. eauto. eapply trans_multiHeapExt; eauto.
+    Focus 2. apply validateValidate in H3. eauto. apply getAbortedAct in H3.
+    invertHyp. rewrite transMultiLIff in H4. rewrite transMultiLIff. 
+    eapply trans_multiShort. eauto. }
   }
   {simpl in H1. copy H3. eapply validateHeapExtensionA in H3; eauto. inv H3. 
    {eapply threadWFInvalid. eauto. copy H5. eapply validateValidate in H3. invertHyp. 
     eapply trans_multiHeapExt; eauto. }
-   {invertHyp. eapply threadWFInvalid. eauto. copy H0. apply abortLogPostfix in H5. 
-    invertHyp. copy H0. apply validateValidate in H5. invertHyp.
-    admit. }
+   {invertHyp. eapply threadWFInvalid. eauto. eapply trans_multiHeapExt; eauto.
+    Focus 2. apply validateValidate in H3. eauto. unfold postfix in H6. 
+    inversion H6. destruct x1.
+    {simpl in *. subst. eapply abortSameTerm in H3; eauto. subst. auto. }
+    {invertHyp. apply getAbortedAct in H3. invertHyp. apply abortLogPostfix in H0. 
+     invertHyp. destrEnd x1. inv H0. 
+     {apply appMidEq in H3. invertHyp. rewrite transMultiLIff in H4. 
+      rewrite transMultiLIff. eapply trans_multiShort with (L':=nil). eauto. }
+     {invertHyp. replace( x0 ++ (l :: x6 ++ [x7]) ++ x) with 
+                 ((x0 ++ l :: x6) ++ [x7] ++ x) in H3. Focus 2. simpl. 
+      repeat rewrite <- app_assoc. simpl. auto. apply appMidEq in H3. invertHyp. 
+      rewrite transMultiLIff in H4. rewrite transMultiLIff. 
+      eapply trans_multiShort with (L' := l::x6). simpl in *. 
+      rewrite <- app_assoc in H4. eauto. }
+    }
+   }
   }
 Qed. 
 
