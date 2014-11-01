@@ -3,17 +3,17 @@ Require Export semantics.
 Theorem validateHeapExtensionC : forall S L H S' H' new C, 
                   Forall (fun x : location * term * stamp => getStamp x = C) new ->
                   S < C ->
-                  validate S L H S' H' L commit ->
-                  (exists Hnew, validate S L (new++H) S' (Hnew++new++H) L commit) \/
-                  (exists Lnew e, validate S L (new++H) S' (new++H) Lnew (abort e) /\
+                  validate S L H S' (commit H') ->
+                  (exists Hnew, validate S L (new++H) S' (commit (Hnew++new++H))) \/
+                  (exists Lnew e, validate S L (new++H) S' (abort e Lnew) /\
                              postfix Lnew L).
 Proof.
-  intros. remember commit. induction H2; try solve[inv Heqv]; clear Heqv. 
+  intros. dependent induction H2. 
   {left. exists nil. constructor. }
   {copy H1. apply IHvalidate in H1; auto. inv H1.
-   {invertHyp. eapply LookupExtensionGE in H2. Focus 2. eauto. inv H2. 
+   {invertHyp. eapply LookupExtensionGE in H3. Focus 2. eauto. inv H3. 
     {left. exists x. eapply validateCommitRead; eauto. }
-    {invertHyp. right. exists L0. exists (fill E (get (loc l))). split.
+    {invertHyp. right. exists L. exists (fill E (get (loc l))). split.
      eapply validateAbortRead; eauto. omega. unfold postfix. exists [readItem l E]. auto. }
    }
    {invertHyp. right. exists x. exists x0. split. eapply validateAbortPropogate. eauto. 
@@ -29,18 +29,18 @@ Qed.
 Theorem validateHeapExtensionA : forall S L H S' new L' C e, 
                   Forall (fun x : location * term * stamp => getStamp x = C) new ->
                   S < C ->
-                  validate S L H S' H L' (abort e) ->
-                  validate S L (new++H) S' (new++H) L' (abort e) \/
-                  (exists Lnew e', validate S L (new++H) S' (new++H) Lnew (abort e') /\
+                  validate S L H S' (abort e L') ->
+                  validate S L (new++H) S' (abort e L') \/
+                  (exists Lnew e', validate S L (new++H) S' (abort e' Lnew) /\
                              postfix Lnew L').
 Proof.
-  intros. remember (abort e). induction H2; try solve[inv Heqv]. 
+  intros. dependent induction H2. 
   {apply IHvalidate in H1; auto. inv H1. 
    {left. eapply validateAbortPropogate. auto. }
    {invertHyp. right. exists x0. exists x1. split; auto. eapply validateAbortPropogate. auto. }
   }
-  {eapply validateHeapExtensionC in H3. inv H3. 
-   {invertHyp. left. eapply LookupExtensionGE in H4. Focus 2. eauto. inv H4. 
+  {eapply validateHeapExtensionC in H2. inv H2. 
+   {invertHyp. left. eapply LookupExtensionGE in H3. Focus 2. eauto. inv H3. 
     {eapply validateAbortRead; eauto. }
     {invertHyp. eapply validateAbortRead; eauto. omega. }
    }
@@ -74,8 +74,8 @@ Proof.
 Qed. 
 
 Theorem lookupValid : forall L H H' H'' l v S E S' S'0 C,
-              lookup H l = Some(v, S'0) ->
-              validate S L (H'++H) S' H'' L commit -> S < C -> S'0 < C ->
+              lookup H l = Some(v, S'0) -> 
+              validate S L (H'++H) S' (commit H'') -> S < C -> S'0 < C ->
               Forall (fun x0 : location * term * stamp => getStamp x0 = C) H' ->
               In (readItem l E) L ->
               lookup (H'++H) l = Some(v,S'0).
@@ -91,7 +91,7 @@ Qed.
 
 Theorem trans_multiHeapExt : forall H H' S e0 e L S' L' e' C, 
                  trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') ->
-                 (exists x, validate S L' (H'++H) S' x L' commit) ->
+                 (exists x, validate S L' (H'++H) S' (commit x)) ->
                  Forall (fun x0 : location * term * stamp => getStamp x0 = C) H' ->
                  S < C ->
                  trans_multistep (H'++H) (Some(S,e0),L,e) (Some(S,e0),L',e').
@@ -109,24 +109,23 @@ Proof.
   }
 Qed. 
 
-Theorem validateValidate : forall S L H S' H' L' e, 
-                             validate S L H S' H' L' (abort e) ->
-                             exists H'', validate S L' H S' H'' L' (commit). 
+Theorem validateValidate : forall S L H S' L' e, 
+                             validate S L H S' (abort e L') ->
+                             exists H'', validate S L' H S' (commit H''). 
 Proof.
-  intros. remember (abort e). induction H0; try solve[inv Heqv]. 
-  {inv Heqv. assert(abort e = abort e) by auto. apply IHvalidate in H1. invertHyp. 
-   exists x0. auto. }
+  intros. dependent induction H0. 
+  {invertHyp. exists x0. auto. }
   {exists H'. assumption. }
 Qed. 
 
 Theorem getAbortedAct : forall S L S' H L' e,
-                         validate S L H S' H L' (abort e) ->
+                         validate S L H S' (abort e L') ->
                          exists l E L'', L = L'' ++ [readItem l E] ++ L' /\ 
                                             e = fill E (get (loc l)).
 Proof.
-  intros. remember (abort e). induction H0; try solve[inv Heqv]. 
-  {apply IHvalidate in Heqv. invertHyp. exists x0. exists x1. exists (x::x2). split; auto. }
-  {inv Heqv. exists l. exists E. exists nil. split; auto. }
+  intros. dependent induction H0.
+  {invertHyp. exists x0. exists x1. exists (x::x2). split; auto. }
+  {exists l. exists E. exists nil. split; auto. }
 Qed. 
 
 (*left recursive trans_multistep*)
@@ -179,23 +178,23 @@ Proof.
 Qed.  
 
 Theorem abortLT : forall S L S' H L' e, 
-                    validate S L H S' H L' (abort e) ->
+                    validate S L H S' (abort e L') ->
                     length L' < length L. 
 Proof.
-  intros. remember (abort e). induction H0; try solve[inv Heqv].  
-  {apply IHvalidate in Heqv. simpl. omega. }
+  intros. dependent induction H0. 
+  {simpl. omega. }
   {simpl. omega. }
 Qed. 
 
 Theorem abortSameTerm : forall S L H S' S'' S''' H' L' e e', 
-                          validate S L H S' H L' (abort e) ->
-                          validate S'' L H' S''' H' L' (abort e') ->
+                          validate S L H S' (abort e L') ->
+                          validate S'' L H' S''' (abort e' L') ->
                           e = e'.
 Proof.
-  intros. remember (abort e). induction H0; try solve[inv Heqv]. 
-  {inv Heqv. inv H1. auto. apply abortLT in H2. omega. }
-  {inv Heqv. inv H1. apply abortLT in H13. omega. auto. }
-Qed. 
+  intros. dependent induction H0.
+  {inv H1. auto. apply abortLT in H0. omega. }
+  {inv H3. apply abortLT in H10. omega. auto. }
+Qed.
 
 Theorem destructEnd : forall (A:Type) (x:list A),
                       x = nil \/ exists x' e, x = x' ++ [e]. 

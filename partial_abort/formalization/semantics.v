@@ -41,27 +41,27 @@ Fixpoint fill (E:ctxt) (e:term) :=
   end. 
 
 Inductive validateRes : Type := 
-|commit : validateRes
-|abort : term -> validateRes. 
+|commit : heap -> validateRes
+|abort : term -> log -> validateRes. 
 
 (*Transactional log validation*)
-Inductive validate : stamp -> log -> heap -> stamp -> heap -> 
-                     log -> validateRes -> Prop :=
-|validateNil : forall S S' H, validate S nil H S' H nil commit
+Inductive validate : stamp -> log -> heap -> stamp -> validateRes -> Prop :=
+|validateNil : forall S S' H, validate S nil H S' (commit H)
 |validateCommitRead : forall S S' S'' l v E H H' L,
                         lookup H l = Some(v, S') -> S > S' -> 
-                        validate S L H S'' H' L commit ->
-                        validate S (readItem l E::L) H S'' H' (readItem l E::L) commit
+                        validate S L H S'' (commit H') ->
+                        validate S (readItem l E::L) H S'' (commit H')
 |validateAbortPropogate : forall S S' L H x L' e, 
-                            validate S L H S' H L' (abort e) ->
-                            validate S (x::L) H S' H L' (abort e)
+                            validate S L H S' (abort e L') ->
+                            validate S (x::L) H S' (abort e L')
 |validateAbortRead : forall S S' S'' H L E H' l v,
-              validate S L H S'' H' L commit -> lookup H l = Some(v, S') ->
-              S' >= S -> validate S (readItem l E::L) H S'' H L 
-                                (abort (fill E(get(loc l))))
+              validate S L H S'' (commit H') -> lookup H l = Some(v, S') ->
+              S' >= S -> validate S (readItem l E::L) H S'' 
+                                (abort (fill E(get(loc l))) L)
 |validateWrite : forall S S' L H H' l v,
-                   validate S L H S' H' L commit ->
-                   validate S (writeItem l v::L) H S' ((l, v, S')::H') (writeItem l v::L) commit. 
+                   validate S L H S' (commit H') ->
+                   validate S (writeItem l v::L) H S' (commit ((l, v, S')::H'))
+.
 
 Fixpoint logLookup (L:log) (l:location) :=
   match L with
@@ -122,14 +122,14 @@ Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                    (Par (Single(None, nil, fill E unit)) (Single(None, nil, e)))
 
 |p_abortStep : forall L S H L' C e e0 e', 
-           validate S L H 0 H L' (abort e') ->
+           validate S L H 0 (abort e' L') ->
            p_step C H (Single(Some(S, e0), L, e)) (plus 1 C) H (Single(Some(C, e0), L', e'))
 |p_allocStep : forall C H v E t l, 
                lookup H l = None -> decompose t E (alloc v) ->
                p_step C H (Single(None, nil, t)) (plus 1 C) ((l, v, C)::H)
                     (Single(None, nil, fill E (loc l)))
 |p_commitStep : forall C H S L v t E H' e0, 
-                validate S L H C H' L commit -> decompose t E (inatomic v) ->
+                validate S L H C (commit H') -> decompose t E (inatomic v) ->
                 p_step C H (Single(Some(S, e0), L, t)) (plus 1 C) H' (Single(None, nil, fill E v))
 |p_atomicStep : forall C H E e t, 
                 decompose t E (atomic e) ->
@@ -156,14 +156,14 @@ Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
               f_step C H (Single(None, nil, t)) C H 
                    (Par (Single(None, nil, fill E unit)) (Single(None, nil, e)))
 |f_abortStep : forall L S H L' C e e0 e', 
-           validate S L H 0 H L' (abort e') ->
+           validate S L H 0 (abort e' L') ->
            f_step C H (Single(Some(S, e0), L, e)) (plus 1 C) H (Single(Some(C, e0), nil, e0))
 |f_allocStep : forall C H v E t l, 
                lookup H l = None -> decompose t E (alloc v) ->
                f_step C H (Single(None, nil, t)) (plus 1 C) ((l, v, C)::H)
                     (Single(None, nil, fill E (loc l)))
 |f_commitStep : forall C H S L v t E H' e0, 
-                validate S L H C H' L commit -> decompose t E (inatomic v) ->
+                validate S L H C (commit H') -> decompose t E (inatomic v) ->
                 f_step C H (Single(Some(S, e0), L, t)) (plus 1 C) H' (Single(None, nil, fill E v))
 |f_atomicStep : forall C H E e t, 
                 decompose t E (atomic e) ->
@@ -192,11 +192,11 @@ Inductive trans_multistep H : thread -> thread -> Prop :=
 Inductive threadWF H : thread -> Prop :=
 |noTSValid : forall e, threadWF H (None, nil, e)
 |threadWFValid : forall S S' L e0 e H', 
-                   validate S L H S' H' L commit ->
+                   validate S L H S' (commit H') ->
                    trans_multistep H (Some(S,e0),nil,e0) (Some(S,e0),L,e) ->
                    threadWF H (Some(S, e0), L, e)
 |threadWFInvalid : forall S S' L L' e e0 e',
-                     validate S L H S' H L' (abort e) -> 
+                     validate S L H S' (abort e L') -> 
                      trans_multistep H (Some(S,e0),nil,e0) (Some(S,e0),L',e) ->
                      threadWF H (Some(S,e0), L, e'). 
              
@@ -246,20 +246,6 @@ Proof.
   inv H1. auto. 
 Qed. 
 
-Theorem commitLogUnchanged : forall S L H S' H' L', 
-                               validate S L H S' H' L' commit ->
-                               L = L'. 
-Proof.
-  intros. remember commit. induction H0; auto; inv Heqv. 
-Qed. 
-
-Theorem abortHeapUnchanged : forall S L H S' H' L' t, 
-                               validate S L H S' H' L' (abort t) ->
-                               H = H'. 
-Proof.
-  intros. remember (abort t). induction H0; auto. inv Heqv. 
-Qed. 
-
 Ltac InTac :=
   match goal with
     |H:forall t, tIn (Single ?T) t -> ?x |- _ => 
@@ -290,26 +276,16 @@ Theorem trans_multistep_trans : forall H t t' t'',
 Proof.
   intros. induction H0; auto. econstructor; eauto. 
 Qed. 
-  
-Theorem validateFailCons : forall S L H S' H' L' e item, 
-                             validate S L H S' H' L' (abort e) ->
-                             validate S (item::L) H S' H' L' (abort e). 
-Proof.
-  intros. remember (abort e). generalize dependent item. 
-  induction H0; try solve[inv Heqv]; intros. 
-  {eapply validateAbortPropogate. apply IHvalidate. assumption. }
-  {eapply validateAbortPropogate. eapply validateAbortRead; eauto. }
-Qed. 
 
-Theorem abortLogPostfix : forall S L H S' H' L' e, 
-                            validate S L H S' H' L' (abort e) ->
+Theorem abortLogPostfix : forall S L H S' L' e, 
+                            validate S L H S' (abort e L') ->
                             exists L'', L = L'' ++ L'. 
 Proof.
-  intros. induction H0; try solve[exists nil; eauto].   
-  {invertHyp. exists (x::x0). auto. }
-  {inversion IHvalidate. exists ([readItem l E]). auto. }
-Qed. 
-
+  intros. remember (abort e L'). induction H0; try solve[inv Heqv].   
+  {apply IHvalidate in Heqv. invertHyp. exists (x::x0). auto. }
+  {inv Heqv. exists [readItem l E]. auto. }
+Qed.
+ 
 Theorem monotonicWeakening : forall H S S', S >= S' -> stampMonotonic S' H ->
                                             stampMonotonic S H. 
 Proof.
@@ -320,20 +296,20 @@ Qed.
 
 Theorem validateMonotonic : forall C H S L H' C', 
                               stampMonotonic C H -> C' >= C ->
-                              validate S L H C H' L commit ->
+                              validate S L H C (commit H') ->
                               stampMonotonic C' H'. 
 Proof.
-  intros. remember commit. generalize dependent C'. induction H2; intros; eauto. 
+  intros. generalize dependent C'. dependent induction H2; intros. 
   {eapply monotonicWeakening. Focus 2. eauto. omega. }
   {eapply monotonicWeakening. Focus 2. eauto. omega. }
   {constructor. omega. eapply IHvalidate; auto. }
 Qed.  
 
-Theorem validateHeapMonotonic : forall S H C H' L res,
-                                    validate S L H C H' L res  ->
+Theorem validateHeapMonotonic : forall S H C H' L,
+                                    validate S L H C (commit H')  ->
                                     exists H'', H' = H'' ++ H .
 Proof.
-  intros. induction H0; eauto; try solve[exists nil; eauto].  
+  intros. dependent induction H0; eauto; try solve[exists nil; eauto].  
   {invertHyp. exists ((l,v,S')::x). simpl. reflexivity. }
 Qed. 
 
@@ -355,7 +331,7 @@ Proof.
 Qed. 
  
 Theorem validateStampGE : forall H' S L H C,
-                            validate S L H C (H'++H) L commit ->
+                            validate S L H C (commit (H'++H)) ->
                             Forall (fun x => getStamp x = C) H'. 
 Proof.
   intros. dependent induction H0; auto. 
