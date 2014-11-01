@@ -1,6 +1,4 @@
-Require Export semantics. 
-Require Export hetList. 
-Require Export Coq.Program.Equality. 
+Require Export f_stepWF. 
 
 Theorem f_multi_L : forall C H T1 T2 T1' C' H', 
                       f_multistep C H T1 C' H' T1' ->
@@ -49,136 +47,58 @@ Proof.
    eapply IHvalidate in H12; eauto. }
 Qed. 
 
-
-Theorem validateValidate : forall S L H S' H' L' e, 
-                             validate S L H S' H' L' (abort e) ->
-                             exists H'', validate S L' H S' H'' L' (commit). 
+Theorem transImpliesfMulti : forall C H C' S' S e e0 e' L L',
+                  trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') -> 
+                  (exists H', validate S L H S' H' L commit) ->
+                  C > S -> C' > C ->
+                  f_multistep C' H (Single (Some(C,e0),L,e)) 
+                              C' H (Single (Some(C,e0),L',e')). 
 Proof.
-  intros. remember (abort e). induction H0; try solve[inv Heqv]. 
-  {inv Heqv. assert(abort e = abort e) by auto. apply IHvalidate in H1. invertHyp. 
-   exists x0. auto. }
-  {exists H'. assumption. }
-Qed. 
-
-Fixpoint numThreads T :=
-  match T with
-      |Single _ => 1
-      |Par T1 T2 => plus (numThreads T1) (numThreads T2)
-  end. 
-
-Theorem numThreadsMonotonic_step : forall C H T C' H' T', 
-                                 f_step C H T C' H' T' ->
-                                 numThreads T <= numThreads T'. 
-Proof.
-  intros. induction H0; try solve[simpl; omega]. 
-Qed. 
-
-Theorem numThreadsMonotonic : forall C H T C' H' T', 
-                                 f_multistep C H T C' H' T' ->
-                                 numThreads T <= numThreads T'. 
-Proof.
-  intros. induction H0. 
-  {omega. }
-  {apply numThreadsMonotonic_step in H0. omega. }
-Qed. 
-
-Definition stampLE (S1 S2: option (stamp * term)) :=
-  match S1, S2 with
-      |Some(S1', _), Some(S2', _) => S1' <= S2'
-      |None, Some _ => True
-      |None, None => True
-      |Some _, None => False
-  end. 
-
-Definition getStamp (t:thread) :=
-  match t with
-      (s, _, _) => s
-  end. 
-
-Theorem threadStampMonotonic : forall C H S' e C' H' L' e' e0, 
-                                 f_multistep C H (Single(None, nil, e)) 
-                                             C' H' (Single(Some(S', e0), L', e')) ->
-                                 S' >= C.
-Proof.  
-  intros. dependent induction H0. inv H0; eauto. 
-  {eapply IHf_multistep. eapply numThreadsMonotonic in H1. 
-   simpl in H1. omega. auto. }
-  {exfalso. apply H12. auto. }
-  {assert(S' >= 1+C). eapply IHf_multistep; eauto. omega. }
-  {
-
-
-Admitted. 
-
-Theorem threadStampMonotonic' : forall C H S' e C' H' e0' L' e' e0 S L, 
-                                 f_multistep C H (Single(Some(S, e0), L, e)) 
-                                             C' H' (Single(Some(S', e0'), L', e')) ->
-                                 S' >= S.
-Proof. 
-Admitted. 
-
-Theorem startTXStampGT : forall H H' C S e0 L  e' C' e,
-                           f_multistep C H (Single(None, nil, e)) 
-                                       C' H' (Single(Some(S,e0), L, e')) ->
-                           C > S -> stampMonotonic C H -> False. 
-Proof.
-  intros. dependent induction H0. copy H0. inv H0; eauto.
-  {apply numThreadsMonotonic in H1. simpl in H1. omega. } 
-  {eapply threadStampMonotonic in H1. omega. }
-  {eapply threadStampMonotonic' in H1. omega. }
-Qed. 
-
-Theorem f_multiDiffStamp : forall C C' S' S e0 e e' L' L H, 
-                  f_multistep C H (Single(Some(S, e0), L, e)) 
-                              C H (Single(Some(S, e0), L', e')) -> C' >= C -> C > S ->
-                  (exists H', validate S L H S' H'  L commit) -> stampMonotonic C H ->
-                  f_multistep (plus 1 C') H (Single(Some(C', e0), L, e)) 
-                              (plus 1 C') H (Single(Some(C', e0), L', e')). 
-Proof. 
-  intros. generalize dependent C'. dependent induction H0; intros. 
+  intros. dependent induction H0. 
   {constructor. }
-  {inv H0. 
-   {econstructor. eapply f_readStep; eauto. omega. eapply IHf_multistep; eauto. invertHyp. 
-    econstructor. eapply validateCommitRead; eauto. }
-   {econstructor. eapply f_readInDomainStep; eauto. omega. eapply IHf_multistep; eauto. }
-   {invertHyp. eapply validateDeterministic in H16; eauto. invertHyp. solveByInv. }
-   {econstructor. eapply f_writeStep; eauto. intros c. inv c.
-    eapply IHf_multistep; eauto. invertHyp. econstructor. eapply validateWrite. eauto. }
-   {apply startTXStampGT in H1. solveByInv. omega. eapply validateMonotonic; eauto. }
-   {econstructor. eapply f_atomicIdemStep; eauto. intros c. inv c. eauto. }
-   {econstructor. eapply f_betaStep; eauto. eauto. }
+  {inv H0.
+   {econstructor. eapply f_transStep. eapply t_readStep; eauto. omega. 
+    eapply IHtrans_multistep; eauto. invertHyp. exists x.
+    eapply validateCommitRead; eauto. }
+   {econstructor;[eapply f_transStep|idtac]. eapply t_readInDomainStep; eauto.
+    eauto. }
+   {econstructor;[eapply f_transStep|idtac]. eapply t_writeStep; eauto. intros c. 
+    inv c. eapply IHtrans_multistep; eauto. invertHyp. exists ((l,v,S')::x). 
+    eapply validateWrite; eauto. }
+   {econstructor. eapply f_transStep. eapply t_atomicIdemStep; eauto. intros c. 
+    inv c. eauto. }
+   {econstructor. eapply f_transStep. eapply t_betaStep; eauto. intros c. 
+    inv c. eauto. }
   }
 Qed. 
- 
+
 Theorem partialImpliesFull : forall C H T C' H' T', 
-                               p_step C H T C' H' T' -> f_poolWF C H T ->
+                               p_step C H T C' H' T' -> poolWF C H T ->
                                f_multistep C H T C' H' T'. 
 Proof.
-  intros. induction H0. 
-  {apply f_wfPar_l in H1. apply IHp_step in H1. 
+  intros. induction H0.
+  {econstructor. eapply f_transStep. eauto. constructor. }
+  {apply wfPar_l in H1. apply IHp_step in H1. 
    eapply f_multi_L. eassumption. }
-  {eapply f_wfPar_r in H1. apply IHp_step in H1. 
+  {eapply wfPar_r in H1. apply IHp_step in H1. 
    eapply f_multi_R. eassumption. }
   {econstructor. eapply f_forkStep; eauto. constructor. }
-  {econstructor. eapply f_readStep; eauto. constructor. }
-  {econstructor. eapply f_readInDomainStep; eauto. constructor. }
-  {inv H1. InTac. inv INHYP.
+  {inv H1. InTac. invertHyp. simpl in H1. inv H2. 
    {eapply validateDeterministic in H0; eauto. invertHyp. solveByInv. }
-   {copy H0. eapply validateDeterministic in H0. Focus 2. eapply H9. invertHyp. 
-    inv H5. econstructor. eapply f_abortStep; eauto. eapply f_multiDiffStamp; eauto. 
-    econstructor. constructor. }
+   {copy H0. eapply validateDeterministic in H0. Focus 2. eapply H7. invertHyp. 
+    inv H6. econstructor. eapply f_abortStep; eauto. 
+    apply validateValidate in H2. invertHyp. eapply transImpliesfMulti. eauto. 
+    econstructor. econstructor. auto. auto. }
   }
-  {econstructor. eapply f_writeStep; eauto. constructor. }
   {econstructor. eapply f_allocStep; eauto. constructor. }
   {econstructor. eapply f_commitStep; eauto. constructor. }
   {econstructor. eapply f_atomicStep; eauto. constructor. }
-  {econstructor. eapply f_atomicIdemStep; eauto. constructor. }
   {econstructor. eapply f_betaStep; eauto. constructor. }
   Grab Existential Variables. constructor. 
 Qed. 
  
 Theorem partialImpliesFullMulti : forall C H T C' H' T', 
-                                    p_multistep C H T C' H' T' -> f_poolWF C H T ->
+                                    p_multistep C H T C' H' T' -> poolWF C H T ->
                                     f_multistep C H T C' H' T'. 
 Proof.
   intros. induction H0. constructor. eapply partialImpliesFull in H0; eauto. 
@@ -207,8 +127,10 @@ Theorem partialImpliesFullTopLevel : forall C T C' H' T',
 Proof.
   intros. eapply partialImpliesFullMulti in H0; auto. unfold initPool in H.
   destruct T. destruct t. destruct p. destruct o. solveByInv. destruct l. 
-  constructor. constructor. intros. inv H2. constructor. solveByInv. solveByInv. 
+  constructor. constructor. intros. inv H2. split; auto. constructor. 
+  solveByInv. solveByInv. 
 Qed. 
+  
 
 
 

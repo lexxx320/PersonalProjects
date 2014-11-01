@@ -44,7 +44,6 @@ Inductive validateRes : Type :=
 |commit : validateRes
 |abort : term -> validateRes. 
 
-
 (*Transactional log validation*)
 Inductive validate : stamp -> log -> heap -> stamp -> heap -> 
                      log -> validateRes -> Prop :=
@@ -62,7 +61,7 @@ Inductive validate : stamp -> log -> heap -> stamp -> heap ->
                                 (abort (fill E(get(loc l))))
 |validateWrite : forall S S' L H H' l v,
                    validate S L H S' H' L commit ->
-                   validate S (writeItem l v::L) H S' ((l, v, S')::H) (writeItem l v::L) commit. 
+                   validate S (writeItem l v::L) H S' ((l, v, S')::H') (writeItem l v::L) commit. 
 
 Fixpoint logLookup (L:log) (l:location) :=
   match L with
@@ -89,8 +88,30 @@ Fixpoint open (e:term) (k:nat) (e':term) :=
       |atomic e => atomic (open e k e')
       |inatomic e => inatomic (open e k e')
   end. 
+ 
+Inductive trans_step (H:heap) : thread -> thread -> Prop :=
+|t_readStep : forall S L E l t v e0 S', 
+                decompose t E (get (loc l)) -> logLookup L l = None ->
+                lookup H l = Some(v, S') -> S > S' ->
+                trans_step H (Some(S, e0), L, t) 
+                             (Some(S, e0), readItem l E::L, fill E v)
+|t_readInDomainStep : forall S l v L E t e0,
+                      decompose t E (get (loc l)) -> logLookup L l = Some v ->
+                      trans_step H (Some(S, e0), L, t) (Some(S, e0), L, fill E v)
+|t_writeStep : forall S L E l v t,
+               decompose t E (put (loc l) v) -> S <> None ->
+               trans_step H (S, L, t) (S, writeItem l v::L, fill E unit)
+|t_atomicIdemStep : forall E e t L S,
+                     decompose t E (atomic e) -> S <> None ->
+                     trans_step H (S, L, t) (S, L, fill E e)
+|t_betaStep : forall L E e t v S, 
+              decompose t E (app (lambda e) v) -> S <> None ->
+              trans_step H (S, L, t) (S, L, open e 0 v)
+.
 
 Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
+|p_transStep : forall C H t t', trans_step H t t' -> 
+                           p_step C H (Single t) C H (Single t')
 |p_parLStep : forall C H T1 T2 C' H' T1', 
           p_step C H T1 C' H' T1' -> p_step C H (Par T1 T2) C' H' (Par T1' T2)
 |p_parRStep : forall C H T1 T2 C' H' T2', 
@@ -99,20 +120,10 @@ Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
               decompose t E (fork e) ->
               p_step C H (Single(None, nil, t)) C H 
                    (Par (Single(None, nil, fill E unit)) (Single(None, nil, e)))
-|p_readStep : forall C H S S' L E l t v e0, 
-              decompose t E (get (loc l)) -> logLookup L l = None ->
-              lookup H l = Some(v, S') -> S > S' ->
-              p_step C H (Single(Some(S, e0), L, t)) C H (Single(Some(S, e0), readItem l E::L, fill E v))
-|p_readInDomainStep : forall C H S S' l v L E v' t e0,
-                      decompose t E (get (loc l)) -> logLookup L l = Some v ->
-                      lookup H l = Some(v', S') -> S > S' ->
-                      p_step C H (Single(Some(S, e0), L, t)) C H (Single(Some(S, e0), L, fill E v))
+
 |p_abortStep : forall L S H L' C e e0 e', 
            validate S L H 0 H L' (abort e') ->
            p_step C H (Single(Some(S, e0), L, e)) (plus 1 C) H (Single(Some(C, e0), L', e'))
-|p_writeStep : forall C H S L E l v t,
-               decompose t E (put (loc l) v) -> S <> None ->
-               p_step C H (Single(S, L, t)) C H (Single(S, writeItem l v::L, fill E unit))
 |p_allocStep : forall C H v E t l, 
                lookup H l = None -> decompose t E (alloc v) ->
                p_step C H (Single(None, nil, t)) (plus 1 C) ((l, v, C)::H)
@@ -123,12 +134,9 @@ Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |p_atomicStep : forall C H E e t, 
                 decompose t E (atomic e) ->
                 p_step C H (Single(None, nil, t)) (plus 1 C) H (Single(Some(C, fill E (inatomic e)), nil, fill E (inatomic e)))
-|p_atomicIdemStep : forall C H E e t L S,
-                     decompose t E (atomic e) -> S <> None ->
-                     p_step C H (Single(S, L, t)) C H (Single(S, L, fill E e))
-|p_betaStep : forall C H L E e t v S, 
+|p_betaStep : forall C H E e t v, 
               decompose t E (app (lambda e) v) -> 
-              p_step C H (Single(S, L, t)) C H (Single(S, L, open e 0 v)). 
+              p_step C H (Single(None, nil, t)) C H (Single(None, nil, open e 0 v)). 
 
 Inductive p_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |p_multi_refl : forall C H T, p_multistep C H T C H T
@@ -137,6 +145,8 @@ Inductive p_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                 p_multistep C H T C'' H'' T''. 
 
 Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
+|f_transStep : forall C H t t', trans_step H t t' -> 
+                           f_step C H (Single t) C H (Single t')
 |f_parLStep : forall C H T1 T2 C' H' T1', 
           f_step C H T1 C' H' T1' -> f_step C H (Par T1 T2) C' H' (Par T1' T2)
 |f_parRStep : forall C H T1 T2 C' H' T2', 
@@ -145,20 +155,9 @@ Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
               decompose t E (fork e) ->
               f_step C H (Single(None, nil, t)) C H 
                    (Par (Single(None, nil, fill E unit)) (Single(None, nil, e)))
-|f_readStep : forall C H S S' L E l t v e0, 
-              decompose t E (get (loc l)) -> logLookup L l = None ->
-              lookup H l = Some(v, S') -> S > S' ->
-              f_step C H (Single(Some(S, e0), L, t)) C H (Single(Some(S, e0), readItem l E::L, fill E v))
-|f_readInDomainStep : forall C H S S' l v L E v' t e0,
-                      decompose t E (get (loc l)) -> logLookup L l = Some v ->
-                      lookup H l = Some(v', S') -> S > S' ->
-                      f_step C H (Single(Some(S, e0), L, t)) C H (Single(Some(S, e0), L, fill E v))
 |f_abortStep : forall L S H L' C e e0 e', 
            validate S L H 0 H L' (abort e') ->
            f_step C H (Single(Some(S, e0), L, e)) (plus 1 C) H (Single(Some(C, e0), nil, e0))
-|f_writeStep : forall C H S L E l v t,
-               decompose t E (put (loc l) v) -> S <> None ->
-               f_step C H (Single(S, L, t)) C H (Single(S, writeItem l v::L, fill E unit))
 |f_allocStep : forall C H v E t l, 
                lookup H l = None -> decompose t E (alloc v) ->
                f_step C H (Single(None, nil, t)) (plus 1 C) ((l, v, C)::H)
@@ -170,12 +169,9 @@ Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                 decompose t E (atomic e) ->
                 f_step C H (Single(None, nil, t)) (plus 1 C) H 
                        (Single(Some(C, fill E (inatomic e)), nil, fill E (inatomic e)))
-|f_atomicIdemStep : forall C H E e t L S,
-                     decompose t E (atomic e) -> S <> None ->
-                     f_step C H (Single(S, L, t)) C H (Single(S, L, fill E e))
-|f_betaStep : forall C H L E e t v S, 
+|f_betaStep : forall C H E e t v, 
               decompose t E (app (lambda e) v) -> 
-              f_step C H (Single(S, L, t)) C H (Single(S, L, open e 0 v)). 
+              f_step C H (Single(None, nil, t)) C H (Single(None, nil, open e 0 v)). 
 
 Inductive f_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |f_multi_refl : forall C H T, f_multistep C H T C H T
@@ -187,53 +183,64 @@ Inductive tIn : pool -> thread -> Prop :=
 |in_left : forall T1 T2 t, tIn T1 t -> tIn (Par T1 T2) t
 |in_right : forall T1 T2 t, tIn T2 t -> tIn (Par T1 T2) t. 
 
-Inductive f_threadWF : nat -> heap -> thread -> Prop :=
-|noTSValid : forall n H e, f_threadWF n H (None, nil, e)
-|threadWFValid : forall S S' C L H H' L' e0 e, 
-                   validate S L H S' H' L' commit -> S < C ->
-                   f_multistep C H (Single(Some(S,e0), nil, e0))
-                               C H (Single(Some(S,e0), L, e)) ->
-                   f_threadWF C H (Some(S, e0), L, e) 
-|threadWFInvalid : forall S S' C L H H' L' e e0 e',
-                     validate S L H S' H' L' (abort e) -> S < C ->
-                     f_multistep C H (Single(Some(S,e0), nil, e0))
-                                 C H (Single(Some(S,e0), L', e)) ->
-                     f_threadWF C H (Some(S,e0), L, e'). 
-             
-Definition optLE n on :=
-  match on with
-      |Some n' => n <= n'
-      |None => True
-  end. 
+Inductive trans_multistep H : thread -> thread -> Prop :=
+|trans_refl : forall t, trans_multistep H t t
+|trans_multi_step : forall t t' t'', 
+                      trans_step H t t' -> trans_multistep H t' t'' ->
+                      trans_multistep H t t''. 
 
+Inductive threadWF H : thread -> Prop :=
+|noTSValid : forall e, threadWF H (None, nil, e)
+|threadWFValid : forall S S' L e0 e H', 
+                   validate S L H S' H' L commit ->
+                   trans_multistep H (Some(S,e0),nil,e0) (Some(S,e0),L,e) ->
+                   threadWF H (Some(S, e0), L, e)
+|threadWFInvalid : forall S S' L L' e e0 e',
+                     validate S L H S' H L' (abort e) -> 
+                     trans_multistep H (Some(S,e0),nil,e0) (Some(S,e0),L',e) ->
+                     threadWF H (Some(S,e0), L, e'). 
+             
 Inductive stampMonotonic (n:nat) : heap -> Prop :=
 |monoNil : stampMonotonic n nil
 |monoCons : forall l v S H, S <= n -> stampMonotonic S H ->
                             stampMonotonic n ((l,v,S)::H). 
- 
-Inductive f_poolWF : nat -> heap -> pool -> Prop :=
-|p_poolWF_ : forall C H T, stampMonotonic C H ->
-                           (forall t, tIn T t -> f_threadWF C H t) -> f_poolWF C H T. 
 
-Theorem f_wfPar_l : forall T1 T2 C H, 
-                      f_poolWF C H (Par T1 T2) -> 
-                      f_poolWF C H T1. 
+Definition getThreadStamp (t:thread) :=
+           match t with
+               |(Some(stamp,_),_,_) => Some stamp
+               |_ => None
+           end. 
+
+Definition optLT on n :=
+  match on with
+      |Some n' => n' < n
+      |None => True
+  end. 
+
+Inductive poolWF : nat -> heap -> pool -> Prop :=
+|p_poolWF_ : forall C H T, stampMonotonic C H ->
+                      (forall t, tIn T t -> optLT (getThreadStamp t) C /\ threadWF H t) ->
+                      poolWF C H T. 
+
+Theorem wfPar_l : forall T1 T2 C H, 
+                      poolWF C H (Par T1 T2) -> 
+                      poolWF C H T1. 
 Proof.
   intros. inv H0. constructor. auto. intros. assert(tIn (Par T1 T2) t). 
-  constructor. assumption. apply H3. auto. 
+  constructor. assumption. apply H3. auto.  
 Qed. 
 
-Theorem f_wfPar_r : forall T1 T2 C H, 
-                      f_poolWF C H (Par T1 T2) -> 
-                      f_poolWF C H T2. 
+Theorem wfPar_r : forall T1 T2 C H, 
+                      poolWF C H (Par T1 T2) -> 
+                      poolWF C H T2. 
 Proof.
   intros. inv H0. constructor. auto. intros. apply H3. apply in_right. 
   auto. 
 Qed. 
 
-Theorem f_wfParConj : forall C H T1 T2, 
-                        f_poolWF C H T1 -> f_poolWF C H T2 ->
-                        f_poolWF C H (Par T1 T2). 
+Theorem wfParConj : forall C H T1 T2, 
+                        poolWF C H T1 -> poolWF C H T2 ->
+                        poolWF C H (Par T1 T2). 
 Proof.
   intros. constructor. inv H0. auto. intros. inv H2. inv H0. auto. 
   inv H1. auto. 
@@ -276,6 +283,14 @@ Proof.
   intros. induction H0; auto. econstructor. eassumption. eauto. 
 Qed. 
 
+Theorem trans_multistep_trans : forall H t t' t'', 
+                                  trans_multistep H t t' ->
+                                  trans_multistep H t' t'' ->
+                                  trans_multistep H t t''. 
+Proof.
+  intros. induction H0; auto. econstructor; eauto. 
+Qed. 
+  
 Theorem validateFailCons : forall S L H S' H' L' e item, 
                              validate S L H S' H' L' (abort e) ->
                              validate S (item::L) H S' H' L' (abort e). 
@@ -295,7 +310,7 @@ Proof.
   {inversion IHvalidate. exists ([readItem l E]). auto. }
 Qed. 
 
-Theorem monotonicWeakening : forall H S S', S > S' -> stampMonotonic S' H ->
+Theorem monotonicWeakening : forall H S S', S >= S' -> stampMonotonic S' H ->
                                             stampMonotonic S H. 
 Proof.
   induction H; intros. 
@@ -303,27 +318,26 @@ Proof.
   {inv H1. constructor. omega. assumption. }
 Qed. 
 
-Theorem validateMonotonic : forall C H S L H', 
-                              stampMonotonic C H -> 
+Theorem validateMonotonic : forall C H S L H' C', 
+                              stampMonotonic C H -> C' >= C ->
                               validate S L H C H' L commit ->
-                              stampMonotonic (1+C) H'. 
+                              stampMonotonic C' H'. 
 Proof.
-  intros. remember commit. induction H1; auto. 
-  {eapply monotonicWeakening; eauto. }
-  {inv Heqv. }
-  {constructor. omega. auto. }
-Qed. 
+  intros. remember commit. generalize dependent C'. induction H2; intros; eauto. 
+  {eapply monotonicWeakening. Focus 2. eauto. omega. }
+  {eapply monotonicWeakening. Focus 2. eauto. omega. }
+  {constructor. omega. eapply IHvalidate; auto. }
+Qed.  
 
 Theorem validateHeapMonotonic : forall S H C H' L res,
                                     validate S L H C H' L res  ->
                                     exists H'', H' = H'' ++ H .
 Proof.
   intros. induction H0; eauto; try solve[exists nil; eauto].  
-  {exists [(l,v,S')]. simpl. reflexivity. }
+  {invertHyp. exists ((l,v,S')::x). simpl. reflexivity. }
 Qed. 
 
 Definition getStamp (e:location*term*stamp) := match e with (_, _, x) => x end. 
-
 
 Theorem lengthsEq : forall (A:Type) (x y : list A), x = y -> length x = length y. 
 Proof.
@@ -347,9 +361,9 @@ Proof.
   intros. dependent induction H0; auto. 
   {destruct H'. constructor. apply lengthsEq in x. simpl in *. 
    rewrite app_length in x. omega. }
-  {destruct H'. simpl in x. apply lengthsEq in x. simpl in x. omega. destruct H'. 
-   inv x. constructor. auto. constructor. apply lengthsEq in x. simpl in *. 
-   rewrite app_length in x. omega. }
+  {copy H0. eapply validateHeapMonotonic in H0. invertHyp. destruct H'. 
+   simpl in x. apply lengthsEq in x. simpl in x. rewrite app_length in x. omega.
+   constructor. inv x. auto. eapply IHvalidate; eauto. inversion x. auto. }
 Qed. 
 
 Theorem stampHeapMonotonic : forall C H T C' H' T',
@@ -362,177 +376,16 @@ Proof.
    eapply validateStampGE in H2. auto. }
 Qed. 
 
-
 Theorem LookupExtensionGE : forall H' H l v S C,
-                              lookup H l = Some(v, S) -> S < C -> 
-                              Forall (fun x : location * term * stamp => getStamp x = C) H' ->
-                              lookup (H'++H) l = Some(v,S) \/ 
-                              exists S' v', lookup (H'++H) l = Some(v',S') /\ S' >= C. 
+                   lookup H l = Some(v, S) -> 
+                   Forall (fun x : location * term * stamp => getStamp x = C) H' ->
+                   lookup (H'++H) l = Some(v,S) \/ 
+                   exists S' v', lookup (H'++H) l = Some(v',S') /\ S' >= C. 
 Proof.
   induction H'; intros; auto. simpl in *. destruct a. destruct p.
   destruct (eq_nat_dec l l0). 
-  {subst. right. inv H2. repeat econstructor. }
-  {eapply IHH' in H0; eauto. inv H2. auto. }
+  {subst. right. inv H1. repeat econstructor. }
+  {eapply IHH' in H0; eauto. inv H1. auto. }
 Qed.
 
-Theorem abortCommitExtFalse : forall S L S' new H L' x0 e,
-                                validate S L H S' H L' (abort e) ->
-                                validate S L (new++H) S' x0 L commit -> False. 
-
-
-Theorem validateHeapExtension : forall S L H S' H' L' res new C, 
-                      Forall (fun x : location * term * stamp => getStamp x = C) new ->
-                      S < C ->
-                      validate S L H S' H' L' res ->
-                      exists Hnew Lnew res', validate S L (new++H) S' Hnew Lnew res' /\ 
-                                        exists prefix, L' = prefix ++ Lnew.
-Proof.
-  intros. induction H2; intros. 
-  {do 3 econstructor. split. constructor. exists nil. auto. }
-  {copy H1. eapply IHvalidate in H1. invertHyp. destruct x1. 
-   {eapply LookupExtensionGE in H2. Focus 3. 
-    eauto. Focus 2. omega. inv H2.   
-    {econstructor. econstructor. econstructor. split. eapply validateCommitRead; eauto. 
-     copy H1. eapply commitLogUnchanged in H1. destruct x2. simpl in *. eauto. 
-     apply lengthsEq in H1. simpl in H1. rewrite app_length in H1. omega. 
-     exists nil. simpl. auto. }
-    {invertHyp. econstructor. econstructor. econstructor. split. eapply validateAbortRead. 
-     copy H1. apply commitLogUnchanged in H1. destruct x2. simpl in *. eauto.
-     apply lengthsEq in H1. simpl in H1. rewrite app_length in H1. omega. eauto. 
-     omega. exists ([readItem l E]). auto. }
-   }
-   {econstructor. econstructor. econstructor. split. eapply validateAbortPropogate. copy H1.
-    eapply abortHeapUnchanged in H1. subst. eauto. exists (readItem l E::x2). auto. }
-  }
-  {copy H1. apply IHvalidate in H1. invertHyp. destruct x2. 
-   {
-
-Theorem f_thread_wf_Extension : forall C H C' H' t, 
-                         f_threadWF C H t -> C' >= C ->
-                         Forall (fun x : location * term * stamp => getStamp x >= C) H' ->
-                         f_threadWF C' (H'++H) t. 
-Proof.
-  intros. inv H0. 
-  {constructor. }
-  {
-
-
-
-
-Theorem f_stepWF : forall C H T C' H' T', 
-                   f_poolWF C H T ->
-                   f_step C H T C' H' T' -> 
-                   f_poolWF C' H' T'. 
-Proof.
-  intros. induction H1.
-  {copy H0. apply f_wfPar_l in H0. apply IHf_step in H0. 
-   apply f_wfPar_r in H2. apply f_wfParConj. assumption. constructor. inv H0. assumption. 
-   intros. inv H2. apply H6 in H3. copy H1. eapply stampHeapMonotonic in H1. invertHyp. 
-   
-   
-   
-   admit. }
-  {admit. }
-  {constructor. inv H0. auto. intros. inv H2. inv H6.
-   constructor. inv H6. constructor. }
-  {constructor. inv H0. auto.  intros. inv H0. inv H5. InTac. inv INHYP. 
-   {econstructor. eapply validateCommitRead; eauto. copy H12. 
-    apply commitLogUnchanged in H0. subst. eassumption. auto. eapply f_multi_trans. 
-    eassumption. econstructor. eapply f_readStep; eauto. constructor. }
-   {eapply threadWFInvalid; eauto. eapply validateFailCons; eauto. }
-  }
-  {constructor. inv H0. auto. intros. inv H0. inv H5. InTac. inv INHYP. 
-   {econstructor. eassumption. auto. eapply f_multi_trans. eassumption. 
-    econstructor. eapply f_readInDomainStep; eauto. constructor. }
-   {eapply threadWFInvalid; eauto. }
-  }
-  {constructor. inv H0. eapply monotonicWeakening; eauto. intros. inv H0. 
-   inv H2. copy H1. eapply abortLogPostfix in H1.
-   econstructor. constructor. omega. constructor. }
-  {constructor. inv H0. auto. intros. inv H0. inv H3. InTac. inv INHYP. 
-   {exfalso. apply H2. reflexivity. }
-   {econstructor. eapply validateWrite; eauto. copy H10. 
-    apply commitLogUnchanged in H0. subst. eassumption. auto. eapply f_multi_trans. 
-    eassumption. econstructor. eapply f_writeStep; eauto. constructor. }
-   {eapply threadWFInvalid. eapply validateFailCons. eauto. auto. eassumption. }
-  }
-  {constructor. inv H0. constructor. omega. auto. intros. inv H0. inv H3. constructor. }
-  {inv H0. constructor. eapply validateMonotonic; eauto. intros. inv H0. constructor. }
-  {econstructor. inv H0. eapply monotonicWeakening; eauto. intros. inv H2. 
-   econstructor. constructor. omega. econstructor. }
-  {constructor. inv H0. auto. intros. inv H3. inv H0. InTac. inv INHYP.
-   {econstructor. }
-   {eapply threadWFValid. eassumption. auto. eapply f_multi_trans. eassumption. 
-    econstructor. eapply f_atomicIdemStep; eauto. constructor. }
-   {eapply threadWFInvalid; eauto. }
-  }
-  {constructor. inv H0. auto. intros. inv H2. inv H0. InTac. inv INHYP. 
-   {constructor. }
-   {econstructor; eauto. eapply f_multi_trans. eassumption. econstructor. 
-    eapply f_betaStep; eauto. constructor. }
-   {eapply threadWFInvalid; eauto. }
-  } 
-  Grab Existential Variables. constructor. constructor. 
-Qed. 
-
-Theorem f_multistepWF : forall C H T C' H' T', 
-                   f_poolWF C H T ->
-                   f_multistep C H T C' H' T' -> 
-                   f_poolWF C' H' T'. 
-Proof.
-  intros. induction H1. auto. eapply f_stepWF in H1; auto. 
-Qed. 
-
-
-
-Theorem heapMonotonic : forall C H T C' H' T', 
-                         f_step C H T C' H' T' ->
-                         exists H'', H' = H'' ++ H. 
-Proof.
-  intros. induction H0; eauto; try solve[exists nil; auto].  
-  {exists [(l,v,C)]. simpl. reflexivity. }
-  {apply validateHeapMonotonic in H0. invertHyp. exists x. auto. }
-Qed. 
-
-
-Theorem lookupExtension : forall H H' l v S C,
-                            lookup H l = Some(v, S) -> stampMonotonic C (H'++H) ->
-                            lookup (H'++H) l  = Some(v, S) \/ 
-                            (lookup (H'++H) l = Some(v', S') /\ S' >= S)
-                                                                      
-
-
-
-Admitted. 
-
-Theorem f_wf_anyHeap : forall C H C' H' T, 
-                         f_poolWF C H T -> C' >= C -> 
-                         f_poolWF C' H' T. 
-Proof.
-  intros. inv H0. constructor. intros. 
-  
-
-
-Admitted. 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Definition postfix {A:Type} (L1 L2 : list A) := exists diff, L2 = diff ++ L1. 
