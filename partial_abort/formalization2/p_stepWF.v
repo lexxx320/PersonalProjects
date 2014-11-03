@@ -75,6 +75,8 @@ Proof.
     eapply validateNewerStamp in H2; eauto. econstructor. eauto. 
     eapply logWFApp; eauto. eapply trans_multiNewerStamp; eauto. }
   }
+  {constructor. inv H0. eapply monotonicWeakening. Focus 2. eauto. omega. 
+   intros. inv H2. split; auto. simpl. omega. repeat econstructor. }
   {constructor. inv H0. constructor. omega. auto. intros. inv H0. inv H3. split. 
    simpl. auto. constructor. }
   {inv H0. constructor. eapply validateMonotonic; eauto. intros. inv H0. 
@@ -82,7 +84,7 @@ Proof.
   {econstructor. inv H0. eapply monotonicWeakening;[idtac|eauto]. omega. intros. 
    inv H2. split. simpl. auto. econstructor. constructor. econstructor. constructor. }
   {constructor. inv H0. auto. intros. inv H2. split. simpl. auto. constructor. }
-  Grab Existential Variables. constructor.  
+  Grab Existential Variables. constructor.  constructor.
 Qed. 
 
 Theorem p_multistepWF : forall C H T C' H' T', 

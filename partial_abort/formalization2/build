@@ -7,6 +7,7 @@ files=(hetList.v
        f_stepWF.v
 	   p_stepWF.v
        partialImpliesFull.v
+	fullImpliesPartial.v
        )
 
 if [[ $* == *-clean* ]]; then
