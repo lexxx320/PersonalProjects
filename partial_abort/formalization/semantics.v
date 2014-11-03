@@ -3,6 +3,12 @@ Require Export Omega.
 Require Export hetList. 
 Require Export Coq.Program.Equality. 
 
+Ltac solveByInv :=
+  match goal with
+      |H:_ |- _ => solve[inv H]
+  end. 
+
+
 (*evaluation context decomposition*)
 Inductive decompose : term -> ctxt -> term -> Prop :=
 |decompApp : forall e1 e2 E e, decompose e1 E e ->
@@ -26,6 +32,41 @@ Inductive decompose : term -> ctxt -> term -> Prop :=
 |decompInAtomic : forall e e' E, decompose e E e' ->
                             decompose (inatomic e) (inatomicCtxt E) e'
 |decompInAtomicHole : forall v, value v -> decompose (inatomic v) hole (inatomic v). 
+
+Theorem decomposeValFalse : forall t E e, value t -> decompose t E e -> False. 
+Proof.
+  intros. inv H0; try solve[inv H]. 
+Qed. 
+
+Ltac decompVal :=
+  match goal with
+      |H:value ?t, H':decompose ?t ?E ?e |- _ => 
+       apply decomposeValFalse in H'; auto; inv H'
+  end. 
+
+Theorem decomposeDeterministic : forall t E E' e e', 
+                                   decompose t E e -> decompose t E' e' ->
+                                   E = E' /\ e = e'. 
+Proof.
+  intros. genDeps {{E'; e'}}. induction H; intros.
+  {inv H0. eapply IHdecompose in H5. invertHyp. auto. decompVal. inv H. }
+  {inv H1; try decompVal. eapply IHdecompose in H4. invertHyp. auto. }
+  {inv H0. inv H5. decompVal. auto. }
+  {inv H0. eapply IHdecompose in H2. invertHyp. auto. inv H. }
+  {inv H0. inv H1. auto. }
+  {inv H0. eapply IHdecompose in H5. invertHyp. eauto. decompVal. inv H. }
+  {inv H1. decompVal. eapply IHdecompose in H4. invertHyp. auto. decompVal. }
+  {inv H0. inv H5. decompVal. auto. }
+  {inv H0. eapply IHdecompose in H2. invertHyp. auto. decompVal. }
+  {inv H0. decompVal. auto. }
+  {inv H0. auto. }
+  {inv H0. auto. }
+  {inv H0. eapply IHdecompose in H2. invertHyp. auto. decompVal. }
+  {inv H0. decompVal. auto. }
+Qed.  
+
+
+
 
 (*fill an evaluation contenxt*)
 Fixpoint fill (E:ctxt) (e:term) := 
@@ -365,3 +406,24 @@ Proof.
 Qed.
 
 Definition postfix {A:Type} (L1 L2 : list A) := exists diff, L2 = diff ++ L1. 
+
+Theorem validateSameAns : forall L S H S' S'' e L' H', 
+                                  validate S L H S' (abort L' e) ->
+                                  validate S L H S'' (commit H') ->
+                                  False. 
+Proof.
+  induction L; intros. 
+  {inv H0. }
+  {inv H0; inv H1; eauto. eapply lookupDeterministic in H11; eauto. invertHyp. omega. }
+Qed. 
+
+Theorem abortSameAns : forall S L H S' L' e' S'' L'' e'', 
+                         validate S L H S' (abort e' L') ->
+                         validate S L H S'' (abort e'' L'') ->
+                         e' = e'' /\ L' = L''. 
+Proof.
+  induction L; intros. 
+  {inv H0. }
+  {inv H0; inv H1; eauto. eapply validateSameAns in H10; eauto. inv H10. 
+   eapply validateSameAns in H10; eauto. inv H10. }
+Qed. 
