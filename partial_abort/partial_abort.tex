@@ -78,12 +78,12 @@ $\boxed{C; H; T \rightarrow C; H' ;T'}$
 \]
 
 \[%Abort and write
-\infer[]{C; H; \Theta[L; e] \rightarrow C+1; H; C[L'; \ctxt[!\loc]]}{\validate{L; \Theta; H; \bot} \leadsto (H; L'; \abort{\ctxt}) \;\;\; \Theta \neq \bot} \;\;\;
+\infer[]{C; H; \Theta[L; \eval{\inatomic{e, e_o}}] \rightarrow C+1; H; C[L'; \ctxt[!\loc]]}{\validate{L; \Theta; H; \bot} \leadsto (H; L'; \abort{\ctxt}) \;\;\; \Theta \neq \bot} \;\;\;
 \infer[]{C; H; \Theta[L; \eval{\loc := v}] \rightarrow C; H; \Theta[L, \loc \mapsto_w v; \eval{()}]}{\Theta \neq \bot} 
 \]
 
 \[%Allocation and commit
-\infer[]{C; H; \Theta[L; \eval{\alloc{v}}] \rightarrow C; H, \loc \mapsto (v, \Theta); \Theta[L;  \eval{()}]}{\loc \notin Domain(H) \;\;\; \Theta \neq \bot} \;\;\;
+\infer[]{C; H; \Theta[L; \eval{\alloc{v}}] \rightarrow C; H, \loc \mapsto (v, \Theta); \Theta[L;  \eval{\loc}]}{\loc \notin Domain(H) \;\;\; \Theta \neq \bot} \;\;\;
 \infer[]{C; H; \Theta[L; \eval{\inatomic{v, e_0}}] \rightarrow C+1; H'; \bot[\cdot; \eval{v}]}{\validate{\Theta; L; H; C} \leadsto (H'; L; \commit)} \;\;\;
 \]
 
@@ -118,11 +118,11 @@ $\boxed{C; H; T \rightarrow C; H' ;T'}$
 
 \[
 \infer[]{\validate{\Theta; L, \loc \mapsto_{r|w} x; H; \Theta_{new}} \leadsto (H; L'; \abort{\ctxt})}{\validate{\Theta; L; H; \Theta_{new}} \leadsto (H; L'; \abort{\ctxt})} \;\;\;
-\infer[]{\validate{\Theta; L, \loc \mapsto_r \ctxt; H; \Theta_{new}} \leadsto (H; L; \abort{\ctxt})}{\validate{\Theta; L; H; \Theta_{new}} \leadsto (H'; L'; \commit) \;\;\; H(\loc) = (v, \Theta') \;\;\; \Theta' > \Theta}
+\infer[]{\validate{\Theta; L, \loc \mapsto_r \ctxt; H; \Theta_{new}} \leadsto (H; L; \abort{\ctxt})}{\validate{\Theta; L; H; \Theta_{new}} \leadsto (H'; L; \commit) \;\;\; H(\loc) = (v, \Theta') \;\;\; \Theta' > \Theta}
 \]
 
 \[
-\infer[]{\validate{\Theta; L, \loc \mapsto_w v; H; \Theta_{new}} \leadsto (H, \loc \mapsto (v, \Theta_{new}; L, \loc \mapsto_w v; \commit)}{\validate{\Theta; L; H; \Theta_{new}} \leadsto (H'; L; \commit)}
+\infer[]{\validate{\Theta; L, \loc \mapsto_w v; H; \Theta_{new}} \leadsto (H, \loc \mapsto (v, \Theta_{new}); L, \loc \mapsto_w v; \commit)}{\validate{\Theta; L; H; \Theta_{new}} \leadsto (H'; L; \commit)}
 \]
 
 $\boxed{C; H; T \rightarrow C; H' ;T'}$
@@ -133,7 +133,7 @@ $\boxed{C; H; T \rightarrow C; H' ;T'}$
 \]
 
 \[%Fork
-\infer[]{C; H; \bot[\cdot; \eval{\fork{e}}] \rightarrow C'; H; \bot[\cdot; \eval{()}] \cup \bot[\cdot, e]}{}
+\infer[]{C; H; \bot[\cdot; \eval{\fork{e}}] \rightarrow C; H; \bot[\cdot; \eval{()}] \cup \bot[\cdot, e]}{}
 \]
 
 \[%Read not in domain and read in domain
@@ -142,7 +142,7 @@ $\boxed{C; H; T \rightarrow C; H' ;T'}$
 \]
 
 \[%Abort and write
-\infer[]{C; H; \Theta[L; \inatomic{e, e_0}] \rightarrow C+1; H; C[\cdot; e_0]}{\validate{L; \Theta; H; \bot} \leadsto (H; L'; \abort{\ctxt}) \;\;\; \Theta \neq \bot} \;\;\;
+\infer[]{C; H; \Theta[L; \eval{\inatomic{e, e_0}}] \rightarrow C; H; \bot[\cdot; e_0]}{\validate{L; \Theta; H; \bot} \leadsto (H; L'; \abort{\ctxt}) \;\;\; \Theta \neq \bot} \;\;\;
 \infer[]{C; H; \Theta[L; \eval{\loc := v}] \rightarrow C; H; \Theta[L, \loc \mapsto_w v; \eval{()}]}{\Theta \neq \bot} 
 \]
 
