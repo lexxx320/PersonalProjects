@@ -5,10 +5,15 @@ files=(hetList.v
        heap.v
        semantics.v
        f_stepWF.v
+	   p_stepWF.v
        partialImpliesFull.v
        )
 
-
+if [[ $* == *-clean* ]]; then
+	rm *.glob
+	rm *.vo
+	exit 
+fi
 
 #Print out file numbers
 if [[ $* == *-p* ]]; then
