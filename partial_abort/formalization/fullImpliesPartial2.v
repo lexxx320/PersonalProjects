@@ -7,10 +7,9 @@ Inductive OK H : thread -> thread -> Prop :=
                     validate S L' H S' (commit H'') ->
                     trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') ->
                     OK H (Some(S,e0),L,e) (Some(S,e0),L',e')
-|commitAbortOK : forall S L L' LAbort S' H' e0 e e' L'' e'' eAbort,
+|commitAbortOK : forall S L L'  S' H' e0 e e' L'' e'',
                     validate S L H S' (commit H') -> 
-                    trans_multistep H (Some(S,e0),nil,e0) (Some(S,e0),LAbort,eAbort) ->
-                    validate S LAbort H S' (abort e'' L'') ->
+                    validate S L' H S' (abort e'' L'') -> postfix L L' ->
                     OK H (Some(S,e0),L,e) (Some(S,e0),L',e')
 |abortAbortOK : forall S L L' S' eAbort eAbort' LAbort LAbort' e0 e e',
                     validate S L H S' (abort eAbort LAbort) ->
@@ -22,15 +21,90 @@ Inductive poolOK H : pool -> pool -> Prop :=
 |SingleOK : forall t t', OK H t t' -> poolOK H (Single t) (Single t')
 |ParOk : forall T1 T1' T2 T2', poolOK H T1 T1' -> poolOK H T2 T2' ->
                           poolOK H (Par T1 T2) (Par T1' T2'). 
+Theorem transMultiLogPostfix : forall H S e0 L L' e e',
+                              trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') ->
+                              postfix L L'. 
+Proof.
+  intros. dependent induction H0.
+  {unfold postfix. exists nil. auto. }
+  {inv H0; eauto.  
+   {assert(postfix (readItem l E::L) L'). eapply IHtrans_multistep; eauto. 
+    unfold postfix in *. invertHyp. exists (x++[readItem l E]). 
+    rewrite <- app_assoc. simpl. auto. }
+   {assert(postfix (writeItem l v::L) L').  eapply IHtrans_multistep; eauto. 
+    unfold postfix in *. invertHyp. exists (x++[writeItem l v]). 
+    rewrite <- app_assoc. simpl. auto. }
+  }
+Qed. 
+
+Theorem fillGet : forall E l, decompose (fill E (get(loc l))) E (get(loc l)). 
+Proof.
+  intros. induction E; intros; eauto; try solve[simpl;constructor; auto]. 
+Qed. 
+
+Theorem multistepAbortCommit : forall H H' L L' C C' eAbort LAbort e0 e e' S, 
+                                 validate S L H C (abort eAbort LAbort) ->
+                                 validate S L' H C' (commit H') -> 
+                                 trans_multistep H (Some (S, e0), L, e)
+                                                 (Some (S, e0), L', e') -> 
+                                 False. 
+Proof.
+  intros. dependent induction H2. 
+  {eapply validateSameAns; eauto. }
+  {inv H3; eauto.  
+   {eapply IHtrans_multistep. Focus 3. eauto. Focus 3. eauto.
+    eapply validateAbortPropogate. auto. auto. }
+   {eapply IHtrans_multistep. Focus 3. eauto. Focus 3. eauto.
+    eapply validateAbortPropogate. auto. auto. }
+  }
+Qed. 
+
+Theorem abortNewTermIsGet : forall S L H C e L',
+                              validate S L H C (abort e L') ->
+                              exists l E, decompose e E (get (loc l)).
+Proof.
+  intros. dependent induction H0. 
+  {invertHyp. econstructor. eauto. }
+  {exists l. exists E. apply fillGet. }
+Qed. 
+
+Theorem multistepPostfix : forall S e0 L L' H L'' C C' eAbort LAbort H' e e',
+                             trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') ->
+                             trans_multistep H (Some(S,e0),L,e) (Some(S,e0),LAbort, eAbort) ->
+                             validate S L' H C (commit H') ->
+                             validate S L'' H C' (abort eAbort LAbort) ->
+                             postfix L' LAbort.
+Proof.
+  intros. dependent induction H0. 
+  {eapply transMultiLogPostfix; eauto. }
+  {inv H2. 
+   {copy H4. eapply abortNewTermIsGet in H4. invertHyp.
+    inv H0; decompSame; invertEq. 
+    {
+
+
+Theorem asdf : forall H,
+                 trans_multistep H (Some (S, e0), L, e) (Some (S, e0), L', e') ->
+                 validate S L' H C (commit H') ->
+                 validate S L'' H C (abort eAbort LAbort
+
+
+
+admit. }
+   {eapply trans_stepDeterministic in H0; eauto. subst. 
+    inv H5; eapply IHtrans_multistep; eauto. }
+  }
+Qed. 
+
 
 Theorem trans_stepOK : forall H t t' pt, 
-                         OK H t pt -> trans_step H t t' ->
+                         OK H t pt -> trans_step H t t' -> threadWF H t -> threadWF H pt ->
                          (exists pt', trans_step H pt pt' /\ OK H t' pt') \/
                          OK H t' pt. 
 Proof.
   intros. inv H0. 
-  {inv H1; exfalso; apply H6; auto. }
-  {inv H4. 
+  {inv H1; exfalso; apply H8; auto. }
+  {inv H6. 
    {left. econstructor. split. eauto. inv H1; eapply commitCommitOK; eauto; try solve[constructor]. 
     {eapply validateCommitRead; eauto. }
     {eapply validateCommitRead; eauto. }
@@ -45,7 +119,25 @@ Proof.
   }
   {right. inv H1; eapply commitAbortOK; eauto. 
    {eapply validateCommitRead; eauto. }
+   {inv H2. Focus 2. eapply validateSameAns in H4; eauto. contradiction. 
+    inv H3. eapply validateSameAns in H5; eauto. contradiction.
+    eapply abortSameAns in H5; eauto. invertHyp.
+    assert(trans_multistep H (Some (S, e0), [], e0) (Some (S, e0), readItem l E::L, fill E v)). 
+    eapply trans_multistep_trans. eapply H11. econstructor. eapply t_readStep; eauto.
+    constructor. copy H2. eapply multistepPostfix in H2; eauto. Focus 2.
+    eapply validateCommitRead; eauto. assert(postfix L'' L').
+    apply abortLogPostfix in H1; eauto. unfold postfix in *. invertHyp. exists (x++x1). 
+    rewrite app_assoc. auto. }
    {eapply validateWrite; eauto. }
+   {inv H2. Focus 2. eapply validateSameAns in H4; eauto. contradiction. 
+    inv H3. eapply validateSameAns in H5; eauto. contradiction.
+    eapply abortSameAns in H5; eauto. invertHyp.
+    assert(trans_multistep H (Some (S, e0), [], e0) (Some (S, e0), writeItem l v::L, fill E unit)). 
+    eapply trans_multistep_trans. eapply H12. econstructor. eapply t_writeStep; eauto.
+    constructor. copy H2. eapply multistepPostfix in H2; eauto. Focus 2.
+    eapply validateWrite; eauto. assert(postfix L'' L').
+    apply abortLogPostfix in H1; eauto. unfold postfix in *. invertHyp. exists (x++x1). 
+    rewrite app_assoc. auto. }
   }
   {right. inv H1; eapply abortAbortOK; eauto. 
    {eapply validateAbortPropogate; eauto. }
@@ -69,23 +161,6 @@ Proof.
   intros. induction H0.
   {constructor. }
   {econstructor. eapply p_parRStep. eassumption. eassumption. }
-Qed. 
- 
-Theorem multistepAbortCommit : forall H H' L L' C C' eAbort LAbort e0 e e' S, 
-                                 validate S L H C (abort eAbort LAbort) ->
-                                 validate S L' H C' (commit H') -> 
-                                 trans_multistep H (Some (S, e0), L, e)
-                                                 (Some (S, e0), L', e') -> 
-                                 False. 
-Proof.
-  intros. dependent induction H2. 
-  {eapply validateSameAns; eauto. }
-  {inv H3; eauto.  
-   {eapply IHtrans_multistep. Focus 3. eauto. Focus 3. eauto.
-    eapply validateAbortPropogate. auto. auto. }
-   {eapply IHtrans_multistep. Focus 3. eauto. Focus 3. eauto.
-    eapply validateAbortPropogate. auto. auto. }
-  }
 Qed. 
 
 Theorem inconsistentTraces : forall H S e0 L e L' C C' e' H' L'' e'' eAbort v E LAbort,

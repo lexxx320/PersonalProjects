@@ -25,10 +25,10 @@ Inductive value : term -> Prop :=
 Inductive ctxt : Type :=
 |hole : ctxt
 |appCtxt : term -> ctxt -> ctxt
-|appValCtxt : term -> ctxt -> ctxt
+|appValCtxt (t:term) : value t -> ctxt -> ctxt
 |getCtxt : ctxt -> ctxt
 |putCtxt : term -> ctxt -> ctxt 
-|putValCtxt : term -> ctxt -> ctxt
+|putValCtxt (t:term) : value t -> ctxt -> ctxt
 |allocCtxt : ctxt -> ctxt
 |inatomicCtxt : ctxt -> ctxt. 
 
