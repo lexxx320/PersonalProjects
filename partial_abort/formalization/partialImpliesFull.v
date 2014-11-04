@@ -22,10 +22,8 @@ Ltac solveByInv :=
   match goal with
       |H:_ |- _ => solve[inv H]
   end. 
-
-Theorem transImpliesfMulti : forall C H C' S' S e e0 e' L L',
+Theorem transImpliesfMulti : forall C H C' S e e0 e' L L',
                   trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') -> 
-                  (exists H', validate S L H S' (commit H')) ->
                   C > S -> C' > C ->
                   f_multistep C' H (Single (Some(C,e0),L,e)) 
                               C' H (Single (Some(C,e0),L',e')). 
@@ -33,14 +31,11 @@ Proof.
   intros. dependent induction H0. 
   {constructor. }
   {inv H0.
-   {econstructor. eapply f_transStep. eapply t_readStep; eauto. omega. 
-    eapply IHtrans_multistep; eauto. invertHyp. exists x.
-    eapply validateCommitRead; eauto. }
+   {econstructor. eapply f_transStep. eapply t_readStep; eauto. eauto. }
    {econstructor;[eapply f_transStep|idtac]. eapply t_readInDomainStep; eauto.
     eauto. }
    {econstructor;[eapply f_transStep|idtac]. eapply t_writeStep; eauto. intros c. 
-    inv c. eapply IHtrans_multistep; eauto. invertHyp. exists ((l,v,S')::x). 
-    eapply validateWrite; eauto. }
+    inv c. eapply IHtrans_multistep; eauto. }
    {econstructor. eapply f_transStep. eapply t_atomicIdemStep; eauto. intros c. 
     inv c. eauto. }
    {econstructor. eapply f_transStep. eapply t_betaStep; eauto. intros c. 
@@ -60,19 +55,18 @@ Proof.
    eapply f_multi_R. eassumption. }
   {econstructor. eapply f_forkStep; eauto. constructor. }
   {inv H1. InTac. invertHyp. simpl in H1. inv H2. 
-   {eapply validateSameAns in H0; eauto. inv H0. }
-   {copy H0. eapply abortSameAns in H7; eauto. invertHyp. 
+   {eapply validateSameAns in H0; eauto. contradiction. }
+   {copy H0. eapply abortSameAns in H8; eauto. invertHyp. 
     econstructor. eapply f_abortStep; eauto. 
-    apply validateValidate in H2. invertHyp. eapply transImpliesfMulti. eauto. 
-    econstructor. econstructor. eauto. auto. }
+    apply validateValidate in H2. invertHyp. eapply transImpliesfMulti; eauto. }
   }
+  {econstructor. eapply f_abortStep; eauto. constructor. }
   {econstructor. eapply f_allocStep; eauto. constructor. }
   {econstructor. eapply f_commitStep; eauto. constructor. }
   {econstructor. eapply f_atomicStep; eauto. constructor. }
   {econstructor. eapply f_betaStep; eauto. constructor. }
-  Grab Existential Variables. constructor. 
 Qed. 
- 
+
 Theorem partialImpliesFullMulti : forall C H T C' H' T', 
                                     p_multistep C H T C' H' T' -> poolWF C H T ->
                                     f_multistep C H T C' H' T'. 

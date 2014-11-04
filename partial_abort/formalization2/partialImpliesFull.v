@@ -61,6 +61,7 @@ Proof.
     apply validateValidate in H2. invertHyp. eapply transImpliesfMulti. eauto. 
     omega. omega. }
   }
+  {econstructor. eapply f_abortStep; eauto. constructor. }
   {econstructor. eapply f_allocStep; eauto. constructor. }
   {econstructor. eapply f_commitStep; eauto. constructor. }
   {econstructor. eapply f_atomicStep; eauto. constructor. }

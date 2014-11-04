@@ -153,7 +153,7 @@ Inductive trans_step (H:heap) : thread -> thread -> Prop :=
                      trans_step H (S, L, t) (S, L, fill E e)
 |t_betaStep : forall L E e t v S, 
               decompose t E (app (lambda e) v) -> S <> None ->
-              trans_step H (S, L, t) (S, L, open e 0 v)
+              trans_step H (S, L, t) (S, L, fill E (open e 0 v))
 .
 
 (*If inversion produces the same hypothesis, skip it, otherwise invert all equalities*)
@@ -193,7 +193,12 @@ Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 
 |p_abortStep : forall L S H L' C e e0 e' S', 
            validate S L H S' (abort e' L') ->
-           p_step C H (Single(Some(S, e0), L, e)) (plus 1 C) H (Single(Some(C, e0), L', e'))
+           p_step C H (Single(Some(S, e0), L, e))
+                  (plus 1 C) H (Single(Some(C, e0), L', e'))
+|p_fullAbortStep : forall L S H L' C e e0 e' S', 
+           validate S L H S' (abort e' L') ->
+           p_step C H (Single(Some(S, e0), L, e)) 
+                  (plus 1 C) H (Single(Some(C, e0), nil, e0))
 |p_allocStep : forall C H v E t l, 
                lookup H l = None -> decompose t E (alloc v) ->
                p_step C H (Single(None, nil, t)) (plus 1 C) ((l, v, C)::H)
@@ -203,10 +208,12 @@ Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                 p_step C H (Single(Some(S, e0), L, t)) (plus 1 C) H' (Single(None, nil, fill E v))
 |p_atomicStep : forall C H E e t, 
                 decompose t E (atomic e) ->
-                p_step C H (Single(None, nil, t)) (plus 1 C) H (Single(Some(C, fill E (inatomic e)), nil, fill E (inatomic e)))
+                p_step C H (Single(None, nil, t)) (plus 1 C) H 
+                       (Single(Some(C, fill E(inatomic e)),[],fill E (inatomic e)))
 |p_betaStep : forall C H E e t v, 
               decompose t E (app (lambda e) v) -> 
-              p_step C H (Single(None, nil, t)) C H (Single(None, nil, open e 0 v)). 
+              p_step C H (Single(None, nil, t)) C H
+                     (Single(None, nil, fill E (open e 0 v))). 
 
 Inductive p_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |p_multi_refl : forall C H T, p_multistep C H T C H T
@@ -241,7 +248,8 @@ Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                        (Single(Some(C, fill E (inatomic e)), nil, fill E (inatomic e)))
 |f_betaStep : forall C H E e t v, 
               decompose t E (app (lambda e) v) -> 
-              f_step C H (Single(None, nil, t)) C H (Single(None, nil, open e 0 v)). 
+              f_step C H (Single(None, nil, t)) C H 
+                     (Single(None, nil, fill E (open e 0 v))). 
 
 Inductive f_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |f_multi_refl : forall C H T, f_multistep C H T C H T
