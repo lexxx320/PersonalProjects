@@ -2,6 +2,7 @@ Require Export heap.
 Require Export Omega. 
 Require Export hetList. 
 Require Export Coq.Program.Equality. 
+Require Export Coq.Logic.ProofIrrelevance. 
 
 Ltac solveByInv :=
   match goal with
@@ -13,16 +14,17 @@ Ltac solveByInv :=
 Inductive decompose : term -> ctxt -> term -> Prop :=
 |decompApp : forall e1 e2 E e, decompose e1 E e ->
                                decompose (app e1 e2) (appCtxt e2 E) e
-|decompAppVal : forall v e2 E e, decompose e2 E e -> 
-                                 value v -> decompose (app v e2) (appValCtxt v E) e
+|decompAppVal : forall v e2 E e (prf:value v), 
+                  decompose e2 E e -> decompose (app v e2) (appValCtxt v prf E) e
 |appHole : forall e v, value v -> decompose (app (lambda e) v) hole (app (lambda e) v)
 |decompGet : forall e E e', decompose e E e' -> 
                             decompose (get e) (getCtxt E) e'
 |decompGetHole : forall l, decompose (get (loc l)) hole (get (loc l))
 |decompPut : forall e1 e2 E e, decompose e1 E e -> 
                                decompose (put e1 e2) (putCtxt e2 E) e
-|decompPutVal : forall v e2 E e, decompose e2 E e -> 
-                                 value v -> decompose (put v e2) (putValCtxt v E) e
+|decompPutVal : forall v e2 E e (prf:value v), 
+                  decompose e2 E e -> 
+                  decompose (put v e2) (putValCtxt v prf E) e
 |decompPutHole : forall n v, value v -> decompose (put (loc n) v) hole (put (loc n) v)
 |decompAlloc : forall e E e', decompose e E e' ->
                               decompose (alloc e) (allocCtxt E) e'
@@ -50,12 +52,14 @@ Theorem decomposeDeterministic : forall t E E' e e',
 Proof.
   intros. genDeps {{E'; e'}}. induction H; intros.
   {inv H0. eapply IHdecompose in H5. invertHyp. auto. decompVal. inv H. }
-  {inv H1; try decompVal. eapply IHdecompose in H4. invertHyp. auto. }
+  {inv H0; try decompVal. eapply IHdecompose in H5. invertHyp.
+   assert(prf=prf0). apply proof_irrelevance. subst. auto. }
   {inv H0. inv H5. decompVal. auto. }
   {inv H0. eapply IHdecompose in H2. invertHyp. auto. inv H. }
   {inv H0. inv H1. auto. }
   {inv H0. eapply IHdecompose in H5. invertHyp. eauto. decompVal. inv H. }
-  {inv H1. decompVal. eapply IHdecompose in H4. invertHyp. auto. decompVal. }
+  {inv H0. decompVal. eapply IHdecompose in H5. invertHyp.
+   assert(prf=prf0). apply proof_irrelevance. subst. auto. decompVal. }
   {inv H0. inv H5. decompVal. auto. }
   {inv H0. eapply IHdecompose in H2. invertHyp. auto. decompVal. }
   {inv H0. decompVal. auto. }
@@ -65,22 +69,24 @@ Proof.
   {inv H0. decompVal. auto. }
 Qed.  
 
-
-
+Ltac decompSame :=
+  match goal with
+      |H:decompose ?t ?E ?e,H':decompose ?t ?E' ?e' |- _ =>
+       eapply decomposeDeterministic in H; eauto; invertHyp
+  end.  
 
 (*fill an evaluation contenxt*)
 Fixpoint fill (E:ctxt) (e:term) := 
   match E with
       |appCtxt e' E => app (fill E e) e'
-      |appValCtxt v E => app v (fill E e)
+      |appValCtxt v _ E => app v (fill E e)
       |getCtxt E => get (fill E e)
       |putCtxt e' E => put (fill E e) e'
-      |putValCtxt v E => put v (fill E e)
+      |putValCtxt v _ E => put v (fill E e)
       |allocCtxt E => alloc (fill E e)
       |inatomicCtxt E => inatomic (fill E e)
       |hole => e 
-  end. 
-
+  end.
 Inductive validateRes : Type := 
 |commit : heap -> validateRes
 |abort : term -> log -> validateRes. 
@@ -133,7 +139,7 @@ Fixpoint open (e:term) (k:nat) (e':term) :=
 Inductive trans_step (H:heap) : thread -> thread -> Prop :=
 |t_readStep : forall S L E l t v e0 S', 
                 decompose t E (get (loc l)) -> logLookup L l = None ->
-                lookup H l = Some(v, S') -> S > S' ->
+                lookup H l = Some(v, S') -> 
                 trans_step H (Some(S, e0), L, t) 
                              (Some(S, e0), readItem l E::L, fill E v)
 |t_readInDomainStep : forall S l v L E t e0,
@@ -147,8 +153,31 @@ Inductive trans_step (H:heap) : thread -> thread -> Prop :=
                      trans_step H (S, L, t) (S, L, fill E e)
 |t_betaStep : forall L E e t v S, 
               decompose t E (app (lambda e) v) -> S <> None ->
-              trans_step H (S, L, t) (S, L, open e 0 v)
+              trans_step H (S, L, t) (S, L, fill E (open e 0 v))
 .
+
+(*If inversion produces the same hypothesis, skip it, otherwise invert all equalities*)
+Ltac invertEq :=
+  match goal with
+      |H:?a = ?b |- _ => let n := fresh
+                         in inversion H as n; match type of n with
+                                                  |?a = ?b => fail
+                                              end
+      |H:?a = ?b |- _ => inv H
+  end. 
+
+Theorem trans_stepDeterministic : forall H t t' t'',
+                                    trans_step H t t' -> trans_step H t t'' -> 
+                                    t' = t''. 
+Proof.
+  intros. inv H0; inv H1; eauto; decompSame; invertEq; repeat(
+          match goal with
+              |A:lookup ?H ?l = ?v, B:lookup ?H ?l = ?v' |- _ =>
+               rewrite A in B; inv B
+              |H:logLookup ?L ?l = ?v,H':logLookup ?L ?l = ?v' |- _ =>
+               rewrite H in H'; inv H'
+          end); eauto. 
+Qed. 
 
 Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |p_transStep : forall C H t t', trans_step H t t' -> 
@@ -162,9 +191,14 @@ Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
               p_step C H (Single(None, nil, t)) C H 
                    (Par (Single(None, nil, fill E unit)) (Single(None, nil, e)))
 
-|p_abortStep : forall L S H L' C e e0 e', 
-           validate S L H 0 (abort e' L') ->
-           p_step C H (Single(Some(S, e0), L, e)) (plus 1 C) H (Single(Some(C, e0), L', e'))
+|p_abortStep : forall L S H L' C e e0 e' S', 
+           validate S L H S' (abort e' L') ->
+           p_step C H (Single(Some(S, e0), L, e))
+                  (plus 1 C) H (Single(Some(C, e0), L', e'))
+|p_fullAbortStep : forall L S H L' C e e0 e' S', 
+           validate S L H S' (abort e' L') ->
+           p_step C H (Single(Some(S, e0), L, e)) 
+                  (plus 1 C) H (Single(Some(C, e0), nil, e0))
 |p_allocStep : forall C H v E t l, 
                lookup H l = None -> decompose t E (alloc v) ->
                p_step C H (Single(None, nil, t)) (plus 1 C) ((l, v, C)::H)
@@ -174,10 +208,12 @@ Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                 p_step C H (Single(Some(S, e0), L, t)) (plus 1 C) H' (Single(None, nil, fill E v))
 |p_atomicStep : forall C H E e t, 
                 decompose t E (atomic e) ->
-                p_step C H (Single(None, nil, t)) (plus 1 C) H (Single(Some(C, fill E (inatomic e)), nil, fill E (inatomic e)))
+                p_step C H (Single(None, nil, t)) (plus 1 C) H 
+                       (Single(Some(C, fill E(inatomic e)),[],fill E (inatomic e)))
 |p_betaStep : forall C H E e t v, 
               decompose t E (app (lambda e) v) -> 
-              p_step C H (Single(None, nil, t)) C H (Single(None, nil, open e 0 v)). 
+              p_step C H (Single(None, nil, t)) C H
+                     (Single(None, nil, fill E (open e 0 v))). 
 
 Inductive p_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |p_multi_refl : forall C H T, p_multistep C H T C H T
@@ -196,8 +232,8 @@ Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
               decompose t E (fork e) ->
               f_step C H (Single(None, nil, t)) C H 
                    (Par (Single(None, nil, fill E unit)) (Single(None, nil, e)))
-|f_abortStep : forall L S H L' C e e0 e', 
-           validate S L H 0 (abort e' L') ->
+|f_abortStep : forall L S H L' C e e0 e' S', 
+           validate S L H S' (abort e' L') ->
            f_step C H (Single(Some(S, e0), L, e)) (plus 1 C) H (Single(Some(C, e0), nil, e0))
 |f_allocStep : forall C H v E t l, 
                lookup H l = None -> decompose t E (alloc v) ->
@@ -212,7 +248,8 @@ Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                        (Single(Some(C, fill E (inatomic e)), nil, fill E (inatomic e)))
 |f_betaStep : forall C H E e t v, 
               decompose t E (app (lambda e) v) -> 
-              f_step C H (Single(None, nil, t)) C H (Single(None, nil, open e 0 v)). 
+              f_step C H (Single(None, nil, t)) C H 
+                     (Single(None, nil, fill E (open e 0 v))). 
 
 Inductive f_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |f_multi_refl : forall C H T, f_multistep C H T C H T
@@ -230,14 +267,19 @@ Inductive trans_multistep H : thread -> thread -> Prop :=
                       trans_step H t t' -> trans_multistep H t' t'' ->
                       trans_multistep H t t''. 
 
+Inductive logWF : log -> Prop :=
+|nilWF : logWF nil
+|readWF : forall l E L, logLookup L l = None -> logWF L -> logWF (readItem l E::L)
+|writeWF : forall l v L, logWF L -> logWF (writeItem l v::L). 
+
 Inductive threadWF H : thread -> Prop :=
 |noTSValid : forall e, threadWF H (None, nil, e)
 |threadWFValid : forall S S' L e0 e H', 
-                   validate S L H S' (commit H') ->
+                   validate S L H S' (commit H') -> logWF L ->
                    trans_multistep H (Some(S,e0),nil,e0) (Some(S,e0),L,e) ->
                    threadWF H (Some(S, e0), L, e)
 |threadWFInvalid : forall S S' L L' e e0 e',
-                     validate S L H S' (abort e L') -> 
+                     validate S L H S' (abort e L') -> logWF L ->
                      trans_multistep H (Some(S,e0),nil,e0) (Some(S,e0),L',e) ->
                      threadWF H (Some(S,e0), L, e'). 
              

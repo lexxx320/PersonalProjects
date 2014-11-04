@@ -29,12 +29,18 @@ Proof.
   intros. dependent induction H0. 
   {constructor. }
   {inv H0. 
-   {econstructor. eapply t_readStep; eauto. omega. eauto. }
+   {econstructor. eapply t_readStep; eauto.  eauto. }
    {econstructor. eapply t_readInDomainStep; eauto. eauto. }
    {econstructor. eapply t_writeStep; eauto. intros c. inv c.  eauto. }
    {econstructor. eapply t_atomicIdemStep; eauto. intros c. inv c.  eauto. }
    {econstructor. eapply t_betaStep ;eauto. intros c. inv c. eauto. }
   }
+Qed. 
+
+
+Theorem logWFApp : forall L L', logWF(L++L') -> logWF L'. 
+Proof.
+  induction L; intros; auto. inv H; eauto.
 Qed. 
 
 Theorem p_stepWF : forall C H T C' H' T', 
@@ -64,19 +70,21 @@ Proof.
    intros. inv H0. inv H2. copy H1. eapply abortLogPostfix in H1. invertHyp. split.
    simpl. auto. InTac. invertHyp. simpl in H1. inv H2. 
    {eapply validateSameAns in H0; eauto. inv H0. }
-   {eapply abortSameAns in H0; eauto. invertHyp. copy H7.  
-    apply validateValidate in H7. invertHyp. copy H2. 
+   {eapply abortSameAns in H0; eauto. invertHyp. copy H8.  
+    apply validateValidate in H8. invertHyp. copy H2. 
     eapply validateNewerStamp in H2; eauto. econstructor. eauto. 
-    eapply trans_multiNewerStamp; eauto. }
+    eapply logWFApp; eauto. eapply trans_multiNewerStamp; eauto. }
   }
+  {constructor. inv H0. eapply monotonicWeakening. Focus 2. eauto. omega. 
+   intros. inv H2. split; auto. simpl. omega. repeat econstructor. }
   {constructor. inv H0. constructor. omega. auto. intros. inv H0. inv H3. split. 
    simpl. auto. constructor. }
   {inv H0. constructor. eapply validateMonotonic; eauto. intros. inv H0. 
    split. simpl. auto. constructor. }
   {econstructor. inv H0. eapply monotonicWeakening;[idtac|eauto]. omega. intros. 
-   inv H2. split. simpl. auto. econstructor. constructor. econstructor. }
+   inv H2. split. simpl. auto. econstructor. constructor. econstructor. constructor. }
   {constructor. inv H0. auto. intros. inv H2. split. simpl. auto. constructor. }
-  Grab Existential Variables. constructor.  
+  Grab Existential Variables. constructor.  constructor.
 Qed. 
 
 Theorem p_multistepWF : forall C H T C' H' T', 

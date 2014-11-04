@@ -61,21 +61,23 @@ Proof.
   {eapply IHtrans_multistep; auto. }
 Qed. 
 Theorem lookupSame : forall H' H l S S' C v v', 
+                       stampMonotonic C H ->
               Forall (fun x0 : location * term * stamp => getStamp x0 = C) H' ->
-              lookup H l = Some(v, S) -> S' < C -> S < C ->
+              lookup H l = Some(v, S) -> S' < C ->
               lookup (H'++H) l = Some(v',S') -> v' = v /\ S' = S. 
 Proof.
   induction H'; intros. 
-  {simpl in H4. eapply lookupDeterministic in H1; eauto. }
+  {simpl in *. rewrite H2 in H4. inv H4. auto. }
   {simpl in *. destruct a. destruct p. destruct (eq_nat_dec l l0). 
-   {inv H4. inv H0. simpl in *. omega. }
-   {inv H0. simpl in H8. eauto. }
+   {inv H1. inv H4. simpl in *.  omega. }
+   {inv H1. eauto. }
   }
 Qed. 
 
 Theorem lookupValid : forall L H H' H'' l v S E S' S'0 C,
               lookup H l = Some(v, S'0) -> 
-              validate S L (H'++H) S' (commit H'') -> S < C -> S'0 < C ->
+              validate S L (H'++H) S' (commit H'') -> S < C -> 
+              stampMonotonic C H ->
               Forall (fun x0 : location * term * stamp => getStamp x0 = C) H' ->
               In (readItem l E) L ->
               lookup (H'++H) l = Some(v,S'0).
@@ -83,25 +85,26 @@ Proof.
   induction L; intros. 
   {inv H5. }
   {inv H5. 
-   {inv H1. eapply lookupSame in H0. Focus 2. eauto. Focus 3. auto. Focus 3. 
-    eauto. invertHyp. auto. omega. }
-   {inv H1; eapply IHL; eauto. }
+   {inv H1. copy H13. eapply lookupSame in H13; eauto. Focus 2. omega. invertHyp.
+    auto. }
+   {inv H1; eauto. }
   }
 Qed. 
+
 
 Theorem trans_multiHeapExt : forall H H' S e0 e L S' L' e' C, 
                  trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') ->
                  (exists x, validate S L' (H'++H) S' (commit x)) ->
                  Forall (fun x0 : location * term * stamp => getStamp x0 = C) H' ->
-                 S < C ->
+                 S < C -> stampMonotonic C H ->
                  trans_multistep (H'++H) (Some(S,e0),L,e) (Some(S,e0),L',e').
 Proof.
   intros. dependent induction H0.  
   {constructor. }
   {inv H0. 
    {copy H1. eapply trans_multistepLogMonotonic in H0. Focus 2. simpl. left. auto.
-    invertHyp. eapply lookupValid in H12; eauto. econstructor.
-    eapply t_readStep; eauto. eauto. omega. }
+    invertHyp. eapply lookupValid in H13; eauto. econstructor.
+    eapply t_readStep; eauto. eauto. }
    {econstructor. eapply t_readInDomainStep; eauto. eauto. }
    {econstructor. eapply t_writeStep; eauto. eapply IHtrans_multistep; eauto. }
    {econstructor. eapply t_atomicIdemStep; eauto. eauto. }
@@ -170,7 +173,7 @@ Proof.
   {apply lengthsEq in x. repeat rewrite app_length in x. simpl in x. omega. }
   {inv H1; eauto. 
    {destruct L'. 
-    {inv H4. apply decomposeEq in H7. subst. auto. }
+    {inv H4. apply decomposeEq in H6. subst. auto. }
     {inv H4. eapply IHtrans_multistepL. auto. auto. }
    }
    {destruct L'. inv H3. eapply IHtrans_multistepL. auto. inv H3. auto. }
@@ -220,34 +223,35 @@ Qed.
 Theorem thread_wf_Extension : forall H H' t C, 
                  threadWF H t -> optLT (getThreadStamp t) C ->
                  Forall (fun x0 : location * term * stamp => getStamp x0 = C) H' ->
+                 stampMonotonic C H ->
                  threadWF (H'++H) t. 
 Proof. 
   intros. inv H0.  
   {constructor. } 
-  {simpl in H1. eapply validateHeapExtensionC in H3; eauto. inv H3. 
-   {invertHyp. econstructor. eauto. eapply trans_multiHeapExt; eauto. }
-   {invertHyp. eapply threadWFInvalid. eauto. eapply trans_multiHeapExt; eauto.
-    Focus 2. apply validateValidate in H3. eauto. apply getAbortedAct in H3.
-    invertHyp. rewrite transMultiLIff in H4. rewrite transMultiLIff. 
+  {simpl in H1. eapply validateHeapExtensionC in H4; eauto. inv H4. 
+   {invertHyp. econstructor. eauto. auto. eapply trans_multiHeapExt; eauto. }
+   {invertHyp. eapply threadWFInvalid. eauto. auto. eapply trans_multiHeapExt; eauto.
+    Focus 2. apply validateValidate in H4. eauto. apply getAbortedAct in H4.
+    invertHyp. rewrite transMultiLIff in H6. rewrite transMultiLIff. 
     eapply trans_multiShort. eauto. }
   }
-  {simpl in H1. copy H3. eapply validateHeapExtensionA in H3; eauto. inv H3. 
-   {eapply threadWFInvalid. eauto. copy H5. eapply validateValidate in H3. invertHyp. 
+  {simpl in H1. copy H4. eapply validateHeapExtensionA in H4; eauto. inv H4.  
+   {eapply threadWFInvalid. eauto. copy H5. auto. eapply validateValidate in H7. invertHyp. 
     eapply trans_multiHeapExt; eauto. }
-   {invertHyp. eapply threadWFInvalid. eauto. eapply trans_multiHeapExt; eauto.
-    Focus 2. apply validateValidate in H3. eauto. unfold postfix in H6. 
-    inversion H6. destruct x1.
-    {simpl in *. subst. eapply abortSameTerm in H3; eauto. subst. auto. }
-    {invertHyp. apply getAbortedAct in H3. invertHyp. apply abortLogPostfix in H0. 
+   {invertHyp. eapply threadWFInvalid; eauto. eapply trans_multiHeapExt; eauto.
+    Focus 2. apply validateValidate in H4. eauto. unfold postfix in H8. 
+    inversion H8. destruct x1.
+    {simpl in *. subst. eapply abortSameTerm in H4; eauto. subst. auto. }
+    {invertHyp. apply getAbortedAct in H4. invertHyp. apply abortLogPostfix in H0. 
      invertHyp. destrEnd x1. inv H0. 
-     {apply appMidEq in H3. invertHyp. rewrite transMultiLIff in H4. 
+     {apply appMidEq in H4. invertHyp. rewrite transMultiLIff in H6. 
       rewrite transMultiLIff. eapply trans_multiShort with (L':=nil). eauto. }
      {invertHyp. replace( x0 ++ (l :: x6 ++ [x7]) ++ x) with 
-                 ((x0 ++ l :: x6) ++ [x7] ++ x) in H3. Focus 2. simpl. 
-      repeat rewrite <- app_assoc. simpl. auto. apply appMidEq in H3. invertHyp. 
-      rewrite transMultiLIff in H4. rewrite transMultiLIff. 
+                 ((x0 ++ l :: x6) ++ [x7] ++ x) in H4. Focus 2. simpl. 
+      repeat rewrite <- app_assoc. simpl. auto. apply appMidEq in H4. invertHyp. 
+      rewrite transMultiLIff in H6. rewrite transMultiLIff. 
       eapply trans_multiShort with (L' := l::x6). simpl in *. 
-      rewrite <- app_assoc in H4. eauto. }
+      rewrite <- app_assoc in H6. eauto. }
     }
    }
   }
@@ -258,26 +262,33 @@ Theorem trans_stepWF : forall H t t',
 Proof.
   intros. inv H1. 
   {inv H0. 
-   {econstructor. eapply validateCommitRead; eauto.  eapply trans_multistep_trans. 
-    eassumption. econstructor. eapply t_readStep; eauto. constructor. }
-   {eapply threadWFInvalid. eapply validateAbortPropogate; eauto. auto. }
+   {destruct (lt_dec S' S). 
+    {econstructor. eapply validateCommitRead; eauto. constructor; auto. 
+     eapply trans_multistep_trans. 
+     eassumption. econstructor. eapply t_readStep; eauto. constructor. }
+    {apply not_lt in n. eapply threadWFInvalid. eapply validateAbortRead; eauto. 
+     constructor; auto. eapply trans_multistep_trans. eauto. apply decomposeEq in H2. 
+     subst. constructor. }
+   }
+   {eapply threadWFInvalid. eapply validateAbortPropogate; eauto. constructor; auto. 
+    auto. }
   }
   {inv H0. econstructor; eauto. eapply trans_multistep_trans. eassumption. 
    econstructor. eapply t_readInDomainStep; eauto. constructor. 
-   eapply threadWFInvalid. eauto.  eapply trans_multistep_trans. eassumption. 
-   econstructor. }
+   eapply threadWFInvalid; eauto. }
   {inv H0. exfalso. apply H3. auto. 
-   {econstructor. econstructor. eauto. eapply trans_multistep_trans. eauto. 
+   {econstructor. econstructor; eauto. constructor; auto. eapply trans_multistep_trans. eauto. 
     econstructor. eapply t_writeStep; eauto. constructor. }
-   {eapply threadWFInvalid. eapply validateAbortPropogate. eauto. auto. }
+   {eapply threadWFInvalid. eapply validateAbortPropogate. eauto. constructor; auto. 
+    auto. }
   }
   {inv H0. exfalso. apply H3. auto. 
-   {econstructor. eauto. eapply trans_multistep_trans. eauto. econstructor. 
+   {econstructor; eauto. eapply trans_multistep_trans. eauto. econstructor. 
     eapply t_atomicIdemStep; eauto. constructor. }
    {eapply threadWFInvalid; eauto. }
   }
   {inv H0. exfalso. apply H3. auto. 
-   {econstructor. eauto. eapply trans_multistep_trans. eauto. econstructor. 
+   {econstructor; eauto. eapply trans_multistep_trans. eauto. econstructor. 
     eapply t_betaStep; eauto. constructor. }
    {eapply threadWFInvalid; eauto. }
   }
@@ -313,13 +324,13 @@ Proof.
    constructor. inv H6. split; simpl; auto. constructor. }
   {constructor. inv H0. eapply monotonicWeakening. Focus 2. eauto. omega. 
    intros. inv H0. inv H2. copy H1. eapply abortLogPostfix in H1.
-   econstructor. simpl. auto. econstructor. constructor. constructor. }
+   econstructor. simpl. auto. econstructor. constructor. constructor. constructor. }
   {constructor. inv H0. constructor. omega. auto. intros. inv H0. inv H3. split. 
    simpl. auto. constructor. }
   {inv H0. constructor. eapply validateMonotonic; eauto. intros. inv H0. 
    split. simpl. auto. constructor. }
   {econstructor. inv H0. eapply monotonicWeakening;[idtac|eauto]. omega. intros. 
-   inv H2. split. simpl. auto. econstructor. constructor. econstructor. }
+   inv H2. split. simpl. auto. econstructor. constructor. econstructor. constructor. }
   {constructor. inv H0. auto. intros. inv H2. split. simpl. auto. constructor. }
   Grab Existential Variables. constructor. constructor. 
 Qed. 

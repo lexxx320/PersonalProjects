@@ -1,24 +1,41 @@
-Require Export p_stepWF. 
+Require Export partialImpliesFull.  
 
-Inductive OK H : thread -> thread -> Prop :=
-|noTXOk : forall e, OK H (None,nil,e) (None,nil,e)
-|commitCommitOK : forall S L L' S' H' H'' e0 e e',
-                    validate S L H S' (commit H') ->
-                    validate S L' H S' (commit H'') ->
-                    trans_multistep H (Some(S,e0),L,e) (Some(S,e0),L',e') ->
-                    OK H (Some(S,e0),L,e) (Some(S,e0),L',e')
-|commitAbortOK : forall S L L' S' H' e0 e e' L'' e'',
-                    validate S L H S' (commit H') ->
-                    validate S L' H S' (abort e'' L'') ->
-                    OK H (Some(S,e0),L,e) (Some(S,e0),L',e')
-|abortAbortOK : forall S L L' S' eAbort eAbort' LAbort LAbort' e0 e e',
-                    validate S L H S' (abort eAbort LAbort) ->
-                    validate S L' H S' (abort eAbort' LAbort') ->
-                    OK H (Some(S,e0),L,e) (Some(S,e0),L',e')   
-.
+Theorem fullImpliesPartial : forall C H T C' H' T', 
+                               f_step C H T C' H' T' ->
+                               p_step  C H T C' H' T'. 
+Proof.
+  intros. induction H0. 
+  {apply p_transStep; auto. }
+  {apply p_parLStep. auto. }
+  {apply p_parRStep; auto. }
+  {apply p_forkStep; auto. }
+  {eapply p_fullAbortStep; eauto. }
+  {apply p_allocStep; auto. }
+  {apply p_commitStep; auto. }
+  {apply p_atomicStep; auto. }
+  {eapply p_betaStep; auto. }
+Qed. 
 
-Inductive poolOK H : pool -> pool -> Prop :=
-|SingleOK : forall t t', OK H t t' -> poolOK H (Single t) (Single t')
-|ParOk : forall T1 T1' T2 T2', poolOK H T1 T1' -> poolOK H T2 T2' ->
-                          poolOK H (Par T1 T2) (Par T1' T2'). 
+Theorem fullImpliesPartialMulti : forall C H T C' H' T', 
+                               f_multistep C H T C' H' T' ->
+                               p_multistep  C H T C' H' T'. 
+Proof.
+  intros. induction H0. constructor. econstructor; eauto. 
+  apply fullImpliesPartial; auto. 
+Qed. 
+
+Theorem partialImpliesFullTopLevel : forall C T C' H' T', 
+                                       initPool T -> Finished T' -> 
+                                       (p_multistep C nil T C' H' T' <-> 
+                                       f_multistep C nil T C' H' T'). 
+Proof.
+  intros. split; intros. 
+  {apply partialImpliesFullTopLevel in H1; auto. }
+  {apply fullImpliesPartialMulti; auto. }
+Qed. 
+
+
+
+
+
 
