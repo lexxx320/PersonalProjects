@@ -1,0 +1,118 @@
+DIGEST 0e08362fef0d60c8a721717d7a882f9f
+Fast
+R15:32 Coq.Init.Datatypes <> <> lib
+R51:54 Coq.Lists.List <> <> lib
+ind 117:120 <> term
+constr 133:138 <> lambda
+constr 156:158 <> loc
+constr 175:178 <> unit
+constr 188:190 <> var
+constr 207:209 <> app
+constr 235:237 <> get
+constr 255:257 <> put
+constr 283:287 <> alloc
+constr 305:308 <> fork
+constr 326:331 <> atomic
+constr 349:356 <> inatomic
+R150:153 ast <> term ind
+R142:145 ast <> term ind
+R169:172 ast <> term ind
+R162:164 Coq.Init.Datatypes <> nat ind
+R182:185 ast <> term ind
+R201:204 ast <> term ind
+R194:196 Coq.Init.Datatypes <> nat ind
+R229:232 ast <> term ind
+R221:224 ast <> term ind
+R213:216 ast <> term ind
+R249:252 ast <> term ind
+R241:244 ast <> term ind
+R277:280 ast <> term ind
+R269:272 ast <> term ind
+R261:264 ast <> term ind
+R299:302 ast <> term ind
+R291:294 ast <> term ind
+R320:323 ast <> term ind
+R312:315 ast <> term ind
+R343:346 ast <> term ind
+R335:338 ast <> term ind
+R368:371 ast <> term ind
+R360:363 ast <> term ind
+ind 386:390 <> value
+constr 411:415 <> v_lam
+constr 447:451 <> v_loc
+constr 480:485 <> v_unit
+R394:397 ast <> term ind
+R429:433 ast <> value ind
+R436:441 ast <> lambda constr
+R443:443 ast <> e var
+R465:469 ast <> value ind
+R472:474 ast <> loc constr
+R476:476 ast <> n var
+R489:493 ast <> value ind
+R495:498 ast <> unit constr
+ind 513:516 <> ctxt
+constr 529:532 <> hole
+constr 542:548 <> appCtxt
+constr 574:583 <> appValCtxt
+constr 621:627 <> getCtxt
+constr 645:651 <> putCtxt
+constr 678:687 <> putValCtxt
+constr 725:733 <> allocCtxt
+constr 751:762 <> inatomicCtxt
+R536:539 ast <> ctxt ind
+R568:571 ast <> ctxt ind
+R560:563 ast <> ctxt ind
+R552:555 ast <> term ind
+R588:591 ast <> term ind
+R615:618 ast <> ctxt ind
+R607:610 ast <> ctxt ind
+R596:600 ast <> value ind
+R602:602 ast <> t var
+R639:642 ast <> ctxt ind
+R631:634 ast <> ctxt ind
+R671:674 ast <> ctxt ind
+R663:666 ast <> ctxt ind
+R655:658 ast <> term ind
+R692:695 ast <> term ind
+R719:722 ast <> ctxt ind
+R711:714 ast <> ctxt ind
+R700:704 ast <> value ind
+R706:706 ast <> t var
+R745:748 ast <> ctxt ind
+R737:740 ast <> ctxt ind
+R774:777 ast <> ctxt ind
+R766:769 ast <> ctxt ind
+def 793:800 <> location
+R805:807 Coq.Init.Datatypes <> nat ind
+def 821:825 <> stamp
+R830:832 Coq.Init.Datatypes <> nat ind
+ind 847:853 <> logItem
+constr 867:874 <> readItem
+constr 915:923 <> writeItem
+R906:912 ast <> logItem ind
+R898:901 ast <> term ind
+R890:893 ast <> ctxt ind
+R878:885 ast <> location def
+R947:953 ast <> logItem ind
+R939:942 ast <> term ind
+R927:934 ast <> location def
+def 970:972 <> log
+R977:980 Coq.Init.Datatypes <> list ind
+R982:988 ast <> logItem ind
+def 1005:1010 <> thread
+R1040:1042 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R1034:1036 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R1015:1020 Coq.Init.Datatypes <> option ind
+R1026:1028 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R1023:1025 Coq.Init.Datatypes <> nat ind
+R1029:1032 ast <> term ind
+R1037:1039 ast <> log def
+R1043:1046 ast <> term ind
+ind 1061:1064 <> pool
+constr 1078:1083 <> Single
+constr 1103:1105 <> Par
+R1097:1100 ast <> pool ind
+R1087:1092 ast <> thread def
+R1125:1128 ast <> pool ind
+R1117:1120 ast <> pool ind
+R1109:1112 ast <> pool ind

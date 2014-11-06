@@ -74,7 +74,7 @@ Ltac decompSame :=
        eapply decomposeDeterministic in H; eauto; invertHyp
   end.  
 
-(*fill an evaluation contenxt*)
+(*fill an evaluation context*)
 Fixpoint fill (E:ctxt) (e:term) := 
   match E with
       |appCtxt e' E => app (fill E e) e'
@@ -87,6 +87,10 @@ Fixpoint fill (E:ctxt) (e:term) :=
       |hole => e 
   end.
 
+(*
+commit H ==> indicates the log is valid and H contains the new writes from the log
+abort e L ==> log was invalid, resume execution at term e with log L
+*)
 Inductive validateRes : Type := 
 |commit : heap -> validateRes
 |abort : term -> log -> validateRes. 
@@ -110,6 +114,7 @@ Inductive validate : stamp -> log -> heap -> stamp -> validateRes -> Prop :=
                    validate S (writeItem l v::L) H S' (commit ((l, v, S')::H'))
 .
 
+(*lookup a term in a thread's write set*)
 Fixpoint logLookup (L:log) (l:location) :=
   match L with
       |readItem _ _ _::L' => logLookup L' l
@@ -135,7 +140,8 @@ Fixpoint open (e:term) (k:nat) (e':term) :=
       |atomic e => atomic (open e k e')
       |inatomic e => inatomic (open e k e')
   end. 
- 
+
+(*transactional step (used by both p_step and f_step)*) 
 Inductive trans_step (H:heap) : thread -> thread -> Prop :=
 |t_readStep : forall S L E l t v e0 S', 
                 decompose t E (get (loc l)) -> logLookup L l = None ->
@@ -185,11 +191,11 @@ Inductive replay H : thread -> thread -> Prop :=
                 replay_step H t t' -> replay H t' t'' -> 
                 replay H t t''. 
 
-
+(*left recursive version of replay*)
 Inductive rewind H : thread -> thread -> Prop :=
 |rewindRefl : forall t, rewind H t t
 |rewindStep : forall t t' t'', 
-                replay_step H t' t'' -> rewind H t t' -> 
+                rewind H t t' -> replay_step H t' t'' -> 
                 rewind H t t''. 
 
 (*If inversion produces the same hypothesis, skip it, otherwise invert all equalities*)
@@ -202,6 +208,7 @@ Ltac invertEq :=
       |H:?a = ?b |- _ => inv H
   end. 
 
+(*parital abort STM semantics (single step)*)
 Inductive p_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |p_transStep : forall C H t t', trans_step H t t' -> 
                            p_step C H (Single t) C H (Single t')
@@ -240,6 +247,7 @@ Inductive p_multistep : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
                 p_step C H T C' H' T' -> p_multistep C' H' T' C'' H'' T'' ->
                 p_multistep C H T C'' H'' T''. 
 
+(*full abort STM semantics (single step)*)
 Inductive f_step : nat -> heap -> pool -> nat -> heap -> pool -> Prop :=
 |f_transStep : forall C H t t', trans_step H t t' -> 
                            f_step C H (Single t) C H (Single t')
@@ -284,6 +292,8 @@ Inductive trans_multistep H : thread -> thread -> Prop :=
 
 Definition postfix {A:Type} (L1 L2 : list A) := exists diff, L2 = diff ++ L1. 
 
+(*all threads can rewind to their initial term of a transaction and have
+**a stamp number less than the global clock*)
 Inductive poolRewind C H : pool -> Prop :=
 |rewindSingleNoTX : forall e, poolRewind C H (Single(None,nil,e))
 |rewindSingleInTX : forall S e0 L e, 
@@ -309,6 +319,7 @@ Proof.
   {econstructor. eapply f_parRStep. eassumption. eassumption. }
 Qed. 
 
+(*validation is idempotent*)
 Theorem validateValidate : forall S L H S' L' e, 
                              validate S L H S' (abort e L') ->
                              exists H'', validate S L' H S' (commit H''). 
