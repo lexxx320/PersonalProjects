@@ -7,6 +7,7 @@ files=(hetList.v
        stepPreservesRewind.v
        partialImpliesFull.v
 	   fullImpliesPartial.v
+	partialEqFull.v
        )
 
 if [[ $* == *-clean* ]]; then
