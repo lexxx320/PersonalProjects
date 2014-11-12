@@ -1,0 +1,15 @@
+function distance((x1,y1),(x2,y2)) = sqrt((x2-x1)^2 + (y2-y1)^2) $
+
+function distancex((x1,y1),(x2,y2)) = 
+let d = sqrt((x2-x1)^2 + (y2-y1)^2)
+in if zerop(d) then 1e100 else d;
+
+function stupid_closest_pairs(a) =
+let
+    i = {min_index({distancex(pt1,pt2) : pt2 in a}) : pt1 in a}
+in {pt1,pt2: pt1 in a; pt2 in a->i};
+
+x = stupid_closest_pairs([(1.0, 2.0), (3.0, 4.0), (2.0, 3.0), (0.0, 0.0)]);
+
+
+
