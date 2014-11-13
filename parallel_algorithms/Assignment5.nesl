@@ -1,15 +1,60 @@
-function distance((x1,y1),(x2,y2)) = sqrt((x2-x1)^2 + (y2-y1)^2) $
+(*Work = O(n) and depth is O(log n) (because of min_val) *)
+function closest_mid(pnts, SX, SY, d, m) = 
+    let filtered = {(x, y) : (x, y) in SY | abs(x - m) <= d};
+        mins = {closestDist(i, SY) : i in [0:#SY]};  (*compares SY[i] to SY[i-4:i+4]*) 
+    in min_val(mins);
 
-function distancex((x1,y1),(x2,y2)) = 
-let d = sqrt((x2-x1)^2 + (y2-y1)^2)
-in if zerop(d) then 1e100 else d;
+(*W(n) = 2 * W(n/2) + O(n) = O(nlog n)
+**D(n) = D(n/2) + O(log n) = O(log^2 n) *)
+function cp(pnts, SX, SY) = 
+    if #pnts <= 3
+    then brute_force(pnts, SX, SY)
+    else let mid = median_x(sortedX);
+             spl = split(pnts, {x < mid : (x, y) in pnts});
+             splX = split(SX, {x < mid : (x, y) in SX});   (*assumes split preserves order*)
+             splY = split(SY, {x < mid : (x, y) in SY}); 
+             [r1, r2] = {cp(x,y,z) : x in spl, y in splX, z in splY};
+             d = min(r1, r2);
+             closest_mid(pnts, SX, SY, d, mid);
 
-function stupid_closest_pairs(a) =
-let
-    i = {min_index({distancex(pt1,pt2) : pt2 in a}) : pt1 in a}
-in {pt1,pt2: pt1 in a; pt2 in a->i};
+(*W(n) = 2 * W(n/2) + O(n) = O(nlog n)
+**D(n) = D(n/2) + O(log n) = O(log^2 n) *)
+function closest_points(pnts) = 
+    let SX = quicksort_along_x(pnts)
+        SY = quicksort_along_y(pnts)
+    in cp(pnts, SX, SY);        
+        
 
-x = stupid_closest_pairs([(1.0, 2.0), (3.0, 4.0), (2.0, 3.0), (0.0, 0.0)]);
+--------------------------------------------------------------------------------------------------
+
+(*Work = O(n) and depth is O(log n) (because of min_val) *)
+function closest_mid(pnts, SX, SY, d, m) = 
+    let filtered = {(x, y, z) : (x, y, z) in SY | abs(x - m) <= d};
+        mins = {closestDist(i, SY) : i in [0:#SY]}; (*compares SY[i] to SY[i-c:i+c]*) 
+    in min_val(mins);
+
+(*W(n) = 2 * W(n/2) + O(n) = O(nlog n)
+**D(n) = D(n/2) + O(log n) = O(log^2 n) *)
+function cp(pnts, SX, SY) = 
+    if #pnts <= 3
+    then brute_force(pnts, SX, SY)
+    else let mid = median_x(sortedX);
+             spl = split(pnts, {x < mid : (x, y, z) in pnts});
+             splX = split(SX, {x < mid : (x, y, z) in SX});   (*assumes split preserves order*)
+             splY = split(SY, {x < mid : (x, y, z) in SY}); 
+             splZ = split(SZ, {x < mid : (x, y, z) in SZ});
+             [r1, r2] = {cp(a,b,c,d) : a in spl, b in splX, c in splY, d in splZ};
+             d = min(r1, r2);
+             closest_mid(pnts, SX, SY, SZ, d, mid);
+
+(*W(n) = 2 * W(n/2) + O(n) = O(nlog n)
+**D(n) = D(n/2) + O(log n) = O(log^2 n) *)
+function closest_points(pnts) = 
+    let SX = quicksort_along_x(pnts)
+        SY = quicksort_along_y(pnts)
+        SZ = quicksort_along_z(pnts)
+    in cp(pnts, SX, SY, SZ);     
+
 
 
 
