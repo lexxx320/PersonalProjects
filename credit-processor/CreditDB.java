@@ -1,3 +1,6 @@
+/**
+* A database that maps vendors to their categories
+*/
 import java.util.*;
 import java.io.*;
 
@@ -25,8 +28,19 @@ public class CreditDB{
         }
     }   
 
+    //determines if an entry exists in the database
     public boolean inDB(Entry entry){
         return db.containsKey(entry.getVendor());
     }
+
+    //lookup the value of a key in the database
+    public String lookup(Entry entry){
+        return db.get(entry.getVendor());
+    }
+
+    //extend the database with this mapping
+    public void extend(Entry entry, String category){
+        db.put(entry.getVendor(), category);
+    }   
     
 }

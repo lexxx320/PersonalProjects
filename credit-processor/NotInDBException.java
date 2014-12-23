@@ -1,4 +1,6 @@
-
+/**
+* Exception indicating an entry was not found in the database
+*/
 
 class NotInDBException extends Exception{
     private Entry entry;

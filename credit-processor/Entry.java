@@ -3,15 +3,18 @@
 public class Entry{
     private String vendor;
     private String category;
+    private double amount;
 
-    public Entry(String vendor){
+    public Entry(String vendor, double amount){
         this.vendor = vendor;
         this.category = null;
+        this.amount = amount;
     }
 
-    public Entry(String vendor, String category){
+    public Entry(String vendor, String category, double amount){
         this.vendor = vendor;
         this.category = category;
+        this.amount = amount;
     }
 
     public String getVendor(){
@@ -28,6 +31,10 @@ public class Entry{
         }else{
             System.out.println("Warning: overwriting non-null category");
         }
+    }
+
+    public double getAmount(){
+        return amount;
     }
 }
 
