@@ -34,12 +34,19 @@ public class Main {
                 chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
                 chooser.showOpenDialog(null);
                 File f = chooser.getSelectedFile();
-                FileProcessor processor = new FileProcessor(f);    
+                FileProcessor processor;
+                try{
+                    processor = new FileProcessor(f);
+                }
+                catch(Exception e){
+                    return;  //Couldn't open file or IO error, do nothing...
+                }
                 while(!processor.done()){
                     try{
                         processor.process();
                     }catch(NotInDBException e){
                         //prompt user for input
+                        Entry entry = e.getEntry();
                     }
                 }
             }

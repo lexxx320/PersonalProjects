@@ -9,21 +9,17 @@ class FileProcessor{
     private LinkedList<Entry> unknown;   //items we ask the user to figure out
 
     //Constructor
-    public FileProcessor(File f){
+    public FileProcessor(File f) throws FileNotFoundException, IOException{
         contents = new LinkedList<Entry>();
         unknown = new LinkedList<Entry>();
         db = new CreditDB(); //reads credit-database.txt file
-        try{
-            reader = new BufferedReader(new FileReader(f));
-            String nextLine = reader.readLine();
-            while(nextLine != null){
-                //process line and add it to linked list (contents)
-                nextLine = reader.readLine();
-            }
-            current = contents.listIterator(0);
-        }catch(Exception e){
-            System.out.println("Couldn't open file\n");
+        reader = new BufferedReader(new FileReader(f));
+        String nextLine = reader.readLine();
+        while(nextLine != null){
+            //process line and add it to linked list (contents)
+            nextLine = reader.readLine();
         }
+        current = contents.listIterator(0);
     }
 
     public void process() throws NotInDBException {
@@ -36,6 +32,11 @@ class FileProcessor{
                 throw new NotInDBException(entry);
             }
         }
+    }
+
+    public void processWith(Entry entry, String category) {
+        //extend database
+        //update current linked list
     }
 
     //Done processing?
