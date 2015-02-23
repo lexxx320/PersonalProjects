@@ -14,12 +14,13 @@
 
 using namespace std;
 
+//Bucket representation
 typedef struct{
-    int y;
-    int x;
-    int dx;
-    int dy;
-    int sum;
+    int y;      //ymax value
+    int x;      //current x value
+    int dx;     //difference between x coordinate endpoints
+    int dy;     //difference between y coordinate endpoints
+    int sum;    //numerator of the fractional portion of x position
 } bucket;
 
 /**
@@ -39,7 +40,12 @@ Rasterizer::Rasterizer (int n) : n_scanlines (n)
 {
 }
 
-
+/**
+ * Remove any items that are out of scope of the current scan line
+ * 
+ * @param ael - active edge list
+ * @param y - the coordinate of the current scan line
+ */
 list<bucket*> filter(list <bucket*> ael, int y){
     for (list<bucket *>::iterator it = ael.begin(); it != ael.end(); it++){
         bucket * b = *it;
@@ -50,6 +56,11 @@ list<bucket*> filter(list <bucket*> ael, int y){
     return ael;
 }
 
+/**
+ * Update the x coordinates of each element of the active edges list
+ * 
+ * @param ael - active edge list
+ */
 void updateXs(list <bucket*>ael){
     for (list<bucket *>::iterator it = ael.begin(); it != ael.end(); it++){
         bucket * b = *it;
@@ -59,6 +70,14 @@ void updateXs(list <bucket*>ael){
     }
 }
 
+/**
+ * Used for comparing edges based on the x coordinate.
+ * If the x coordinates are the same, it defaults to the 
+ * inverse of the slopes of the two edges.
+ * 
+ * @param b1 - bucket / edge
+ * @param b2 - bucket / edge 
+ */
 bool lineLT(bucket * b1, bucket * b2){
     if(b1->x < b2->x){
         return true;
@@ -71,6 +90,12 @@ bool lineLT(bucket * b1, bucket * b2){
     }
 }
 
+/**
+ * Insert an edge into the current active edge list in sorted order
+ *
+ * @param yBucket - the edge to be inserted
+ * @param ael - active edge list
+ */
 list<bucket*> insert(list<bucket*> yBucket, list<bucket*> ael){
     for(list<bucket *>::iterator it = yBucket.begin(); it != yBucket.end(); it++){
         bucket * yb = *it;
@@ -136,23 +161,13 @@ void Rasterizer::drawPolygon(int n, int x[], int y[], simpleCanvas &C){
         for(list<bucket *>::iterator it = ael.begin(); it != ael.end(); it++){
             bucket * e1 = *it;
             it++;
-            if(it == ael.end()){
-                it = ael.begin();
-                bucket * e2 = *it;
-                int start = e1->sum == 0 ? e1->x : e1->x+1;
-                int end = e2->sum == 0 ? e2->x-1 : e2->x;
-                for(int x = start; x <= end; x++){
-                    C.setPixel(x, y);
-                }
-            }else{
-                bucket * e2 = *it;
-                int start = e1->sum == 0 ? e1->x : e1->x+1;
-                int end = e2->sum == 0 ? e2->x-1 : e2->x;
-                for(int x = start; x <= end; x++){
-                    C.setPixel(x, y);
-                }
+            bucket * e2 = *it;
+            int start = e1->sum == 0 ? e1->x : e1->x+1;
+            int end = e2->sum == 0 ? e2->x-1 : e2->x;
+            for(int x = start; x <= end; x++){
+                C.setPixel(x, y);
             }
-        }
+        }   
     }
 }
 
