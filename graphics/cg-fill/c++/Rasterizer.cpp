@@ -11,6 +11,7 @@
 #include "Rasterizer.h"
 #include "simpleCanvas.h"
 #include <list>
+#include <stdio.h>
 
 using namespace std;
 
@@ -29,7 +30,6 @@ typedef struct{
  *
  */
 
-
 /**
  * Constructor
  *
@@ -47,13 +47,17 @@ Rasterizer::Rasterizer (int n) : n_scanlines (n)
  * @param y - the coordinate of the current scan line
  */
 list<bucket*> filter(list <bucket*> ael, int y){
+    list <bucket*> result;
     for (list<bucket *>::iterator it = ael.begin(); it != ael.end(); it++){
+        
         bucket * b = *it;
-        if(b-> y == y){
-            ael.erase(it);
+        if(b->y != y){
+            result.push_back(b);
+        }else{
+            free(b);
         }
     }
-    return ael;
+    return result;
 }
 
 /**
@@ -155,9 +159,7 @@ void Rasterizer::drawPolygon(int n, int x[], int y[], simpleCanvas &C){
         ael = filter(ael, y);
         updateXs(ael);
         list <bucket*> yBucket = el[y];
-        //printf("before: ael size is %lu, yBucket size is %lu\n", ael.size(), yBucket.size());
         ael = insert(yBucket, ael);
-        //printf("after: ael size is %lu\n", ael.size());
         for(list<bucket *>::iterator it = ael.begin(); it != ael.end(); it++){
             bucket * e1 = *it;
             it++;
@@ -167,7 +169,7 @@ void Rasterizer::drawPolygon(int n, int x[], int y[], simpleCanvas &C){
             for(int x = start; x <= end; x++){
                 C.setPixel(x, y);
             }
-        }   
+        }
     }
 }
 
