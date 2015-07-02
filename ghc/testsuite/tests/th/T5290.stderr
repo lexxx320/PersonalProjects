@@ -1,0 +1,5 @@
+T5290.hs:(7,4)-(8,67): Splicing declarations
+    let n = mkName "T"
+    in return [DataD [] n [] [NormalC n [(Unpacked, ConT ''Int)]] []]
+  ======>
+    data T = T {-# UNPACK #-} !Int

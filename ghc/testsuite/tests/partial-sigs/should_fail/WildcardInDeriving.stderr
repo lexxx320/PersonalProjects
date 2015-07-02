@@ -1,0 +1,4 @@
+
+WildcardInDeriving.hs:5:22:
+    Unexpected wild card: ‘_’
+    In the data declaration for ‘Foo’

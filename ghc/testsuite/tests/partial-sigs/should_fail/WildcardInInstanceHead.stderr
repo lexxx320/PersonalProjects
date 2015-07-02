@@ -1,0 +1,4 @@
+
+WildcardInInstanceHead.hs:7:14:
+    Unexpected wild card: ‘_’
+    In the instance declaration for ‘Foo _’

@@ -1,0 +1,5 @@
+
+WildcardInDefault.hs:4:10:
+    Unexpected wild card: ‘_’
+    In a type in a `default' declaration: _
+    When checking the types in a default declaration

@@ -1,0 +1,6 @@
+
+WildcardInTypeFamilyInstanceRHS.hs:8:25:
+    Unexpected wild card: ‘_’
+    In the type ‘Maybe _’
+    In the type instance declaration for ‘Dual’
+    In the instance declaration for ‘Foo Int’

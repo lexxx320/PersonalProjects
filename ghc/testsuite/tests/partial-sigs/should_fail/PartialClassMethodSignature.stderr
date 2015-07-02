@@ -1,0 +1,5 @@
+
+PartialClassMethodSignature.hs:6:15:
+    Unexpected wild card: ‘_’
+    In the type ‘a -> _’
+    In the class declaration for ‘Foo’
