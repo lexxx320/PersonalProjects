@@ -1,5 +1,0 @@
-
-WildcardInGADT2.hs:5:17:
-    Unexpected wild card: ‘_’
-    In the definition of data constructor ‘Foo’
-    In the data declaration for ‘Foo’

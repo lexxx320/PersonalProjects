@@ -1,6 +1,0 @@
-
-ExtraConstraintsWildcardNotLast.hs:4:9:
-    Invalid partial type: (_, Eq a) => a -> a
-    An extra-constraints wild card must occur
-    at the end of the constraints
-    In the type signature for ‘foo’

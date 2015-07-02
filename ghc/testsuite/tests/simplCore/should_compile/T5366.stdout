@@ -1,1 +1,0 @@
-  \ (ds :: Bar) -> case ds of _ [Occ=Dead] { Bar dt dt1 -> I# dt }

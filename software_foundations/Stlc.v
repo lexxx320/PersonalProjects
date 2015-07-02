@@ -717,6 +717,7 @@ Tactic Notation "has_type_cases" tactic(first) ident(c) :=
 
 Hint Constructors has_type.
 
+
 (* ################################### *)
 (** *** Examples *)
 

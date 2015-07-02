@@ -1,6 +1,0 @@
-
-WildcardInGADT1.hs:5:19:
-    Unexpected wild card: ‘_’
-    In the type ‘Either a _’
-    In the definition of data constructor ‘Foo’
-    In the data declaration for ‘Foo’

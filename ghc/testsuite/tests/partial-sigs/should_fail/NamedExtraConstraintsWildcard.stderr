@@ -1,5 +1,0 @@
-
-NamedExtraConstraintsWildcard.hs:4:15:
-    Invalid partial type: (Eq a, _a) => a -> a
-    An extra-constraints wild card cannot be named
-    In the type signature for ‘foo’

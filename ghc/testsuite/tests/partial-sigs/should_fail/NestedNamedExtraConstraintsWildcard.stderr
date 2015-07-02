@@ -1,5 +1,0 @@
-
-NestedNamedExtraConstraintsWildcard.hs:4:23:
-    Invalid partial type: Bool -> (Eq a, _a) => a
-    An extra-constraints wild card cannot be named
-    In the type signature for ‘foo’

@@ -1,4 +1,0 @@
-
-WildcardInPatSynSig.hs:4:37:
-    Unexpected wild card: ‘_’
-    In the type signature for ‘Single’: Single :: _ -> [a]
